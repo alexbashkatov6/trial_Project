@@ -1,30 +1,66 @@
-#!/usr/bin/python3
-# -*- coding: utf-8 -*-
-
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget
-from PyQt5.QtGui import QIcon
+from PyQt5 import QtCore
+from PyQt5 import QtGui, QtWidgets
 
 
-class Example(QWidget):
-
-    def __init__(self):
-        super().__init__()
-
-        self.initUI()
+from PyQt5.QtWidgets import QApplication, QWidget, QInputDialog, QLineEdit, QFileDialog,QGraphicsView,QGraphicsScene,QVBoxLayout
 
 
-    def initUI(self):
 
-        self.setGeometry(300, 300, 300, 220)
-        self.setWindowTitle('Icon')
-        self.setWindowIcon(QIcon('icon.png'))
+from PyQt5.QtWidgets import (QApplication, QLabel, QWidget)
+from PyQt5.QtGui import QPainter, QColor, QPen
+from PyQt5.QtCore import Qt, QPoint, QSize
+from PyQt5.QtGui import QPainter, QPainterPath
+from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt5.QtWidgets import QMainWindow, QApplication
 
-        self.show()
+
+
+class Drawer(QWidget):
+    newPoint = pyqtSignal(QPoint)
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent)
+        self.path = QPainterPath()
+
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.drawPath(self.path)
+
+
+
+    def mousePressEvent(self, event):
+        self.path.moveTo(event.pos())
+        self.update()
+
+
+
+    def mouseMoveEvent(self, event):
+        self.path.lineTo(event.pos())
+        self.newPoint.emit(event.pos())
+        self.update()
+
+
+
+    def sizeHint(self):
+        return QSize(400, 400)
+
+
+
+class MyWidget(QWidget):
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent)
+        self.setLayout(QVBoxLayout())
+        label = QLabel(self)
+        drawer = Drawer(self)
+        drawer.newPoint.connect(lambda p: label.setText('Coordinates: ( %d : %d )' % (p.x(), p.y())))
+        self.layout().addWidget(label)
+        self.layout().addWidget(drawer)
+
 
 
 if __name__ == '__main__':
-
     app = QApplication(sys.argv)
-    ex = Example()
+    w = MyWidget()
+    w.show()
     sys.exit(app.exec_())
