@@ -1,7 +1,9 @@
 
+import engine_core as ec
 import sys
-from PyQt5.QtWidgets import QMainWindow, QTextEdit, QAction, QApplication
+from PyQt5.QtWidgets import QMainWindow, QTextEdit, QAction, QApplication, QToolBar
 from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt
 
 
 class Example(QMainWindow):
@@ -11,12 +13,12 @@ class Example(QMainWindow):
 
         self.initUI()
 
-
     def initUI(self):
 
         textEdit = QTextEdit()
         self.setCentralWidget(textEdit)
-
+        cs = ec.CoordinateSystem()
+        print(cs.Name)
         exitAction = QAction(QIcon('pictures/01_CS.jpg'), 'Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
@@ -28,8 +30,12 @@ class Example(QMainWindow):
         fileMenu = menubar.addMenu('&File')
         fileMenu.addAction(exitAction)
 
-        toolbar = self.addToolBar('Exit')
-        toolbar.addAction(exitAction)
+        qtb = QToolBar('Exit_1') #
+        qtb.addAction(exitAction)
+        self.addToolBar(qtb)
+        #toolbar = self.addToolBar('') #'Exit_SuperExit'
+        #toolbar = self.addToolBar(area=Qt.TopToolBarArea, toolbar=qtb) #LeftToolBarArea
+        #toolbar.addAction(exitAction)
 
         self.setGeometry(300, 300, 350, 250)
         self.setWindowTitle('Main window')
