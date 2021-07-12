@@ -1,0 +1,4 @@
+Npp;Name;Basis;Angle;Pnt_X;Pnt_Y
+1;BasisLine_Main;;0;0;0
+2;BasisLine_Plus_Angle;;10;0;0
+3;BasisLine_Minus_Angle;;-10;0;0

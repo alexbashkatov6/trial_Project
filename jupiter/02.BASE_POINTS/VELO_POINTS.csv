@@ -1,0 +1,16 @@
+Npp,Name,System,Coord,MoveLine
+1,Obuh_1_Begin_60,SK_Picket_AB,bp_coord:-INF,MoveLine_Ribats_4
+2,Obuh_1_60_to_100,SK_Picket_AB,PK_132+0,MoveLine_Ribats_4
+3,Izori_4_End_100,SK_Picket_AB,bp_coord:+INF,MoveLine_Ribats_4
+4,Obuh_2_Begin_60,SK_Picket_AB,bp_coord:-INF,MoveLine_Ribats_3
+5,Obuh_2_60_to_100,SK_Picket_AB,PK_132+0,MoveLine_Ribats_3
+6,Izori_3_End_100,SK_Picket_AB,bp_coord:+INF,MoveLine_Ribats_3
+7,Obuh_3_Begin_60,SK_Picket_AB,bp_coord:-INF,MoveLine_Ribats_2
+8,Obuh_3_60_to_120,SK_Picket_AB,PK_128+0,MoveLine_Ribats_2
+9,Izori_2_End_120,SK_Picket_AB,bp_coord:+INF,MoveLine_Ribats_2
+10,Obuh_4_Begin_40,SK_Picket_AB,bp_coord:-INF,MoveLine_Ribats_1
+11,Obuh_4_40_to_80,SK_Picket_AB,PK_119+0,MoveLine_Ribats_1
+12,Obuh_4_80_to_120,SK_Picket_AB,PK_129+0,MoveLine_Ribats_1
+13,Izori_1_End_120,SK_Picket_AB,bp_coord:+INF,MoveLine_Ribats_1
+14,Kupch_Begin_70,SK_Picket_AB,bp_coord:-INF,MoveLine_Ribats_Kupch
+15,Ribats_End_70,SK_Picket_AB,bp_coord:21,MoveLine_Ribats_Kupch

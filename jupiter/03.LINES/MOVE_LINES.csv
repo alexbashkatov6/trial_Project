@@ -1,0 +1,6 @@
+Npp;Name;Lines_List
+1;MoveLine_Ribats_1;[Line_Contin_Obuh_4, Line_Kirov_4, Line_1Put_Ribats, Line_PeregIzori_1, Line_Contin_Izori_1]
+2;MoveLine_Ribats_2;[Line_Contin_Obuh_3, Line_Kirov_3, Line_3CHP, Desc_6_8, Line_2Put_Ribats, Line_PeregIzori_2, Line_Contin_Izori_2]
+3;MoveLine_Ribats_3;[Line_Contin_Obuh_2, Line_Kirov_2, Line_3Put_Ribats, Line_Contin_Izori_3]
+4;MoveLine_Ribats_4;[Line_Contin_Obuh_1, Line_Kirov_1, Line_2Put_Ribats, Line_4Put_Ribats, Line_PeregIzori_4, Line_Contin_Izori_4]
+5;MoveLine_Ribats_Kupch;[Line_Kupchins, Line_6Put_Ribats]

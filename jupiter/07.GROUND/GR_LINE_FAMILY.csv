@@ -1,0 +1,4 @@
+Npp;Name;Angle;Pnt_X;Pnt_Y
+1;GroundLineFamily_Main;0;0;0
+2;GroundLineFamily_Plus_Angle;10;0;0
+3;GroundLineFamily_Minus_Angle;-10;0;0

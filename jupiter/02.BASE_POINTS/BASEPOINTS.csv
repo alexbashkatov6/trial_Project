@@ -1,0 +1,296 @@
+Npp;Name;OnPoint;FieldCoord;Line
+1;Point_Link_Obuh_Kirov_1;;FieldCoord( 'PK_123+75', CoordinateSystem_Picket_AB);GroundLine_2_Put
+2;Point_Link_Ribats_Kirov_1;;FieldCoord( 'PK_131+01' , CoordinateSystem_Picket_AB);GroundLine_2_Put
+3;Point_Link_Ribats_PeregIzori_2;;FieldCoord( 'PK_159+35' , CoordinateSystem_Picket_AB);GroundLine_2_Put
+4;Point_Link_Izori_PeregIzori_2;;FieldCoord( 'PK_184+38' , CoordinateSystem_Picket_AB);GroundLine_2_Put
+5;Point_Link_Obuh_Kirov_2;;FieldCoord( 'PK_117+00', CoordinateSystem_Picket_AB );GroundLine_3_Put
+6;Point_Link_Obuh_Kirov_3;;FieldCoord( 'PK_119+00' , CoordinateSystem_Picket_AB);GroundLine_3CHP
+7;Point_Link_Obuh_Kirov_4;;FieldCoord( 'PK_119+00', CoordinateSystem_Picket_AB );GroundLine_1_Put
+8;Point_Link_Ribats_Kirov_2;;FieldCoord( 'PK_129+23', CoordinateSystem_Picket_AB );GroundLine_3_Put
+9;Point_Link_Ribats_Kirov_3;;FieldCoord( 'PK_128+50', CoordinateSystem_Picket_AB );GroundLine_3CHP
+10;Point_Link_Ribats_Kirov_4;;FieldCoord( 'PK_129+23' , CoordinateSystem_Picket_AB);GroundLine_1_Put
+11;Point_Link_Ribats_PeregIzori_1;;FieldCoord( 'PK_159+35' , CoordinateSystem_Picket_AB);GroundLine_1_Put
+12;Point_Link_Ribats_Izori_3;;FieldCoord( 'PK_159+35', CoordinateSystem_Picket_AB );GroundLine_3_Put
+13;Point_Link_Ribats_PeregIzori_4;;FieldCoord( 'PK_159+35' , CoordinateSystem_Picket_AB);GroundLine_4_Put
+14;Point_Link_Izori_PeregIzori_1;;FieldCoord( 'PK_184+38', CoordinateSystem_Picket_AB );GroundLine_1_Put
+15;Point_Link_Izori_PeregIzori_4;;FieldCoord( 'PK_178+20', CoordinateSystem_Picket_AB );GroundLine_4_Put
+16;Point_Link_Kupch_PeregKupch;;FieldCoord( 'PK_36+07' , CoordinateSystem_Picket_Kupch);GroundLine_6_Put
+17;Point_Link_Ribats_PeregKupch;;FieldCoord( 'PK_12+50' , CoordinateSystem_Picket_Kupch);GroundLine_6_Put
+18;Point_Link_Ribats_Tpk_19;;FieldCoord(410, CoordinateSystem_EC);GroundLine_19_Tpk_ext
+19;Point_Link_Ribats_Tpk_17;;FieldCoord(413, CoordinateSystem_EC);GroundLine_17_Tpk
+20;Point_Link_Ribats_Pod_15;;FieldCoord(375, CoordinateSystem_EC);GroundLine_15_Pod
+21;Point_Link_Ribats_Tpk_5;;FieldCoord(342, CoordinateSystem_EC);GroundLine_5_Put
+22;Point_Link_Ribats_Tpk_9;;FieldCoord(770, CoordinateSystem_EC);GroundLine_9_Put
+23;Point_Link_Ribats_Tpk_10;;FieldCoord(770, CoordinateSystem_EC);GroundLine_10_Put
+24;Point_Link_Ribats_Pod_23;;FieldCoord(189, CoordinateSystem_EC);GroundLine_13_Pod
+25;Point_Link_Ribats_Pod_24;;FieldCoord(-67, CoordinateSystem_EC);GroundLine_24_Pod
+26;Point_Link_Ribats_Pod_33;;FieldCoord(28, CoordinateSystem_EC);GroundLine_33_Pod
+27;Point_Link_Ribats_Pod_21;;FieldCoord(228, CoordinateSystem_EC);GroundLine_21_Pod_ext
+28;Point_s10;;FieldCoord(-813, CoordinateSystem_EC);Line_2Put_Ribats
+29;Point_s8;;FieldCoord(-720, CoordinateSystem_EC);Line_2Put_Ribats
+30;Point_s16;;FieldCoord(-509, CoordinateSystem_EC);Line_2Put_Ribats
+31;Point_s28;;FieldCoord(-454, CoordinateSystem_EC);Line_2Put_Ribats
+32;Point_s34;;FieldCoord(-444, CoordinateSystem_EC);Line_2Put_Ribats
+33;Point_s32;;FieldCoord(-366, CoordinateSystem_EC);Line_2Put_Ribats
+34;Point_s38;;FieldCoord(-345, CoordinateSystem_EC);Line_2Put_Ribats
+35;Point_s23;;FieldCoord(781, CoordinateSystem_EC);Line_2Put_Ribats
+36;Point_s13;;FieldCoord(971, CoordinateSystem_EC);Line_2Put_Ribats
+37;Point_s9;;FieldCoord(1011, CoordinateSystem_EC);Line_2Put_Ribats
+38;Point_s3;;FieldCoord(1067, CoordinateSystem_EC);Line_2Put_Ribats
+39;Point_s2;;FieldCoord(-883, CoordinateSystem_EC);Line_3Put_Ribats
+40;Point_s6;;FieldCoord(-879, CoordinateSystem_EC);Line_3CHP
+41;Point_s4;;FieldCoord(-810, CoordinateSystem_EC);Line_1Put_Ribats
+42;Point_s12;;FieldCoord(-710, CoordinateSystem_EC);Line_6Put_Ribats
+43;Point_s14;;FieldCoord(-691, CoordinateSystem_EC);Line_6Put_Ribats
+44;Point_s18;;FieldCoord(-683, CoordinateSystem_EC);Line_1Put_Ribats
+45;Point_s22;;FieldCoord(-622, CoordinateSystem_EC);Line_6Put_Ribats
+46;Point_s20;;FieldCoord(-607, CoordinateSystem_EC);Line_3Put_Ribats
+47;Point_s24;;FieldCoord(-560, CoordinateSystem_EC);Line_8Put_Ribats
+48;Point_s26;;FieldCoord(-537, CoordinateSystem_EC);Line_1Put_Ribats
+49;Point_s30;;FieldCoord(-444, CoordinateSystem_EC);Line_1Put_Ribats
+50;Point_s36;;FieldCoord(-253, CoordinateSystem_EC);Line_6Put_Ribats
+51;Point_s40;;FieldCoord(-247, CoordinateSystem_EC);Line_6Put_Ribats
+52;Point_s44;;FieldCoord(-208, CoordinateSystem_EC);Line_8Put_Ribats
+53;Point_s42;;FieldCoord(-163, CoordinateSystem_EC);Line_7Put_Ribats
+54;Point_s46;;FieldCoord(-147, CoordinateSystem_EC);Line_8Put_Ribats
+55;Point_s48;;FieldCoord(-128, CoordinateSystem_EC);Line_21_Ribats
+56;Point_s50;;FieldCoord(-116, CoordinateSystem_EC);Line_21_Ribats
+57;Point_s52;;FieldCoord(-60, CoordinateSystem_EC);Line_21_Ribats
+58;Point_s54;;FieldCoord(-6, CoordinateSystem_EC);Line_13_Ribats
+59;Point_s47;;FieldCoord(8, CoordinateSystem_EC);Line_13_Ribats
+60;Point_s43;;FieldCoord(45, CoordinateSystem_EC);Line_11Put_Ribats
+61;Point_s45;;FieldCoord(52, CoordinateSystem_EC);Line_13_Ribats
+62;Point_s39;;FieldCoord(79, CoordinateSystem_EC);Line_3Put_Ribats
+63;Point_s41;;FieldCoord(112, CoordinateSystem_EC);Line_9Put_Ribats
+64;Point_s37;;FieldCoord(143, CoordinateSystem_EC);Line_19_Ribats
+65;Point_s35;;FieldCoord(145, CoordinateSystem_EC);Line_19_Ribats
+66;Point_s33;;FieldCoord(179, CoordinateSystem_EC);Line_19_Ribats
+67;Point_s31;;FieldCoord(430, CoordinateSystem_EC);Line_3Put_Ribats
+68;Point_s29;;FieldCoord(512, CoordinateSystem_EC);Line_1Put_Ribats
+69;Point_s27;;FieldCoord(692, CoordinateSystem_EC);Line_4Put_Ribats
+70;Point_s25;;FieldCoord(705, CoordinateSystem_EC);Line_4Put_Ribats
+71;Point_s21;;FieldCoord(781, CoordinateSystem_EC);Line_4Put_Ribats
+72;Point_s19;;FieldCoord(872, CoordinateSystem_EC);Line_7Put_Ribats
+73;Point_s15;;FieldCoord(881, CoordinateSystem_EC);Line_1Put_Ribats
+74;Point_s17;;FieldCoord(910, CoordinateSystem_EC);Line_4Put_Ribats
+75;Point_s11;;FieldCoord(931, CoordinateSystem_EC);Line_4Put_Ribats
+76;Point_s7;;FieldCoord(1022, CoordinateSystem_EC);Line_4Put_Ribats
+77;Point_s5;;FieldCoord(1076, CoordinateSystem_EC);Line_4Put_Ribats
+78;Point_s1;;FieldCoord(1130, CoordinateSystem_EC);Line_1Put_Ribats
+79;Point_FictivEnd_3CHP;;FieldCoord(-810, CoordinateSystem_EC);GroundLine_3CHP
+80;Point_1RC_Obuh_1CH3P;Point_Link_Obuh_Kirov_1;;
+81;Point_2RC_Obuh_2CH8P;Point_Link_Obuh_Kirov_2;;
+82;Point_3RC_Obuh_3CH3P;Point_Link_Obuh_Kirov_3;;
+83;Point_4RC_Obuh_4CH6P;Point_Link_Obuh_Kirov_4;;
+84;Point_1CH3P_1CH1P;;FieldCoord( 'PK_127+41', CoordinateSystem_Picket_AB );Line_Kirov_1
+85;Point_3CH3P_3CH1P;;FieldCoord( 'PK_123+75' , CoordinateSystem_Picket_AB);Line_Kirov_3
+86;Point_2CH8P_2CH6P;;FieldCoord( 'PK_119+55' , CoordinateSystem_Picket_AB);Line_Kirov_2
+87;Point_2CH6P_2CH4P;;FieldCoord( 'PK_124+85' , CoordinateSystem_Picket_AB);Line_Kirov_2
+88;Point_2CH4P_2CH2P;;FieldCoord( 'PK_126+50' , CoordinateSystem_Picket_AB);Line_Kirov_2
+89;Point_4CH6P_4CH4P;;FieldCoord( 'PK_121+53', CoordinateSystem_Picket_AB );Line_Kirov_4
+90;Point_4CH4P_4CH2P;;FieldCoord( 'PK_126+23' , CoordinateSystem_Picket_AB);Line_Kirov_4
+91;Point_1CH1P_1CHP;Point_Link_Ribats_Kirov_1;;
+92;Point_2CH2P_2CHDP;Point_Link_Ribats_Kirov_2;;
+93;Point_3CH1P_3CHP;Point_Link_Ribats_Kirov_3;;
+94;Point_4CH2P_4CHDP;Point_Link_Ribats_Kirov_4;;
+95;Point_1CHP_10SP;;FieldCoord(-865, CoordinateSystem_EC);Line_2Put_Ribats
+96;Point_10SP_6_8SP;;FieldCoord(-773, CoordinateSystem_EC);Line_2Put_Ribats
+97;Point_6_8SP_16_34SP;;FieldCoord(-642, CoordinateSystem_EC);Line_2Put_Ribats
+98;Point_16_34SP_32SP;;FieldCoord(-404, CoordinateSystem_EC);Line_2Put_Ribats
+99;Point_32SP_38SP;;FieldCoord(-349, CoordinateSystem_EC);Line_2Put_Ribats
+100;Point_38SP_2P;;FieldCoord(-281, CoordinateSystem_EC);Line_2Put_Ribats
+101;Point_2P_23SP;;FieldCoord(708, CoordinateSystem_EC);Line_2Put_Ribats
+102;Point_23SP_9_13SP;;FieldCoord(868, CoordinateSystem_EC);Line_2Put_Ribats
+103;Point_9_13SP_3SP;;FieldCoord(1028, CoordinateSystem_EC);Line_2Put_Ribats
+104;Point_3SP_2NDP;;FieldCoord(1188, CoordinateSystem_EC);Line_2Put_Ribats
+105;Point_3CHP_6_8SP;;FieldCoord(-882, CoordinateSystem_EC);Line_3CHP
+106;Point_4CHDP_4SP;;FieldCoord(-891, CoordinateSystem_EC);Line_1Put_Ribats
+107;Point_4SP_18_26SP;;FieldCoord(-687, CoordinateSystem_EC);Line_1Put_Ribats
+108;Point_18_26SP_30SP;;FieldCoord(-488, CoordinateSystem_EC);Line_1Put_Ribats
+109;Point_30SP_1P;;FieldCoord(-381, CoordinateSystem_EC);Line_1Put_Ribats
+110;Point_1P_29SP;;FieldCoord(438, CoordinateSystem_EC);Line_1Put_Ribats
+111;Point_29SP_1AP;;FieldCoord(545, CoordinateSystem_EC);Line_1Put_Ribats
+112;Point_1AP_15SP;;FieldCoord(877, CoordinateSystem_EC);Line_1Put_Ribats
+113;Point_15SP_1SP;;FieldCoord(1013, CoordinateSystem_EC);Line_1Put_Ribats
+114;Point_1SP_1NP;;FieldCoord(1149, CoordinateSystem_EC);Line_1Put_Ribats
+115;Point_2CHDP_2SP;;FieldCoord(-887, CoordinateSystem_EC);Line_3Put_Ribats
+116;Point_2SP_20SP;;FieldCoord(-714, CoordinateSystem_EC);Line_3Put_Ribats
+117;Point_20SP_3P;;FieldCoord(-567, CoordinateSystem_EC);Line_3Put_Ribats
+118;Point_3P_39SP;;FieldCoord(75, CoordinateSystem_EC);Line_3Put_Ribats
+119;Point_39SP_3AP;;FieldCoord(155, CoordinateSystem_EC);Line_3Put_Ribats
+120;Point_3AP_31SP;;FieldCoord(426, CoordinateSystem_EC);Line_3Put_Ribats
+121;Point_31SP_3NP;;FieldCoord(591, CoordinateSystem_EC);Line_3Put_Ribats
+122;Point_38SP_4P;;FieldCoord(-256, CoordinateSystem_EC);Line_4Put_Ribats
+123;Point_4P_27SP;;FieldCoord(613, CoordinateSystem_EC);Line_4Put_Ribats
+124;Point_27SP_25SP;;FieldCoord(702, CoordinateSystem_EC);Line_4Put_Ribats
+125;Point_25SP_21SP;;FieldCoord(743, CoordinateSystem_EC);Line_4Put_Ribats
+126;Point_21SP_17_19SP;;FieldCoord(785, CoordinateSystem_EC);Line_4Put_Ribats
+127;Point_17_19SP_11SP;;FieldCoord(914, CoordinateSystem_EC);Line_4Put_Ribats
+128;Point_11SP_5_7SP;;FieldCoord(982, CoordinateSystem_EC);Line_4Put_Ribats
+129;Point_5_7SP_4NDP;;FieldCoord(1120, CoordinateSystem_EC);Line_4Put_Ribats
+130;Point_5P_27SP;;FieldCoord(629, CoordinateSystem_EC);Line_5Put_Ribats
+131;Point_RC_Kupch_CHKGP;Point_Link_Kupch_PeregKupch;;
+132;Point_CHKGP_CHKAP;Point_Link_Ribats_PeregKupch;;
+133;Point_CHKAP_12SP;;FieldCoord(-827, CoordinateSystem_EC);Line_6Put_Ribats
+134;Point_12SP_14_24SP;;FieldCoord(-707, CoordinateSystem_EC);Line_6Put_Ribats
+135;Point_14_24SP_22_36P;;FieldCoord(-537, CoordinateSystem_EC);Line_6Put_Ribats
+136;Point_22_36P_36_40SP;;FieldCoord(-314, CoordinateSystem_EC);Line_6Put_Ribats
+137;Point_36_40SP_6P;;FieldCoord(-185, CoordinateSystem_EC);Line_6Put_Ribats
+138;Point_6P_21SP;;FieldCoord(716, CoordinateSystem_EC);Line_6Put_Ribats
+139;Point_14_24SP_7AP;;FieldCoord(-502, CoordinateSystem_EC);Line_7Put_Ribats
+140;Point_7AP_42SP;;FieldCoord(-224, CoordinateSystem_EC);Line_7Put_Ribats
+141;Point_42SP_7P;;FieldCoord(-152, CoordinateSystem_EC);Line_7Put_Ribats
+142;Point_7P_17_19SP;;FieldCoord(809, CoordinateSystem_EC);Line_7Put_Ribats
+143;Point_14_24SP_8AP;;FieldCoord(-485, CoordinateSystem_EC);Line_8Put_Ribats
+144;Point_8AP_44_48SP;;FieldCoord(-211, CoordinateSystem_EC);Line_8Put_Ribats
+145;Point_44_48SP_8P;;FieldCoord(-85, CoordinateSystem_EC);Line_8Put_Ribats
+146;Point_8P_17_19SP;;FieldCoord(792, CoordinateSystem_EC);Line_8Put_Ribats
+147;Point_39SP_33_37SP;;FieldCoord(140, CoordinateSystem_EC);Line_19_Ribats
+148;Point_33_37SP_M15P;;FieldCoord(350, CoordinateSystem_EC);Line_15_Ribats
+149;Point_M15P_GroundRC;;FieldCoord(375, CoordinateSystem_EC);Line_15_Ribats
+150;Point_33_37SP_GroundRC_17;;FieldCoord(246, CoordinateSystem_EC);Line_17_Ribats
+151;Point_33_37SP_GroundRC_19;;FieldCoord(246, CoordinateSystem_EC);Line_19_Ribats
+152;Point_6_8SP_GroundRC;Point_FictivEnd_3CHP;;
+153;Point_44_48SP_54SP;;FieldCoord(-67, CoordinateSystem_EC);Line_13_Ribats
+154;Point_54SP_43_47SP;;FieldCoord(4, CoordinateSystem_EC);Line_13_Ribats
+155;Point_43_47SP_41SP;;FieldCoord(100, CoordinateSystem_EC);Line_9Put_Ribats
+156;Point_41SP_9P;;FieldCoord(200, CoordinateSystem_EC);Line_9Put_Ribats
+157;Point_9P_GroundRC;;FieldCoord(767, CoordinateSystem_EC);Line_9Put_Ribats
+158;Point_41SP_10P;;FieldCoord(200, CoordinateSystem_EC);Line_10Put_Ribats
+159;Point_10P_GroundRC;;FieldCoord(767, CoordinateSystem_EC);Line_10Put_Ribats
+160;Point_43_47SP_M23P;;FieldCoord(164, CoordinateSystem_EC);Line_13_Ribats
+161;Point_M23P_GroundRC;;FieldCoord(189, CoordinateSystem_EC);Line_13_Ribats
+162;Point_43_47SP_11P;;FieldCoord(120, CoordinateSystem_EC);Line_11Put_Ribats
+163;Point_43_47SP_12P;;FieldCoord(115, CoordinateSystem_EC);Line_12Put_Ribats
+164;Point_11P_5_7SP;;FieldCoord(961, CoordinateSystem_EC);Line_11Put_Ribats
+165;Point_12P_5_7SP;;FieldCoord(1015, CoordinateSystem_EC);Line_12Put_Ribats
+166;Point_44_48SP_50SP;;FieldCoord(-124, CoordinateSystem_EC);Line_21_Ribats
+167;Point_50SP_GroundRC;;FieldCoord(-67, CoordinateSystem_EC);Line_24_Ribats
+168;Point_50SP_52SP;;FieldCoord(-63, CoordinateSystem_EC);Line_21_Ribats
+169;Point_52SP_M33P;;FieldCoord(3, CoordinateSystem_EC);Line_33_Ribats
+170;Point_M33P_GroundRC;;FieldCoord(28, CoordinateSystem_EC);Line_33_Ribats
+171;Point_52SP_M21_M31P;;FieldCoord(3, CoordinateSystem_EC);Line_21_Ribats
+172;Point_M21_M31P_M21P;;FieldCoord(203, CoordinateSystem_EC);Line_21_Ribats
+173;Point_M21P_GroundRC;;FieldCoord(228, CoordinateSystem_EC);Line_21_Ribats
+174;Point_GroundRC_44_48SP;Point_s48;;
+175;Point_GroundRC_54SP;Point_s54;;
+176;Point_GroundRC_33_37SP;Point_s37;;
+177;Point_10SP_12SP;;FieldCoord(-766, CoordinateSystem_EC);Line_Desc_10_12
+178;Point_14_24SP_16_34SP;;FieldCoord(-600, CoordinateSystem_EC);Line_Desc_14_16
+179;Point_16_34SP_36_40SP;;FieldCoord(-349, CoordinateSystem_EC);Line_Desc_34_36
+180;Point_36_40SP_42SP;;FieldCoord(-205, CoordinateSystem_EC);Line_Desc_40_42
+181;Point_2SP_4SP;;FieldCoord(-847, CoordinateSystem_EC);Line_Desc_2_4
+182;Point_18_26SP_20SP;;FieldCoord(-645, CoordinateSystem_EC);Line_Desc_18_20
+183;Point_18_26SP_16_34SP;;FieldCoord(-495, CoordinateSystem_EC);Line_Desc_26_28
+184;Point_30SP_32SP;;FieldCoord(-405, CoordinateSystem_EC);Line_Desc_30_32
+185;Point_31SP_29SP;;FieldCoord(471, CoordinateSystem_EC);Line_Desc_29_31
+186;Point_25SP_23SP;;FieldCoord(743, CoordinateSystem_EC);Line_Desc_23_25
+187;Point_11SP_9_13SP;;FieldCoord(971, CoordinateSystem_EC);Line_Desc_9_11
+188;Point_15SP_9_13SP;;FieldCoord(925, CoordinateSystem_EC);Line_Desc_13_15
+189;Point_3SP_1SP;;FieldCoord(1099, CoordinateSystem_EC);Line_Desc_1_3
+190;Point_3NP_3RC_Izori;Point_Link_Ribats_Izori_3;;
+191;Point_1NP_1N1P;Point_Link_Ribats_PeregIzori_1;;
+192;Point_2NDP_2N2P;Point_Link_Ribats_PeregIzori_2;;
+193;Point_4NDP_4N2P;Point_Link_Ribats_PeregIzori_4;;
+194;Point_1N1P_1N3P;;FieldCoord( 'PK_162+45' , CoordinateSystem_Picket_AB);Line_PeregIzori_1
+195;Point_1N3P_1N5P;;FieldCoord( 'PK_167+45' , CoordinateSystem_Picket_AB);Line_PeregIzori_1
+196;Point_1N5P_1N7P;;FieldCoord( 'PK_170+45' , CoordinateSystem_Picket_AB);Line_PeregIzori_1
+197;Point_1N7P_1N9P;;FieldCoord( 'PK_173+80', CoordinateSystem_Picket_AB );Line_PeregIzori_1
+198;Point_1N9P_1N11P;;FieldCoord( 'PK_178+50' , CoordinateSystem_Picket_AB);Line_PeregIzori_1
+199;Point_1N11P_1N13P;;FieldCoord( 'PK_181+50' , CoordinateSystem_Picket_AB);Line_PeregIzori_1
+200;Point_2N2P_2N4P;;FieldCoord( 'PK_162+35', CoordinateSystem_Picket_AB );Line_PeregIzori_2
+201;Point_2N4P_2N6P;;FieldCoord( 'PK_165+35', CoordinateSystem_Picket_AB );Line_PeregIzori_2
+202;Point_2N6P_2N8P;;FieldCoord( 'PK_167+75' , CoordinateSystem_Picket_AB);Line_PeregIzori_2
+203;Point_2N8P_2N10P;;FieldCoord( 'PK_170+75' , CoordinateSystem_Picket_AB);Line_PeregIzori_2
+204;Point_2N10P_2N12P;;FieldCoord( 'PK_173+70', CoordinateSystem_Picket_AB );Line_PeregIzori_2
+205;Point_2N12P_2N14P;;FieldCoord( 'PK_176+70' , CoordinateSystem_Picket_AB);Line_PeregIzori_2
+206;Point_2N14P_2N16P;;FieldCoord( 'PK_179+70' , CoordinateSystem_Picket_AB);Line_PeregIzori_2
+207;Point_4N2P_4N4P;;FieldCoord( 'PK_162+35' , CoordinateSystem_Picket_AB);Line_PeregIzori_4
+208;Point_4N4P_4N6P;;FieldCoord( 'PK_165+50', CoordinateSystem_Picket_AB );Line_PeregIzori_4
+209;Point_4N6P_4N8P;;FieldCoord( 'PK_168+50', CoordinateSystem_Picket_AB );Line_PeregIzori_4
+210;Point_4N8P_4N10P;;FieldCoord( 'PK_171+10' , CoordinateSystem_Picket_AB);Line_PeregIzori_4
+211;Point_4N10P_4N12P;;FieldCoord( 'PK_174+65' , CoordinateSystem_Picket_AB);Line_PeregIzori_4
+212;Point_1N13P_1RC_Izori;Point_Link_Izori_PeregIzori_1;;
+213;Point_2N16P_2RC_Izori;Point_Link_Izori_PeregIzori_2;;
+214;Point_4N12P_4RC_Izori;Point_Link_Izori_PeregIzori_4;;
+215;Point_M1;Point_3SP_2NDP;;
+216;Point_M2;Point_4CHDP_4SP;;
+217;Point_M3;Point_1SP_1NP;;
+218;Point_M4;Point_2CHDP_2SP;;
+219;Point_M5;Point_5_7SP_4NDP;;
+220;Point_M6;Point_3CHP_6_8SP;;
+221;Point_M7;Point_9_13SP_3SP;;
+222;Point_M8;Point_1CHP_10SP;;
+223;Point_M9;Point_17_19SP_11SP;;
+224;Point_M10;Point_CHKAP_12SP;;
+225;Point_M11;Point_23SP_9_13SP;;
+226;Point_M12;Point_12SP_14_24SP;;
+227;Point_M13;Point_27SP_25SP;;
+228;Point_M14;Point_4SP_18_26SP;;
+229;Point_M15;Point_33_37SP_M15P;;
+230;Point_M16;Point_6_8SP_16_34SP;;
+231;Point_M17;Point_33_37SP_GroundRC_17;;
+232;Point_M18;Point_14_24SP_22_36P;;
+233;Point_M19;Point_33_37SP_GroundRC_19;;
+234;Point_M20;Point_32SP_38SP;;
+235;Point_M21;Point_M21_M31P_M21P;;
+236;Point_M22;Point_22_36P_36_40SP;;
+237;Point_M23;Point_43_47SP_M23P;;
+238;Point_M24;Point_50SP_GroundRC;;
+239;Point_M25;Point_39SP_3AP;;
+240;Point_M27;Point_3P_39SP;;
+241;Point_M29;Point_54SP_43_47SP;;
+242;Point_M31;Point_52SP_M21_M31P;;
+243;Point_M33;Point_52SP_M33P;;
+244;Point_1CH;Point_Link_Ribats_Kirov_1;;
+245;Point_2CHD;Point_Link_Ribats_Kirov_2;;
+246;Point_3CH;Point_Link_Ribats_Kirov_3;;
+247;Point_4CHD;Point_Link_Ribats_Kirov_4;;
+248;Point_CHK;Point_Link_Ribats_PeregKupch;;
+249;Point_CHM1;Point_1P_29SP;;
+250;Point_CH1A;Point_1AP_15SP;;
+251;Point_CH2;Point_2P_23SP;;
+252;Point_CH3A;Point_3AP_31SP;;
+253;Point_CH4;Point_4P_27SP;;
+254;Point_CH5;Point_5P_27SP;;
+255;Point_CH6;Point_6P_21SP;;
+256;Point_CH7;Point_7P_17_19SP;;
+257;Point_CH8;Point_8P_17_19SP;;
+258;Point_CH11;Point_11P_5_7SP;;
+259;Point_CH12;Point_12P_5_7SP;;
+260;Point_CHM7A;Point_7AP_42SP;;
+261;Point_CHM8A;Point_8AP_44_48SP;;
+262;Point_N1;Point_30SP_1P;;
+263;Point_N2;Point_38SP_2P;;
+264;Point_N3;Point_20SP_3P;;
+265;Point_N4;;FieldCoord(-254, CoordinateSystem_EC);Line_4Put_Ribats
+266;Point_N6;Point_36_40SP_6P;;
+267;Point_N7;Point_42SP_7P;;
+268;Point_N7A;Point_14_24SP_7AP;;
+269;Point_NM8;Point_44_48SP_8P;;
+270;Point_N8A;Point_14_24SP_8AP;;
+271;Point_NM9_12;Point_54SP_43_47SP;;
+272;Point_NM3;Point_31SP_3NP;;
+273;Point_NM1A;Point_29SP_1AP;;
+274;Point_1N;Point_Link_Ribats_PeregIzori_1;;
+275;Point_2ND;Point_Link_Ribats_PeregIzori_2;;
+276;Point_3N;Point_Link_Ribats_Izori_3;;
+277;Point_4ND;Point_Link_Ribats_PeregIzori_4;;
+278;Point_O_CHR1;Point_Link_Obuh_Kirov_1;;
+279;Point_O_CHR2;Point_Link_Obuh_Kirov_2;;
+280;Point_O_CHR3;Point_Link_Obuh_Kirov_3;;
+281;Point_O_CHR4;Point_Link_Obuh_Kirov_4;;
+282;Point_O_2_4;Point_Link_Ribats_Kirov_4;;
+283;Point_O_2_2;;FieldCoord( 'PK_126+90' , CoordinateSystem_Picket_AB);Line_Kirov_2
+284;Point_I_CHD;Point_Link_Izori_PeregIzori_1;;
+285;Point_I_CH;Point_Link_Izori_PeregIzori_2;;
+286;Point_I_CHR;Point_Link_Izori_PeregIzori_4;;
+287;Point_I_CHDR;Point_Link_Ribats_Izori_3;;
+288;Point_I_2_2;;FieldCoord( 'PK_176+30' , CoordinateSystem_Picket_AB);Line_PeregIzori_2
+289;Point_I_4_2;;FieldCoord( 'PK_167+35' , CoordinateSystem_Picket_AB);Line_PeregIzori_2
+290;Point_I_6_2;Point_Link_Ribats_PeregIzori_2;;
+291;Point_I_2_4;;FieldCoord( 'PK_168+10' , CoordinateSystem_Picket_AB);Line_PeregIzori_4
+292;Point_I_4_4;Point_Link_Ribats_PeregIzori_4;;
+293;Point_I_1_1;;FieldCoord( 'PK_170+85' , CoordinateSystem_Picket_AB);Line_PeregIzori_1
+294;Point_I_3_1;;FieldCoord( 'PK_181+90' , CoordinateSystem_Picket_AB);Line_PeregIzori_1
+295;Point_PCHK;;FieldCoord(-2640, CoordinateSystem_EC);Line_Kupchins

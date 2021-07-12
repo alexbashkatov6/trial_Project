@@ -19,6 +19,7 @@ class Example(QMainWindow):
         self.setCentralWidget(textEdit)
         cs = ec.CoordinateSystem()
         print(cs.Name)
+        #CoordinateSystem_1
         exitAction = QAction(QIcon('pictures/01_CS.jpg'), 'Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
@@ -32,7 +33,7 @@ class Example(QMainWindow):
 
         qtb = QToolBar('Exit_1') #
         qtb.addAction(exitAction)
-        self.addToolBar(qtb)
+        self.addToolBar(Qt.LeftToolBarArea, qtb)
         #toolbar = self.addToolBar('') #'Exit_SuperExit'
         #toolbar = self.addToolBar(area=Qt.TopToolBarArea, toolbar=qtb) #LeftToolBarArea
         #toolbar.addAction(exitAction)

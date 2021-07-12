@@ -1,0 +1,5 @@
+Npp;Name;FieldCoord;RelCsCoDirect
+1;CoordinateSystem_Basis_1;;
+2;CoordinateSystem_EC;FieldCoord(0, CoordinateSystem_Basis_1);1
+3;CoordinateSystem_Picket_AB;FieldCoord(-14144, CoordinateSystem_EC);1
+4;CoordinateSystem_Picket_Kupch;FieldCoord(0, CoordinateSystem_EC);-1

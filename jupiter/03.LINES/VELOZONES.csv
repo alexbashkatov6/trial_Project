@@ -1,0 +1,11 @@
+Npp;Name;MoveLine;Point_Begin;Point_End;MaxVelocity
+1;Obuh_1_60;MoveLine_Ribats_4;Obuh_1_Begin_60;Obuh_1_60_to_100;60
+2;Obuh_1_100;MoveLine_Ribats_4;Obuh_1_60_to_100;Izori_4_End_100;100
+3;Obuh_2_60;MoveLine_Ribats_3;Obuh_2_Begin_60;Obuh_2_60_to_100;60
+4;Obuh_2_100;MoveLine_Ribats_3;Obuh_2_60_to_100;Izori_3_End_100;100
+5;Obuh_3_60;MoveLine_Ribats_2;Obuh_3_Begin_60;Obuh_3_60_to_120;60
+6;Obuh_3_120;MoveLine_Ribats_2;Obuh_3_60_to_120;Izori_2_End_120;120
+7;Obuh_4_40;MoveLine_Ribats_1;Obuh_4_Begin_40;Obuh_4_40_to_80;40
+8;Obuh_4_80;MoveLine_Ribats_1;Obuh_4_40_to_80;Obuh_4_80_to_120;80
+9;Obuh_4_120;MoveLine_Ribats_1;Obuh_4_80_to_120;Izori_1_End_120;120
+10;Kupch_70;MoveLine_Ribats_Kupch;Kupch_Begin_70;Ribats_End_70;70
