@@ -22,3 +22,16 @@
 
 
 
+class AttribCustom:
+	def __init__(self, isMain = False, isNecessar = False):
+		self.isMain = isMain
+		self.isNecessar = isNecessar
+
+class AttribGroup:
+	def __init__(self, attribsList = [], isActive = False):
+		self.attribsList = [] # list of attrCust
+		self.isActive = isActive
+	
+
+
+
