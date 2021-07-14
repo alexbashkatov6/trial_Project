@@ -1,42 +1,48 @@
 from PyQt5.QtWidgets import QMainWindow, QTextEdit, QAction, QToolBar
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 
 
-class Example(QMainWindow):
+class MW(QMainWindow):
+
+    actionTriggered = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
-
-        self.initUI()
-
-    def initUI(self):
+        #self.
 
         textEdit = QTextEdit()
         self.setCentralWidget(textEdit)
-        _01_Action = QAction(QIcon('pictures/01_CS.jpg'), 'Exit', self)
-        _02_Action = QAction(QIcon('pictures/02_GroundLine.jpg'), 'Exit', self)
-        _03_Action = QAction(QIcon('pictures/03_Point.jpg'), 'Exit', self)
-        _04_Action = QAction(QIcon('pictures/04_Line.jpg'), 'Exit', self)
+        picFolder = 'pictures'
+        self.pic_names = ['01_CS', '02_GroundLine', '03_Point', '04_Line']
+        self.actions_ = [QAction(QIcon('{}/{}.jpg'.format(picFolder, pic_name)), 'Exit', self)
+                         for pic_name in self.pic_names]
+        # self.actions_[0].triggered.connect()
+        list(map(lambda x: x.triggered.connect(self.actTriggered), self.actions_))
 
         self.statusBar()
 
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
-        fileMenu.addAction(_01_Action)
 
-        qtb = QToolBar('Exit_1') #
-        qtb.addAction(_01_Action)
-        qtb.addAction(_02_Action)
-        qtb.addAction(_03_Action)
-        qtb.addAction(_04_Action)
+
+        qtb = QToolBar('Exit_1')
+        qtb.addActions(self.actions_)
 
         self.addToolBar(Qt.LeftToolBarArea, qtb)
 
-        self.setGeometry(300, 300, 350, 250)
+        self.setGeometry(1000, 500, 550, 450)
         self.setWindowTitle('Main window')
         self.show()
 
-#csAction.setShortcut('Ctrl+Q')
-#csAction.setStatusTip('Exit application')
-#csAction.triggered.connect(self.close)
+    def actTriggered(self):
+        sender = self.sender()
+        self.actionTriggered.emit(self.pic_names[self.actions_.index(sender)]) #print(self.actions_.index(sender))
+
+# fileMenu.addAction(self._01_Action)
+# csAction.setShortcut('Ctrl+Q')
+# csAction.setStatusTip('Exit application')
+# csAction.triggered.connect(self.close)
+
+# sld.valueChanged.connect(lcd.display)
+# closeApp = pyqtSignal()
