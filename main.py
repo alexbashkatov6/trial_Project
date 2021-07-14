@@ -9,12 +9,12 @@ class Director(QObject):
     def __init__(self):
         super().__init__()
         self.mw = MW()
-        self.mm = MessagesManager()
+        self.mm = MessagesManager(self.mw)
         self.setConnections()
 
     def setConnections(self):
-        #self.mw.actionTriggered.connect(self.mm.infoMessage)
-        self.mw.actionTriggered.connect(self.printValue)
+        self.mw.actionTriggered.connect(self.mm.infoMessage)
+        #self.mw.actionTriggered.connect(self.printValue)
 
     def printSender(self):
         ex_sender = self.mw.sender()
