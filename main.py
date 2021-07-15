@@ -13,15 +13,8 @@ class Director(QObject):
         self.setConnections()
 
     def setConnections(self):
-        self.mw.actionTriggered.connect(self.mm.infoMessage)
-        #self.mw.actionTriggered.connect(self.printValue)
-
-    def printSender(self):
-        ex_sender = self.mw.sender()
-        print(ex_sender)
-
-    def printValue(self, val):
-        print(val)
+        # self.mw.ltb.sendClassName.connect(self.mm.infoMessage)
+        self.mw.ltb.sendClassName.connect(self.mw.rtb.setClassName)
 
 
 if __name__ == '__main__':

@@ -1,43 +1,141 @@
-from PyQt5.QtWidgets import QMainWindow, QTextEdit, QAction, QToolBar
+import sm_model_classes as smc
+import os
+import re
+from collections import OrderedDict
+from PyQt5.QtWidgets import QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
+    QVBoxLayout, QLabel, QGridLayout, QWidget
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot
 
+
+class ToolBarOfClasses(QToolBar):
+
+    sendClassName = pyqtSignal(str)
+
+    def __init__(self, min_size):
+        super().__init__()
+
+        # smc extraction
+        smc_classes_names = [i for i in dir(smc) if not i.startswith('__')]
+        smc_classes_attribs = OrderedDict()
+        for class_name in smc_classes_names:
+            od = OrderedDict()
+            for (key, val) in eval('smc.'+class_name).__dict__.items():
+                if not key.startswith('__'):
+                    od.update([(key, val)])
+            smc_classes_attribs.update([(class_name, od)])
+        print(smc_classes_attribs)
+
+        # active init
+        self.activeClassName = smc_classes_names[0]
+        active_od = smc_classes_attribs[self.activeClassName]
+        rand_elem_key = list(active_od.keys())[0]
+        self.activeAttrib = (rand_elem_key, active_od[rand_elem_key])
+        print(self.activeClassName, self.activeAttrib)
+
+        # pictures for tool icons extracting
+        self.pic_names = {}
+        nums_of_pict = []
+        rootPath = os.getcwd()
+        picFolder = 'pictures'
+        tree = os.walk(rootPath + '\\' + picFolder)
+        for d, dirs, files in tree:
+            for file in files:
+                file_without_extent = file[:file.rfind('.')]
+                assert bool(re.fullmatch(r'\d{2}_\w+', file_without_extent)), \
+                    'File of picture should be in format (d)(d)_(className), given {}'.format(file_without_extent)
+                file_prefix = file_without_extent[:file_without_extent.find('_')]
+                file_postfix = file_without_extent[file_without_extent.find('_') + 1:]
+                int_prefix = int(file_prefix)
+                assert int_prefix not in nums_of_pict, 'Num of pic file {} is repeating'.format(int_prefix)
+                nums_of_pict.append(int_prefix)
+                assert file_postfix in smc_classes_names, \
+                    'Class not found in file_postfix {}'.format(file_without_extent)
+                self.pic_names[int_prefix] = file_without_extent
+        self.pic_names_sorted_list = [self.pic_names[i] for i in sorted(self.pic_names)]
+
+        # Left tool bar format
+        #ltb = QToolBar('LeftToolBar')
+        self.setMinimumSize(min_size, min_size)
+        self.qb_list = []
+        for pic_name in self.pic_names_sorted_list:
+            icon = QIcon('{}/{}.jpg'.format(picFolder, pic_name))
+            qb = QPushButton(icon, '')
+            qb.setIconSize(QSize(min_size, min_size))
+            qb.setToolTip(pic_name[pic_name.find('_') + 1:])
+            qb.clicked.connect(self.actTriggered)
+            self.qb_list.append(qb)
+            self.addWidget(qb)
+
+    def actTriggered(self):
+        sender = self.sender()
+        long_name = self.pic_names_sorted_list[self.qb_list.index(sender)]
+        self.sendClassName.emit(long_name[long_name.index('_') + 1:])
+
+class ToolBarOfAttribs(QToolBar):
+
+    def __init__(self, min_size):
+        super().__init__()
+        # ql = QLabel('My text')
+        # vb = QVBoxLayout()
+        # vb.addWidget(ql)
+        # self.setLayout(vb)
+        #self.addWidget(self.activeClassLabel)
+
+        self.activeClassLabel = QLabel('< pick tool >')
+        self.activeClassLabel.setAlignment(Qt.AlignHCenter)
+        wgtVertical = QWidget()
+        self.setMinimumSize(min_size, min_size)
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.activeClassLabel)
+        wgtGrid = QWidget()
+        self.attribsGrid = QGridLayout()
+        wgtGrid.setLayout(self.attribsGrid)
+        vbox.addWidget(wgtGrid)
+        wgtVertical.setLayout(vbox)
+        self.addWidget(wgtVertical)
+
+        # self.activeClassLabel = QLabel('My text')
+        # vbox.addWidget(self.activeClassLabel)
+        # #self.attribsGrid = QGridLayout()
+        # self.setLayout(vbox)
+
+    @pyqtSlot(str)
+    def setClassName(self, val):
+        self.activeClassLabel.setText(val)
 
 class MW(QMainWindow):
 
-    actionTriggered = pyqtSignal(str)
-
     def __init__(self):
         super().__init__()
-        #self.
 
+
+        # widgets params
+        left_toolbar_min_height_width = 50
+        right_toolbar_min_height_width = 150
+
+        # central wgt
         textEdit = QTextEdit()
         self.setCentralWidget(textEdit)
-        picFolder = 'pictures'
-        self.pic_names = ['01_CS', '02_GroundLine', '03_Point', '04_Line']
-        self.actions_ = [QAction(QIcon('{}/{}.jpg'.format(picFolder, pic_name)), 'Exit', self)
-                         for pic_name in self.pic_names]
-        # self.actions_[0].triggered.connect()
-        list(map(lambda x: x.triggered.connect(self.actTriggered), self.actions_))
+
+        # Left tool bar format
+        self.ltb = ToolBarOfClasses(left_toolbar_min_height_width)
+
+        # Right tool bar format
+        self.rtb = ToolBarOfAttribs(right_toolbar_min_height_width)
+
+        self.addToolBar(Qt.LeftToolBarArea, self.ltb)
+        self.addToolBar(Qt.RightToolBarArea, self.rtb)
 
         self.statusBar()
 
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
 
-
-        qtb = QToolBar('Exit_1')
-        qtb.addActions(self.actions_)
-
-        self.addToolBar(Qt.LeftToolBarArea, qtb)
-
         self.setGeometry(1000, 500, 550, 450)
         self.setWindowTitle('Main window')
         self.show()
 
-    def actTriggered(self):
-        sender = self.sender()
-        self.actionTriggered.emit(self.pic_names[self.actions_.index(sender)]) #print(self.actions_.index(sender))
 
 # fileMenu.addAction(self._01_Action)
 # csAction.setShortcut('Ctrl+Q')
@@ -46,3 +144,6 @@ class MW(QMainWindow):
 
 # sld.valueChanged.connect(lcd.display)
 # closeApp = pyqtSignal()
+
+# smc_classes_attribs = {class_name: {key: val for (key, val) in eval('smc.'+class_name).__dict__.items()
+#                                     if not key.startswith('__')} for class_name in smc_classes_names}
