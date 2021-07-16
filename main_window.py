@@ -1,7 +1,8 @@
-import sm_model_classes as smc
+import current_edit as ce
+
 import os
 import re
-from collections import OrderedDict
+
 from PyQt5.QtWidgets import QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
     QVBoxLayout, QLabel, QGridLayout, QWidget
 from PyQt5.QtGui import QIcon
@@ -11,34 +12,17 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot
 class ToolBarOfClasses(QToolBar):
 
     sendClassName = pyqtSignal(str)
+    picFolder = 'pictures'
 
-    def __init__(self, min_size):
+    def __init__(self):
         super().__init__()
 
-        # smc extraction
-        smc_classes_names = [i for i in dir(smc) if not i.startswith('__')]
-        smc_classes_attribs = OrderedDict()
-        for class_name in smc_classes_names:
-            od = OrderedDict()
-            for (key, val) in eval('smc.'+class_name).__dict__.items():
-                if not key.startswith('__'):
-                    od.update([(key, val)])
-            smc_classes_attribs.update([(class_name, od)])
-        print(smc_classes_attribs)
-
-        # active init
-        self.activeClassName = smc_classes_names[0]
-        active_od = smc_classes_attribs[self.activeClassName]
-        rand_elem_key = list(active_od.keys())[0]
-        self.activeAttrib = (rand_elem_key, active_od[rand_elem_key])
-        print(self.activeClassName, self.activeAttrib)
-
+    def extractPictures(self, classes_names):
         # pictures for tool icons extracting
-        self.pic_names = {}
+        pic_names = {}
         nums_of_pict = []
         rootPath = os.getcwd()
-        picFolder = 'pictures'
-        tree = os.walk(rootPath + '\\' + picFolder)
+        tree = os.walk(rootPath + '\\' + self.picFolder)
         for d, dirs, files in tree:
             for file in files:
                 file_without_extent = file[:file.rfind('.')]
@@ -49,17 +33,16 @@ class ToolBarOfClasses(QToolBar):
                 int_prefix = int(file_prefix)
                 assert int_prefix not in nums_of_pict, 'Num of pic file {} is repeating'.format(int_prefix)
                 nums_of_pict.append(int_prefix)
-                assert file_postfix in smc_classes_names, \
+                assert file_postfix in classes_names, \
                     'Class not found in file_postfix {}'.format(file_without_extent)
-                self.pic_names[int_prefix] = file_without_extent
-        self.pic_names_sorted_list = [self.pic_names[i] for i in sorted(self.pic_names)]
+                pic_names[int_prefix] = file_without_extent
+        self.pic_names_sorted_list = [pic_names[i] for i in sorted(pic_names)]
 
-        # Left tool bar format
-        #ltb = QToolBar('LeftToolBar')
+    def constructWidget(self, min_size):
         self.setMinimumSize(min_size, min_size)
         self.qb_list = []
         for pic_name in self.pic_names_sorted_list:
-            icon = QIcon('{}/{}.jpg'.format(picFolder, pic_name))
+            icon = QIcon('{}/{}.jpg'.format(self.picFolder, pic_name))
             qb = QPushButton(icon, '')
             qb.setIconSize(QSize(min_size, min_size))
             qb.setToolTip(pic_name[pic_name.find('_') + 1:])
@@ -76,11 +59,6 @@ class ToolBarOfAttribs(QToolBar):
 
     def __init__(self, min_size):
         super().__init__()
-        # ql = QLabel('My text')
-        # vb = QVBoxLayout()
-        # vb.addWidget(ql)
-        # self.setLayout(vb)
-        #self.addWidget(self.activeClassLabel)
 
         self.activeClassLabel = QLabel('< pick tool >')
         self.activeClassLabel.setAlignment(Qt.AlignHCenter)
@@ -94,11 +72,6 @@ class ToolBarOfAttribs(QToolBar):
         vbox.addWidget(wgtGrid)
         wgtVertical.setLayout(vbox)
         self.addWidget(wgtVertical)
-
-        # self.activeClassLabel = QLabel('My text')
-        # vbox.addWidget(self.activeClassLabel)
-        # #self.attribsGrid = QGridLayout()
-        # self.setLayout(vbox)
 
     @pyqtSlot(str)
     def setClassName(self, val):
@@ -118,8 +91,13 @@ class MW(QMainWindow):
         textEdit = QTextEdit()
         self.setCentralWidget(textEdit)
 
+        # ce
+        self.ce = ce.CurrentEdit()
+
         # Left tool bar format
-        self.ltb = ToolBarOfClasses(left_toolbar_min_height_width)
+        self.ltb = ToolBarOfClasses()
+        self.ltb.extractPictures(self.ce.extractedClasses)
+        self.ltb.constructWidget(left_toolbar_min_height_width)
 
         # Right tool bar format
         self.rtb = ToolBarOfAttribs(right_toolbar_min_height_width)
