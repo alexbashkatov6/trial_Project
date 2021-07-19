@@ -4,7 +4,7 @@ import os
 import re
 
 from PyQt5.QtWidgets import QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
-    QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter
+    QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect
 
@@ -65,6 +65,9 @@ class ToolBarOfAttribs(QToolBar):
         self.setMinimumSize(min_size, min_size)
         vbox = QVBoxLayout()
         vbox.addWidget(self.activeClassLabel)
+        self.creationMethod = QComboBox()
+        self.creationMethod.addItems(['first', 'second', 'third'])
+        vbox.addWidget(self.creationMethod)
         wgtGrid = QWidget()
         self.attribsGrid = QGridLayout()
         for i in range(3):

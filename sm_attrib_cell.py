@@ -1,6 +1,6 @@
 class CellEval:
     def __init__(self):
-        self.candidateValue = None
+        self.strValue = None
         self.value = None
         self.evalStatus = False
         self.expectedType = None
@@ -10,10 +10,10 @@ class ComplexAttrib:
     def __init__(self):
         self.name = None
         self.isCompulsory = False
-        self.cell = CellEval()
         self.expectedType = None
         self.isIterable = False
         self.isRepeatable = False
+        self.cell = CellEval()
 
 
 class AttribsGroup:
