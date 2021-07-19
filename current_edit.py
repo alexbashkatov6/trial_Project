@@ -8,6 +8,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 class CurrentEdit(QObject):
 
     sendClassNameStr = pyqtSignal(str)
+    # sendActiveAttribNameStr = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
@@ -26,11 +27,31 @@ class CurrentEdit(QObject):
 
         # active init
         self.activeClassName = smc_classes_names[0]
-        active_od = smc_classes_attribs[self.activeClassName]
+        self.activeAttribName = ''
+        active_od = self.extractedAttribs[self.activeClassName]
         rand_elem_key = list(active_od.keys())[0]
-        self.activeAttrib = (rand_elem_key, active_od[rand_elem_key])
+        self.activeAttribName = rand_elem_key
+        # self.refreshAttribs()
+        # active_od = self.extractedAttribs[self.activeClassName]
+        # rand_elem_key = list(active_od.keys())[0]
+        # self.activeAttribName = rand_elem_key
 
     @pyqtSlot(str)
     def setClassName(self, val):
         self.activeClassName = val
         self.sendClassNameStr.emit(val)
+        # self.refreshAttribs()
+
+    # def refreshAttribs(self):
+    #     active_od = self.extractedAttribs[self.activeClassName]
+    #     rand_elem_key = list(active_od.keys())[0]
+    #     self.activeAttribName = rand_elem_key
+    #     # self.activeAttrib = (rand_elem_key, active_od[rand_elem_key])
+    #     # print(self.activeAttrib)
+    #
+    # @pyqtSlot(str)
+    # def setActiveAttribName(self, val):
+    #     self.activeAttribName = val
+    #     self.sendActiveAttribNameStr.emit(val)
+
+
