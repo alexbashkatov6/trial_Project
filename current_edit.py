@@ -1,4 +1,4 @@
-import sm_model_classes as smc
+import sm_SCRATCH_model_classes as smc
 
 from collections import OrderedDict
 

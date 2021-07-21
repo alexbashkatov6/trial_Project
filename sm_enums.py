@@ -1,5 +1,6 @@
 class SmEnum:
     EvalStatus = {'not_eval', 'eval_success', 'eval_failed'}
+    FieldAxis = {'X', 'Y'}
 
 
 class OneOf:

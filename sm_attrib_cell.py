@@ -50,7 +50,8 @@ class TypedCell:
                 self.value = None
                 self.evalValueStatus.value = 'eval_success'
                 return
-            if type(self.inValue) == str:
+            if (type(self.inValue) == str) and \
+                    not ((type(self.expectedType) in [list, set]) and (self.inValue in self.expectedType)):
                 try:
                     self.value = eval(self.inValue)
                 except NameError:
@@ -124,23 +125,19 @@ class ComplexAttrib:
 
 
 class AttribGroup:
-    def __init__(self):
-        self.name = None
-        self.attribs = None
-        self.mainAttr = None
-        self.isActive = None
+    def __init__(self, name=None, complexAttribs=None, mainAttrName=None, isActive=False):
+        if complexAttribs is None:
+            complexAttribs = []
+        self.name = name
+        self.complexAttribs = complexAttribs
+        self.mainAttrName = mainAttrName
+        self.isActive = isActive
 
 
 class CompetitorAttribGroup:
-    def __init__(self):
-        self.name = None
-        self.attribGroups = []
+    def __init__(self, name=None, attribGroups=None):
+        if attribGroups is None:
+            attribGroups = []
+        self.name = name
+        self.attribGroups = attribGroups
 
-    # def activate(self):
-    #     pass
-    #
-    # def deactivate(self):
-    #     pass
-
-    # def addMethod(self, methodName, attrGroup):
-    #     self.methods[methodName] = attrGroup

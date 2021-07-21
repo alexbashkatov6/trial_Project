@@ -1,4 +1,5 @@
 from main_window import MW
+from sm_data_storage import DataStorage
 from messages import MessagesManager
 import sys
 from PyQt5.QtWidgets import QApplication
@@ -9,6 +10,7 @@ class Director(QObject):
     def __init__(self):
         super().__init__()
         self.mw = MW()
+        self.ds = DataStorage()
         self.mm = MessagesManager(self.mw)
         self.setConnections()
 
