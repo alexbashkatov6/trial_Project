@@ -6,19 +6,10 @@ class TypedCell:
         self.inValue = None
         self.value = None
         self.isIterable = False
-        self.inExpectedType = None
-        self.expectedType = None
+        self.expectedType = expType
         self.evalValueStatus = OneOf(SmEnum.EvalStatus, 'not_eval')
-        self.evalTypeStatus = OneOf(SmEnum.EvalStatus, 'not_eval')
         assert type(intEqFloat) == bool, 'Expected bool type for intEqFloat'
         self.intEqFloat = intEqFloat
-
-        assert (expType is None) or (type(expType) == str) or (type(expType) in [list, set]), \
-            'Expected str type or None or list/set for exp-type, given {}'.format(expType)
-        self.inExpectedType = expType
-        if (expType is None) or (expType == 'str') or (type(expType) in [list, set]):
-            self.expectedType = expType
-            self.evalTypeStatus.value = 'eval_success'
 
         self.setValue(val)
 
@@ -53,21 +44,8 @@ class TypedCell:
             self.value = val
             self.evalValueStatus.value = 'eval_success'
 
-    def checkExpectedType(self):
-        if not (self.evalTypeStatus.value == 'eval_success'):
-            self.expectedType = eval(self.inExpectedType)
-            self.evalTypeStatus.value = 'eval_success'
-
     def checkValue(self):
-        if not (self.evalTypeStatus.value == 'eval_success'):
-            raise ValueError('Needed type is not evaluated yet')
         if not (self.evalValueStatus.value == 'eval_success'):
-            if type(self.expectedType) in [list, set]:
-                assert self.inValue in self.expectedType, 'Given value {} not in iterable {}' \
-                    .format(self.inValue, self.expectedType)
-                self.value = self.inValue
-                self.evalValueStatus.value = 'eval_success'
-                return
             if self.strIsEmpty(self.inValue) or (self.inValue is None):
                 self.value = None
                 self.evalValueStatus.value = 'eval_success'
@@ -82,6 +60,12 @@ class TypedCell:
                 self.value = self.inValue
             if self.checkIterableValue(self.value):
                 self.isIterable = True
+                self.evalValueStatus.value = 'eval_success'
+                return
+            if type(self.expectedType) in [list, set]:
+                assert self.value in self.expectedType, 'Given value {} not in iterable {}' \
+                    .format(self.value, self.expectedType)
+                self.evalValueStatus.value = 'eval_success'
                 return
             if self.intEqFloat:
                 self.value = self.convertNum(self.value, self.expectedType)
@@ -92,30 +76,51 @@ class TypedCell:
 
 
 class ComplexAttrib:
-    def __init__(self, name=None, val=None, expEachType=None):
+    def __init__(self, name=None, expEachType=None, multi=False):  # , val=None
         self.name = name
-        self.candidateValue = val
+        assert type(multi) == bool, 'Expected multi is bool'
+        self.multiValue = multi
         self.isCompulsory = True
-        self.multiValue = False
-        self.repeatableValue = False
-        self.expectedTypeEachCell = expEachType
-        self.evalStatusCommon = OneOf(SmEnum.EvalStatus, 'not_eval')
-        self.cells = []  # TypedCell-s
+        self.repeatableValue = True
 
-    def setValue(self, val, clear=True):
-        if clear:
-            self.cells.clear()
-        curr_status = True
+        self.inExpectedTypeEachCell = None
+        self.expectedTypeEachCell = None
+        self.evalTypeStatus = OneOf(SmEnum.EvalStatus, 'not_eval')
+
+        self.evalStatusCommonCells = OneOf(SmEnum.EvalStatus, 'not_eval')
+        self.cells = []
+
+        assert (expEachType is None) or (type(expEachType) == str) or (type(expEachType) in [list, set]), \
+            'Expected str type or None or list/set for exp-type, given {}'.format(expEachType)
+        self.inExpectedTypeEachCell = expEachType
+        if (expEachType is None) or (expEachType == 'str') or (type(expEachType) in [list, set]):
+            self.expectedTypeEachCell = expEachType
+            self.evalTypeStatus.value = 'eval_success'
+
+    def checkExpectedType(self):
+        if not (self.evalTypeStatus.value == 'eval_success'):
+            self.expectedTypeEachCell = eval(self.inExpectedTypeEachCell)
+            self.evalTypeStatus.value = 'eval_success'
+
+    def setValue(self, val):
+        assert self.evalTypeStatus.value == 'eval_success', 'Cannot set value if expected type is not defined'
+        self.evalStatusCommonCells.value = 'not_eval'
+        self.cells.clear()
         self.cells.append(TypedCell(val, self.expectedTypeEachCell))
-        self.cells[-1].checkExpectedType()
+
+    def checkValue(self):
+        assert self.cells, 'No values in cells'
         self.cells[-1].checkValue()
+        curr_status = (self.cells[-1].evalValueStatus.value == 'eval_success')
         if self.cells[-1].isIterable:
+            assert self.multiValue, 'Expected single value'
             curr_vals = self.cells[-1].value
             self.cells.pop()
             for single_val in curr_vals:
-                curr_status *= self.setValue(single_val, False)
-        return (self.cells[-1].evalTypeStatus.value == 'eval_success') and \
-               (self.cells[-1].evalValueStatus.value == 'eval_success')
+                self.cells.append(TypedCell(single_val, self.expectedTypeEachCell))
+                curr_status *= self.checkValue()
+        self.evalStatusCommonCells.value = 'eval_success' if curr_status else 'eval_failed'
+        return self.cells[-1].evalValueStatus.value == 'eval_success'
 
 
 class AttribGroup:
