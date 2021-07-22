@@ -77,7 +77,7 @@ class TypedCell:
 
 
 class ComplexAttrib:
-    def __init__(self, name=None, expEachType=None, multi=False):  # , val=None
+    def __init__(self, name, expEachType=None, multi=False):  # , val=None
         self.name = name
         assert type(multi) == bool, 'Expected multi is bool'
         self.multiValue = multi
@@ -125,19 +125,35 @@ class ComplexAttrib:
 
 
 class AttribGroup:
-    def __init__(self, name=None, complexAttribs=None, mainAttrName=None, isActive=False):
-        if complexAttribs is None:
-            complexAttribs = []
+    def __init__(self, name):  #, complexAttribs=None, mainAttrName=None, isActive=False
+        # if complexAttribs is None:
+        #     complexAttribs = []
         self.name = name
-        self.complexAttribs = complexAttribs
-        self.mainAttrName = mainAttrName
-        self.isActive = isActive
+        self.complexAttribs = []  # complexAttribs
+        self.mainAttr = None  # mainAttrName
+        self.isActive = False  # isActive
+
+    def addAttrib(self, complexAttrib):
+        assert type(complexAttrib) == ComplexAttrib, 'Expected ComplexAttrib'
+        self.complexAttribs.append(complexAttrib)
+
+    def setMainAttrib(self, complexAttrib):
+        assert complexAttrib in self.complexAttribs, 'Attrib not found'
+        self.mainAttr = complexAttrib
+
+    def activate(self):
+        self.isActive = True
+
+    def deactivate(self):
+        self.isActive = False
 
 
 class CompetitorAttribGroup:
-    def __init__(self, name=None, attribGroups=None):
-        if attribGroups is None:
-            attribGroups = []
+    def __init__(self, name):  # , attribGroups=None
         self.name = name
-        self.attribGroups = attribGroups
+        self.attribGroups = []
+
+    def addGroup(self, groupCA):
+        assert type(groupCA) == AttribGroup, 'Expected AttribGroup'
+        self.attribGroups.append(groupCA)
 

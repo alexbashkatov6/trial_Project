@@ -1,4 +1,5 @@
 import current_edit as ce
+from sm_attrib_cell import ComplexAttrib, AttribGroup, CompetitorAttribGroup
 
 import os
 import re
@@ -55,32 +56,147 @@ class ToolBarOfClasses(QToolBar):
         long_name = self.pic_names_sorted_list[self.qb_list.index(sender)]
         self.sendClassName.emit(long_name[long_name.index('_') + 1:])
 
+
+class AttribRow(QHBoxLayout):
+    def __init__(self, classMode=True):
+        super().__init__()
+        self.attrName = ''
+        self.attrValue = ''
+        self.labelWidget = QLabel(self.attrName)
+        self.textEditWidget = QLineEdit(self.attrValue)
+        self.addWidget(self.labelWidget)
+        self.addWidget(self.textEditWidget)
+        self.widgetsList = [self.labelWidget, self.textEditWidget]
+
+        assert type(classMode) == bool, 'Bool is expected'
+        if classMode:
+            self.textEditWidget.setReadOnly(True)
+            self.textEditWidget.setStyleSheet("background-color: grey")
+
+    def setNameText(self, val):
+        assert type(val) == str, 'Str is expected'
+        self.labelWidget.setText(val)
+
+    def setValueText(self, val):
+        assert type(val) == str, 'Str is expected'
+        self.textEditWidget.setText(val)
+
+
+class ComboRow(QHBoxLayout):
+    def __init__(self, classMode=True):
+        super().__init__()
+        self.comboName = ''
+        self.labelWidget = QLabel(self.comboName)
+        self.comboWidget = QComboBox()
+        self.addWidget(self.labelWidget)
+        self.addWidget(self.comboWidget)
+        self.widgetsList = [self.labelWidget, self.comboWidget]
+
+        assert type(classMode) == bool, 'Bool is expected'
+        if classMode:
+            self.comboWidget.setDisabled(True)
+
+    def setComboName(self, val):
+        assert type(val) == str, 'Str is expected'
+        self.labelWidget.setText(val + ':')
+
+    def addComboValue(self, val):
+        assert type(val) == str, 'Str is expected'
+        self.comboWidget.addItem(val)
+
+
+class CreationButtonLayout(QHBoxLayout):
+    def __init__(self, classMode=True):
+        super().__init__()
+        self.buttonWidget = QPushButton('Create/Apply')
+        self.addWidget(self.buttonWidget)
+        self.widgetsList = [self.buttonWidget]
+
+        assert type(classMode) == bool, 'Bool is expected'
+        if classMode:
+            self.buttonWidget.setDisabled(True)
+
+
+class AttribColumn(QVBoxLayout):
+    def __init__(self):
+        super().__init__()
+        self.layoutList = []
+
+    def addLayout(self, layout, stretch=0):
+        self.layoutList.append(layout)
+        super().addLayout(layout, stretch)
+
+    def removeItem(self, a0):
+        if type(a0) in [AttribRow, ComboRow, CreationButtonLayout]:
+            for wgt in a0.widgetsList:
+                wgt.hide()
+        super().removeItem(a0)
+
+    def initFromContainer(self, containerList, initEnter=True, classMode=True):
+        assert type(containerList) == list, 'List is expected'
+        assert all(map(lambda i: type(i) in [ComplexAttrib, CompetitorAttribGroup], containerList)), \
+            'Expected attrib types'
+        if initEnter:
+            self.clean()
+        for item in containerList:
+            if type(item) == ComplexAttrib:
+                new_row = AttribRow(classMode)
+                self.addLayout(new_row)
+                new_row.setNameText(item.name)
+            if type(item) == CompetitorAttribGroup:
+                new_row = ComboRow(classMode)
+                self.addLayout(new_row)
+                new_row.setComboName(item.name)
+                group = item.attribGroups[0]
+                new_row.addComboValue(group.name)
+                self.initFromContainer(group.complexAttribs, False)
+        if initEnter:
+            crButL = CreationButtonLayout(classMode)
+            self.addLayout(crButL)
+
+    def clean(self):
+        for layout in self.layoutList:
+            self.removeItem(layout)
+        self.layoutList.clear()
+
+
 class ToolBarOfAttribs(QToolBar):
 
     def __init__(self, min_size):
         super().__init__()
         self.activeClassLabel = QLabel('< pick tool >')
         self.activeClassLabel.setAlignment(Qt.AlignHCenter)
-        wgtVertical = QWidget()
+        self.wgtVertical = QWidget()
         self.setMinimumSize(min_size, min_size)
-        vbox = QVBoxLayout()
-        vbox.addWidget(self.activeClassLabel)
-        self.creationMethod = QComboBox()
-        self.creationMethod.addItems(['first', 'second', 'third'])
-        vbox.addWidget(self.creationMethod)
-        wgtGrid = QWidget()
-        self.attribsGrid = QGridLayout()
-        for i in range(3):
-            self.attribsGrid.addWidget(QLabel(str(i) + str(0)), i, 0, Qt.AlignHCenter)
-            self.attribsGrid.addWidget(QLineEdit(str(i) + str(1)), i, 1, Qt.AlignHCenter)
-        wgtGrid.setLayout(self.attribsGrid)
-        vbox.addWidget(wgtGrid)
-        wgtVertical.setLayout(vbox)
-        self.addWidget(wgtVertical)
+        self.vbox = QVBoxLayout()
+        self.vbox.addWidget(self.activeClassLabel)
+        self.wgtGrid = QWidget()
+        self.attribsColumn = AttribColumn()
+        self.wgtGrid.setLayout(self.attribsColumn)
+        self.vbox.addWidget(self.wgtGrid)
+        self.wgtVertical.setLayout(self.vbox)
+        self.addWidget(self.wgtVertical)
 
     @pyqtSlot(str)
     def setClassName(self, val):
         self.activeClassLabel.setText(val)
+
+    @pyqtSlot(list)
+    def setAttrStruct(self, val):
+        self.attribsColumn.initFromContainer(val)
+
+
+class ToolBarOfObjects(QToolBar):
+
+    def __init__(self, min_size):
+        super().__init__()
+        self.setMinimumSize(min_size, min_size)
+
+
+class PaintingArea(QWidget):
+    def __init__(self, min_size):
+        super().__init__()
+        self.setMinimumSize(min_size, min_size)
 
 class MW(QMainWindow):
 
@@ -89,26 +205,36 @@ class MW(QMainWindow):
 
 
         # widgets params
-        left_toolbar_min_height_width = 50
-        right_toolbar_min_height_width = 150
+        top_toolbar_min_height_width = 50
+        painting_area_min_height_width = 500
+        right_toolbar_min_height_width = 250
+        left_toolbar_min_height_width = 250
 
         # central wgt
-        textEdit = QTextEdit()
-        self.setCentralWidget(textEdit)
+        self.pa = PaintingArea(painting_area_min_height_width)
+        self.setCentralWidget(self.pa)
 
         # ce
         self.ce = ce.CurrentEdit()
 
-        # Left tool bar format
-        self.ltb = ToolBarOfClasses()
-        self.ltb.extractPictures(self.ce.extractedClasses)
-        self.ltb.constructWidget(left_toolbar_min_height_width)
+        # Top tool bar format
+        self.ttb = ToolBarOfClasses()
+        self.ttb.extractPictures(self.ce.extractedClasses)
+        self.ttb.constructWidget(top_toolbar_min_height_width)
 
         # Right tool bar format
         self.rtb = ToolBarOfAttribs(right_toolbar_min_height_width)
 
-        self.addToolBar(Qt.LeftToolBarArea, self.ltb)
+        # Left tool bar format
+        self.ltb = ToolBarOfObjects(left_toolbar_min_height_width)
+
+        # f = QHBoxLayout()
+        # self.setLayout(f)
+        # f.addWidget(self.rtb, alignment=Qt.AlignLeft)
+        self.addToolBar(Qt.TopToolBarArea, self.ttb)
         self.addToolBar(Qt.RightToolBarArea, self.rtb)
+        self.addToolBar(Qt.LeftToolBarArea, self.ltb)
+
 
         self.statusBar()
 

@@ -15,8 +15,9 @@ class Director(QObject):
         self.setConnections()
 
     def setConnections(self):
-        self.mw.ltb.sendClassName.connect(self.mw.ce.setClassName)
+        self.mw.ttb.sendClassName.connect(self.mw.ce.setClassName)
         self.mw.ce.sendClassNameStr.connect(self.mw.rtb.setClassName)
+        self.mw.ce.sendAttribsStructure.connect(self.mw.rtb.setAttrStruct)
 
 
 if __name__ == '__main__':

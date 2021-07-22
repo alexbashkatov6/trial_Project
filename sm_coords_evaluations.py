@@ -1,7 +1,5 @@
 from sm_enums import SmEnum, OneOf
 import re
-# SmEnum.FieldAxis
-# OneOf(SmEnum.FieldAxis, 'X')
 
 
 class CoordToBasisTransformation:
@@ -63,6 +61,7 @@ class FieldCoord:
 
     @Y.setter
     def Y(self, value):
+
         # self._Y = CE.simpleSingleCast(value, float)
         pass
 

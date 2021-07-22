@@ -1,4 +1,6 @@
 from sm_objs_inspector import Oi
+from sm_attributes_BFP_classes import Ac
+from sm_coords_evaluations import FieldCoord  # CoordToBasisTransformation,
 import re
 
 
@@ -62,22 +64,23 @@ class BFP:
 
 
 class CoordinateSystem(BFP):
-    pass
+    attribs = Ac.attrDict['CoordinateSystem']
 
 
 class Point(BFP):
-    pass
+    attribs = Ac.attrDict['Point']
 
 
 class Line(BFP):
-    pass
+    attribs = Ac.attrDict['Line']
 
 
 class GroundLine(BFP):
-    pass
+    attribs = Ac.attrDict['GroundLine']
 
 
-pnt1, pnt2, pnt3 = Point(), Point(Name='Point_'), Point(Name='Point_my2')
-print(pnt3.__dict__)
-print(BFP.allSubclasses())
-print(Oi.getInstances(Point))
+# pnt1, pnt2, pnt3 = Point(), Point(Name='Point_45g'), Point(Name='Point_my2')
+# pnt2 = Point(Name='Point_5g')
+# print(pnt3.__dict__)
+# print([i.__name__ for i in BFP.allSubclasses()])
+# print(Oi.getInstances(Point))
