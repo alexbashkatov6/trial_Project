@@ -66,6 +66,9 @@ class BFP:
 class CoordinateSystem(BFP):
     attribs = Ac.attrDict['CoordinateSystem']
 
+    def __init__(self):
+        super().__init__()
+
 
 class Point(BFP):
     attribs = Ac.attrDict['Point']

@@ -228,9 +228,6 @@ class MW(QMainWindow):
         # Left tool bar format
         self.ltb = ToolBarOfObjects(left_toolbar_min_height_width)
 
-        # f = QHBoxLayout()
-        # self.setLayout(f)
-        # f.addWidget(self.rtb, alignment=Qt.AlignLeft)
         self.addToolBar(Qt.TopToolBarArea, self.ttb)
         self.addToolBar(Qt.RightToolBarArea, self.rtb)
         self.addToolBar(Qt.LeftToolBarArea, self.ltb)
@@ -246,13 +243,3 @@ class MW(QMainWindow):
         self.show()
 
 
-# fileMenu.addAction(self._01_Action)
-# csAction.setShortcut('Ctrl+Q')
-# csAction.setStatusTip('Exit application')
-# csAction.triggered.connect(self.close)
-
-# sld.valueChanged.connect(lcd.display)
-# closeApp = pyqtSignal()
-
-# smc_classes_attribs = {class_name: {key: val for (key, val) in eval('smc.'+class_name).__dict__.items()
-#                                     if not key.startswith('__')} for class_name in smc_classes_names}
