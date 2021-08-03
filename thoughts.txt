@@ -1,0 +1,156 @@
+Меню File
+    Save SM
+    Save SM as...
+    Reload SM from disk
+    Load SM
+    Rename station
+    Set working directory
+
+Меню Edit
+    Undo
+    Redo
+
+Меню View
+    Station plan
+        - продольно-масштабный (scaled)
+        - динамический (dynamic)
+    GL visibility
+        - on
+        - off
+    Active Toolbars
+        - geometry tools (cs, p, gl, l)
+        - pole tools (rp, light, ...)
+        - attrib panel
+        - tree panel
+
+Меню Evaluations
+    ...
+
+
+У всех объектов - группы свойств:
+    1 Build options
+        - необходимые для создания объекта
+    2 Evaluations options
+        - необх для проведения расчетов
+    3 ViewOptions
+        - visibility
+        - у GroundLine - массовое visibility
+        - у стрелки - положение + -
+
+
+? класс Отображений (Display)
+    - 0 слой сплошная/невидимая линия
+    - 1 слой линии стрелки
+
+Супервизор состояния объектов - для сохранения и отмены
+нескольких последних действий
+
+CoordinateSystem
+    СК - ось Х вдоль полотна, ось Y поперек
+    добавить СК -
+        1 добавить независимый базис:
+            СК = ГСК
+        2 как зависимую:
+            СК = ?
+        Общие поля:
+            - координата X в СК
+            - координата Y в СК
+            - угол поворота относит СК
+            - сонаправленность X
+            - сонаправленность Y
+
+    Действия:
+        1 автосоздание ГлавногоБазиса ГСК (GSC)
+        2 перетаскивание базиса - сопровождается динамич
+            перерисовыванием связ. куска
+        3 isBasis = True/False
+
+GroundLine
+    общее - в какой СК
+    1 созд параллельно
+        - коорд Y
+    2 созд поворотно
+        - центральная точка
+        - угол поворота
+
+Point
+    1 на точке
+        - какая точка
+    2 на линии
+        2.1 на GroundLine
+            - на какой GL
+        2.2 на Line
+            - на какой L
+        Общее для 2:
+            - в какой СК
+            - Х-координата
+
+Line
+    - точки начало, ... , конец
+    Авторасчеты:
+        если начало, конец на 1 и той же GL
+        промежут точка и начало/конец на 1 и той же GL
+
+RailPoint
+    Созидательные пар-ры
+        на готовой точке/ на вновь придуманной
+        1 тип стрелки - обычная
+            номер стрелки
+            тип симм - несимметричная или симм.
+            определить плюс:
+                1.1 по точке
+                1.2 сброс влево/вправо
+            точка на линии, определяющая - аналогичные варианты
+        2 тип стрелки - английская
+            в два раза больше информации
+
+    Расчетные параметры стрелочного перевода (evaluations):
+        марка крестовины
+        ? дельта в плюс и в минус - ?
+    ...
+
+Light
+    Созидательные пар-ры
+        на готовой точке/ на вновь придуманной
+        направление головы - по точке
+
+    Расчетные параметры
+        тип светофора - заданный
+        (можно авторасчет типа светофора)
+        цвета ламп - список
+
+Zone - subgraph creation
+    - velocity
+    - named graph
+    - isol
+
+Insertion - not-basis item between basis parts
+
+graphs:
+    1 tree of objects
+    2 dependence grph
+    3 geometry graph
+    4 basis graph (items in basis)
+    5 attribs selection
+
+
+from itertools import combinations
+
+class Node:
+    def __init__(self, directions, bans=None):
+        self.directions = tuple(directions)
+        self.bans = bans if not (bans is None) else {}
+
+    def __getitem__(self, index):
+        return self.directions[index]
+
+
+class Graph:
+    def __init__(self):
+        self.nodes = {}
+
+print(list(combinations(range(3), 2)))
+
+
+
+
