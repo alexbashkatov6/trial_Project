@@ -1,0 +1,452 @@
+'''
+! Draw Path Example
+import sys
+from PyQt5.QtWidgets import QLabel, QWidget, QVBoxLayout, QApplication
+from PyQt5.QtCore import QPoint, QSize
+from PyQt5.QtGui import QPainter, QPainterPath
+from PyQt5.QtCore import pyqtSignal
+
+
+class Drawer(QWidget):
+    newPoint = pyqtSignal(QPoint)
+
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent)
+        self.path = QPainterPath()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.drawPath(self.path)
+
+    def mousePressEvent(self, event):
+        self.path.moveTo(event.pos())
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        self.path.lineTo(event.pos())
+        self.newPoint.emit(event.pos())
+        self.update()
+
+    def sizeHint(self):
+        return QSize(400, 400)
+
+
+class MyWidget(QWidget):
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent)
+        self.setLayout(QVBoxLayout())
+        label = QLabel(self)
+        drawer = Drawer(self)
+        drawer.newPoint.connect(lambda p: label.setText('Coordinates: ( %d : %d )' % (p.x(), p.y())))
+        self.layout().addWidget(label)
+        self.layout().addWidget(drawer)
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    w = MyWidget()
+    w.show()
+    sys.exit(app.exec_())
+'''
+
+
+'''
+! Tree View Example
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTreeView
+from PyQt5.Qt import QStandardItemModel, QStandardItem
+from PyQt5.QtGui import QFont, QColor
+
+
+class StandardItem(QStandardItem):
+    def __init__(self, txt='', font_size=12, set_bold=False, color=QColor(0, 0, 0)):
+        super().__init__()
+
+        fnt = QFont('Open Sans', font_size)
+        fnt.setBold(set_bold)
+
+        self.setEditable(False)
+        self.setForeground(color)
+        self.setFont(fnt)
+        self.setText(txt)
+
+
+class AppDemo(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('World Country Diagram')
+        self.resize(500, 700)
+
+        treeView = QTreeView()
+        treeView.setHeaderHidden(True)
+
+        treeModel = QStandardItemModel()
+        rootNode = treeModel.invisibleRootItem()
+
+
+        # America
+        america = StandardItem('America', 16, set_bold=True)
+
+        california = StandardItem('California', 14)
+        america.appendRow(california)
+
+        oakland = StandardItem('Oakland', 12, color=QColor(155, 0, 0))
+        sanfrancisco = StandardItem('San Francisco', 12, color=QColor(155, 0, 0))
+        sanjose = StandardItem('San Jose', 12, color=QColor(155, 0, 0))
+
+        california.appendRow(oakland)
+        california.appendRow(sanfrancisco)
+        california.appendRow(sanjose)
+
+
+        texas = StandardItem('Texas', 14)
+        america.appendRow(texas)
+
+        austin = StandardItem('Austin', 12, color=QColor(155, 0, 0))
+        houston = StandardItem('Houston', 12, color=QColor(155, 0, 0))
+        dallas = StandardItem('dallas', 12, color=QColor(155, 0, 0))
+
+        texas.appendRow(austin)
+        texas.appendRow(houston)
+        texas.appendRow(dallas)
+
+
+        # Canada
+        canada = StandardItem('America', 16, set_bold=True)
+
+        alberta = StandardItem('Alberta', 14)
+        bc = StandardItem('British Columbia', 14)
+        ontario = StandardItem('Ontario', 14)
+        canada.appendRows([alberta, bc, ontario])
+
+
+        rootNode.appendRow(america)
+        rootNode.appendRow(canada)
+
+        treeView.setModel(treeModel)
+        treeView.expandAll()
+        treeView.doubleClicked.connect(self.getValue)
+
+        self.setCentralWidget(treeView)
+
+    def getValue(self, val):
+        print(val.data())
+        print(val.row())
+        print(val.column())
+
+
+app = QApplication(sys.argv)
+
+demo = AppDemo()
+demo.show()
+
+sys.exit(app.exec_())
+'''
+
+'''
+! From learning examples
+from collections.abc import Callable
+from collections import namedtuple
+import functools
+import inspect
+import sys
+import re
+
+def f(x):
+    return x
+
+class A:
+    def __init__(self):
+        pass
+    def __call__(self, *args, **kwargs):
+        pass
+
+# print(issubclass(f,Callable))
+# print(issubclass(A,Callable))
+
+def positive_result(function):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        result = function(*args, **kwargs)
+        #
+        assert result >= 0, function.__name__ + "() result isn't >= 0"
+        #
+        return result
+    return wrapper
+
+@positive_result
+def discriminant(a, b, c):
+    '''My super function'''
+    return (b ** 2) - (4 * a * c)
+
+# print(discriminant(99,5,1))
+# print(discriminant.__doc__)
+
+def bounded(minimum, maximum):
+    def decorator(function):
+        @functools.wraps(function)
+        def wrapper(*args, **kwargs):
+            result = function(*args, **kwargs)
+            #
+            if result < minimum:
+                return minimum
+            elif result > maximum:
+                return maximum
+            #
+            return result
+        return wrapper
+    return decorator
+
+@bounded(0, 100)
+def percent(amount, total):
+    '''My super function'''
+    return (amount / total) * 100
+
+# print(percent(-10,10))
+# print(percent.__doc__)
+
+def strictly_typed(function):
+    annotations = function.__annotations__
+    arg_spec = inspect.getfullargspec(function)
+    # print('arg_spec', arg_spec)
+    assert "return" in annotations, "missing type for return value"
+    for arg in arg_spec.args + arg_spec.kwonlyargs:
+        assert arg in annotations, ("missing type for parameter '" + arg + "'")
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        for name, arg in (list(zip(arg_spec.args, args)) + list(kwargs.items())):
+            # print('name,arg = ', name, arg)
+            assert isinstance(arg, annotations[name]), ("expected argument '{0}' of {1} got {2}"
+                                                        .format(name, annotations[name], type(arg)))
+        result = function(*args, **kwargs)
+        assert isinstance(result, annotations["return"]), ("expected return of {0} got {1}"
+                                                           .format(annotations["return"], type(result)))
+        return result
+    return wrapper
+
+@strictly_typed
+def f(x: str, *, b: int = 0) -> int:
+    b += 1
+    return int(x)
+
+# print(f('2', b=4))
+
+
+def g(x: 'str', *, b: "int" = 0) ->'int':
+    b += 1
+    return int(x)
+
+# print(g(6))
+
+class C:
+    def __init__(self):
+        pass
+    def my_method(self, cs: 'CoordinateSystem'):
+        pass
+
+Const = namedtuple("Const", "min max olalala")(191, 591, 45) #
+
+# print(Const, Const.min, type(Const.olalala))
+
+
+class Descr:
+    def __init__(self, val):
+        self.attrName = val
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            print('Get from class called', instance, owner)
+            return self
+        print('Get from obj called', instance, owner)
+        return getattr(instance, self.attrName)
+
+    def __set__(self, instance, value):
+        print('Set called', instance, value)
+        setattr(instance, self.attrName, value)
+
+    def __delete__(self, instance):
+        print('Delete called', instance)
+
+
+class Owner:
+    my_prop = Descr('attr1')
+
+    def __init__(self):
+        self.my_prop = 1
+        pass
+
+# o = Owner()
+# o.my_prop = 3
+# o.my_prop
+# print('o.my_prop = ', o.my_prop)
+# print('o.attr1 = ', o.attr1)
+# print(Owner.my_prop)
+
+
+class Property:
+    def __init__(self, getter, setter=None):
+        self.__getter = getter
+        self.__setter = setter
+        self.__name__ = getter.__name__
+        # print('getter.__name__ = ', getter.__name__)
+
+    def __get__(self, instance, owner=None):
+        print('owner is ', owner)
+        if instance is None:
+            return self
+        return self.__getter(instance)
+
+    def __set__(self, instance, value):
+        if self.__setter is None:
+            raise AttributeError("'{0}' is read-only".format(self.__name__))
+        return self.__setter(instance, value)
+
+    def setter(self, setter):
+        self.__setter = setter
+        return self.__setter
+
+
+class NameAndExtension:
+
+    def __init__(self, name, extension):
+        self.__name = name
+        self.extension = extension
+
+    @Property  # Задействуется нестандартный дескриптор Property
+    def name(self):
+        return self.__name
+
+    @Property  # Задействуется нестандартный дескриптор Property
+    def extension(self):
+        return self.__extension
+
+    @extension.setter  # Задействуется нестандартный дескриптор Property
+    def extension(self, extension):
+        self.__extension = extension
+
+
+# ne = NameAndExtension('prop', 'exe')
+# print(ne.name, ne.extension)
+# ne.extension = 'py'
+# print(ne.extension)
+# print(NameAndExtension.__dict__)
+
+a = 231890
+# b = a
+# a.add(43)
+# print(a is b, b)
+
+
+# print(sys.getrefcount(a))
+
+class GenericDescriptor:
+    def __init__(self, getter, setter):
+        self.getter = getter
+        self.setter = setter
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        return self.getter(instance)
+
+    def __set__(self, instance, value):
+        return self.setter(instance, value)
+
+
+def valid_string(attr_name, empty_allowed=True, regex=None, acceptable=None):
+    def decorator(cls):
+        name = "__" + attr_name
+
+        def getter(instance):
+            # print('getter', instance, name)
+            return getattr(instance, name)
+
+        def setter(instance, value):
+            # print('setter', instance, value)
+            assert isinstance(value, str), (attr_name + " must be a string")
+            if not empty_allowed and not value:
+                raise ValueError("{0} may not be empty".format(attr_name))
+            if (acceptable is not None and value not in acceptable) or (regex is not None and not regex.match(value)):
+                raise ValueError("{0} cannot be set to {1}".format(attr_name, value))
+            setattr(instance, name, value)
+
+        setattr(cls, attr_name, GenericDescriptor(getter, setter))
+        return cls
+    return decorator
+
+
+@valid_string("name", empty_allowed=False)
+@valid_string("productid", empty_allowed=False, regex=re.compile(r"[A-Z]{3}\d{4}"))
+@valid_string("category", empty_allowed=False, acceptable=frozenset(["Consumables", "Hardware", "Software", "Media"]))
+class StockItem:
+    def __init__(self, name, productid, category): # , price, quantity
+        # print('init')
+        self.name = name
+        # print('after name')
+        self.productid = productid
+        self.category = category
+
+
+si1 = StockItem('q', 'WER2360', "Hardware")
+si2 = StockItem('w', 'TYU9876', "Consumables")
+
+class ChildOfSI(StockItem):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+si3 = ChildOfSI('g', 'LHY9876', "Consumables")
+
+print(si3.__dict__)
+
+# print(si1.name)
+# print(si1.__dict__)
+# print(si2.name)
+# print([i for i in StockItem.__dict__.items() if not i[0].endswith('__')])
+
+# print(A.__name__,) # , A.__abstractmethods__
+
+# h = [3, ..., 4]
+# print(h)
+
+class K:
+    pass
+
+class L(K):
+    pass
+
+def k_fun(self, x):
+    return x
+
+setattr(K, 'internal_method', k_fun)
+
+print(K.__dict__)
+print(L.__dict__)
+k = K()
+print(k.internal_method(35))
+l = L()
+print(l.internal_method(35))
+
+def typed(cls):
+    pass
+
+# @typed(CoordinateSystem)
+
+def p():
+    return t()
+
+def t():
+    pass
+
+print(eval('int'))
+
+
+from typing import List, Set, Tuple, Dict
+
+def indent_right(s: str, width: List[int]) -> str:
+    return " " * (max(0, width - len(s))) + s
+
+print(indent_right.__annotations__)
+
+
+
+'''
