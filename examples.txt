@@ -446,7 +446,76 @@ def indent_right(s: str, width: List[int]) -> str:
     return " " * (max(0, width - len(s))) + s
 
 print(indent_right.__annotations__)
+'''
+
+'''
+! File Graph
+from itertools import combinations
+from collections.abc import Callable
+from copy import deepcopy
+from typing import Any
+
+# from __future__ import annotations
+# from typing import Annotated
+# from beartype import beartype
+# from beartype.vale import Is
+#
+
+
+class Node:
+    def __init__(self, dirFunctions: dict[int, Callable] = None, bans: set[tuple[int, int]] = None):
+        self.__directions = ()
+        self.__dirCount = 0
+        self.__permissions = set()
+        self.dirFunctions = dirFunctions if not (dirFunctions is None) else dict()
+        self.bans = bans if not (bans is None) else set()
+
+    @property
+    def directions(self):
+        return deepcopy(self.__directions)
+
+    @property
+    def dirFunctions(self):
+        return deepcopy(self.__dirFunctions)
+
+    @dirFunctions.setter
+    def dirFunctions(self, val: dict[int, Callable]):
+        self.__dirFunctions = val
+
+    @property
+    def bans(self):
+        return deepcopy(self.__bans)
+
+    @bans.setter
+    def bans(self, val: set[tuple[int, int]]):
+        self.__bans = val
+
+    def evalDirCount(self):
+        self.__dirCount = len(self.__dirFunctions)
+
+    def evalPermissions(self):
+        self.__permissions = set(combinations(range(self.__dirCount), 2)) - self.__bans
+
+    def setDirFunction(self, numOfDir: int, func: Callable):
+        self.__dirFunctions.update(numOfDir=func)
+        self.evalDirCount()
+
+    def evalDirections(self):
+        pass
 
 
 
+class Graph:
+    def __init__(self):
+        self.nodes = {}
+
+
+def f(x):
+    return x
+
+
+n = Node(('0', ['1', '2'], '3'), {(0, 1)}, f)
+print(n.permissions)
+print(n[0], n[1], n[2])
+# print(issubclass(Node, Iterable))
 '''
