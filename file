@@ -1,0 +1,17 @@
+
+class A:
+    def __init__(self, i):
+        print('init')
+
+old_init = A.__init__
+
+def f(self, *args, **kwargs):
+    A.__init__ = old_init
+    inst = A(*args, **kwargs) #
+    print('inst ',inst)
+    print('wow its '+str(args[0]))
+    self.name = 'lala'
+
+setattr(A, '__init__', f)
+a = A(5)
+print(a.name)

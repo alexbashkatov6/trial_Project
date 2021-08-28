@@ -128,10 +128,9 @@ Insertion - not-basis item between basis parts
 
 graphs:
     1 tree of objects
-    2 dependence grph
+    2 dependence grph + basises objs
     3 geometry graph
-    4 basis graph (items in basis)
-    5 attribs selection
+    4 attribs selection
 
 
 from itertools import combinations
