@@ -34,32 +34,33 @@ def instances_control(cls):
     return cls
 
 
-'''
-@instances_control
-class Probe:
-    def __init__(self, *args, **kwargs):
-        self.a = 1
-@instances_control
-class ProbeDeriv(Probe):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-@instances_control
-class ProbeDerivDeriv(ProbeDeriv):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-p1 = Probe()
-p3 = Probe(name='Probe_mine')
-p4 = Probe(name='Probe_nb')
-print(p1.name)
-print(p3.name)
-print(p4.name)
-p2 = ProbeDeriv(name='ProbeDeriv_mine')
-p5 = ProbeDerivDeriv(name='ProbeDerivDeriv_mine')
-print(p2.name)
-print(Probe.inst_count)
-print(ProbeDeriv.inst_count)
-print(Probe.instances)
-print(Probe.inst_names)
-print(ProbeDeriv.instances)
-print(ProbeDeriv.inst_names)
-'''
+if __name__ == '__main__':
+    @instances_control
+    class Probe:
+        def __init__(self, *args, **kwargs):
+            self.a = 1
+
+    @instances_control
+    class ProbeDeriv(Probe):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
+    @instances_control
+    class ProbeDerivDeriv(ProbeDeriv):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+    p1 = Probe()
+    p3 = Probe(name='Probe_mine')
+    p4 = Probe(name='Probe_nb')
+    print(p1.name)
+    print(p3.name)
+    print(p4.name)
+    p2 = ProbeDeriv(name='ProbeDeriv_mine')
+    p5 = ProbeDerivDeriv(name='ProbeDerivDeriv_mine')
+    print(p2.name)
+    print(Probe.inst_count)
+    print(ProbeDeriv.inst_count)
+    print(Probe.instances)
+    print(Probe.inst_names)
+    print(ProbeDeriv.instances)
+    print(ProbeDeriv.inst_names)
