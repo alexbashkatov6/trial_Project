@@ -6,8 +6,8 @@ import re
 
 from PyQt5.QtWidgets import QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
     QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox
-from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect
+from PyQt5.QtGui import QIcon, QPainter, QPen
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint
 
 
 class ToolBarOfClasses(QToolBar):
@@ -213,6 +213,12 @@ class MW(QMainWindow):
         # central wgt
         self.pa = PaintingArea(painting_area_min_height_width)
         self.setCentralWidget(self.pa)
+        # self.qp = QPainter()
+        # pen = QPen(Qt.black, 2, Qt.SolidLine)
+        # self.qp.begin(self) #.pa
+        # self.qp.setPen(pen)
+        # self.qp.drawLine(400, 400, 500, 500)
+        # self.qp.end()
 
         # ce
         self.ce = ce.CurrentEdit()
@@ -238,8 +244,21 @@ class MW(QMainWindow):
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
 
-        self.setGeometry(1000, 500, 550, 450)
+        self.setGeometry(50, 50, 550, 450)
         self.setWindowTitle('Main window')
         self.show()
 
-
+    def paintEvent(self, e):
+        qp = QPainter()
+        qp.begin(self)
+        pen = QPen(Qt.black, 2, Qt.SolidLine)
+        qp.setPen(pen)
+        pnt_1 = QPoint(400, 200)
+        pnt_2 = QPoint(500, 500)
+        pnt_3 = QPoint(400, 300)
+        qp.drawLine(pnt_1, pnt_2)
+        qp.drawLine(pnt_1, pnt_3)
+        qp.drawEllipse(pnt_1, 100, 100)
+        qp.end()
+        
+    # def cl

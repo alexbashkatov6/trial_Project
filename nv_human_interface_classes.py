@@ -2,7 +2,7 @@ from __future__ import annotations
 from numbers import Number
 import re
 
-from nv_instances_control import instances_control
+from nv_names_control import names_control
 from nv_typing import *
 
 
@@ -53,7 +53,7 @@ class FieldCoord:
 #         return None
 
 
-@instances_control
+@names_control
 class CoordinateSystem:
     pass
     # build_method = BuildDescriptor()
