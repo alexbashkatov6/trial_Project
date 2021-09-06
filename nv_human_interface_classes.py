@@ -30,12 +30,12 @@ class FieldCoord:
             self._value = int(val[3:plus_pos]) * 100 + int(val[plus_pos + 1:])
 
     @strictly_typed
-    def __add__(self, other: Number) -> FieldCoord:
+    def __add__(self, other: Union[float, int]) -> FieldCoord:
         return FieldCoord(self.value+other, self.cs)
 
     @strictly_typed
-    def __sub__(self, other: Union[Number, FieldCoord]) -> Union[Number, FieldCoord]:
-        if isinstance(other, Number):
+    def __sub__(self, other: Union[float, int, FieldCoord]) -> Union[float, int, FieldCoord]:
+        if type(other) in [float, int]:
             return FieldCoord(self.value-other, self.cs)
         else:
             assert self.cs == other.cs, \
@@ -61,10 +61,10 @@ class CoordinateSystem:
 
 if __name__ == '__main__':
 
-    cs = CoordinateSystem()
+    cs_0 = CoordinateSystem()
     # cs.build_method
-    fc = FieldCoord('PK_2+3', cs)
-    fc_2 = FieldCoord('PK_1+2', cs)
+    fc = FieldCoord('PK_2+3', cs_0)
+    fc_2 = FieldCoord('PK_1+2', cs_0)
     print(fc.value)
     print(fc+15)
     print(fc-15, fc-fc_2)

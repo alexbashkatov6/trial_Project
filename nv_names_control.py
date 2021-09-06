@@ -100,6 +100,8 @@ if __name__ == '__main__':
     print(Probe._names_to_instances['Probe_mine'])
     print(Probe.get_instances())
 
+    print([1,2,3]+[4,5,6])
+
     # d = {1:'1', 2:'2'}
     # d.pop(6)
     # print(d)
