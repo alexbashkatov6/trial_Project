@@ -279,12 +279,14 @@ class PGLink:
 
     @strictly_typed
     def __init__(self, links_group: PGLinkGroup, is_stable: bool = False) -> None:
-        # self.end_pns = (end_pn_1, end_pn_2)
         self.stable = is_stable
         self._group = links_group
 
     def __repr__(self):
-        return '{}({}, {})'.format(self.__class__.__name__, self.pns[0], self.pns[1])  # {}, self.graph,
+        stable_str = 'stable' if self.stable else ''
+        return '{}({}-{}, {}-{}, {})'.format(self.__class__.__name__,
+                                             self.end_pns[0].pn, self.end_pns[0].end,
+                                             self.end_pns[1].pn, self.end_pns[1].end, stable_str)
 
     @property
     @strictly_typed
@@ -328,7 +330,7 @@ class PolarGraph:
 
         self._infinity_node_positive_up = self._init_node()
         self._infinity_node_negative_down = self._init_node()
-        self.connect_nodes(self.inf_node_pu.end_pu, self.inf_node_nd.end_nd, first_link_is_stable=True)
+        self.connect_nodes(self.inf_node_pu.end_pu, self.inf_node_nd.end_nd, link_is_stable=True)
         self.connect_nodes(self.inf_node_pu.end_nd, self.inf_node_nd.end_pu)
 
     # @strictly_typed
@@ -412,7 +414,7 @@ class PolarGraph:
                              first_link_is_stable: bool = False) -> PGLinkGroup:
         assert self._check_new_link_group_existing_possibility(end_pn_1, end_pn_2), 'Lg already exists'
         assert self._check_new_link_group_count_possibility(end_pn_1.pn, end_pn_2.pn), \
-            'Exceeds count of max lg between same nodes'
+            'Exceeds count of max LinkGroup between same nodes'
         new_lg = PGLinkGroup(end_pn_1, end_pn_2, first_link_is_stable)
         self._link_groups.append(new_lg)
         return new_lg
@@ -427,15 +429,15 @@ class PolarGraph:
 
     @strictly_typed
     def connect_nodes(self, end_pn_1: EndOfPolarNode, end_pn_2: EndOfPolarNode,
-                      first_link_is_stable: bool = False) -> PGLink:
+                      link_is_stable: bool = False) -> PGLink:
         # appends pn_1 at down of pn_2 as default
         assert {end_pn_1.pn, end_pn_2.pn} <= set(self.nodes), \
             'Nodes {}, {} not found in graph'.format(end_pn_1.pn, end_pn_2.pn)
         existing_link_group = self._get_link_group(end_pn_1, end_pn_2)
         if existing_link_group:
-            new_link = existing_link_group.init_link(first_link_is_stable)
+            new_link = existing_link_group.init_link(link_is_stable)
         else:
-            new_link_group = self._init_new_link_group(end_pn_1, end_pn_2, first_link_is_stable)
+            new_link_group = self._init_new_link_group(end_pn_1, end_pn_2, link_is_stable)
             new_link = self.get_link_from_group(new_link_group, True)
         end_pn_1.pn.add_link_to_node_end(new_link, end_pn_1.end)
         end_pn_2.pn.add_link_to_node_end(new_link, end_pn_2.end)
@@ -478,7 +480,12 @@ class PolarGraph:
         return insertion_node
 
     @strictly_typed
-    def cut_subgraph(self, pns: list[PolarNode]) -> PolarGraph:
+    def find_node_coverage(self, start_end_of_node: EndOfPolarNode,
+                           border_nodes: list[PolarNode] = None) -> PolarGraph:
+        return self
+
+    @strictly_typed
+    def cut_subgraph(self, border_nodes: list[PolarNode]) -> PolarGraph:
         return self
 
     @strictly_typed
@@ -488,11 +495,6 @@ class PolarGraph:
     @strictly_typed
     def find_all_routes(self, pn_1: PolarNode, pn_2: PolarNode) -> list[PolarGraph]:
         return [self]
-
-    @strictly_typed
-    def find_coverage(self, pn_1: PolarNode,
-                      direction: End = End('nd')) -> PolarGraph:
-        return self
 
 
 @names_control
@@ -712,7 +714,7 @@ class AttributeGraph(PolarGraph):
 
 if __name__ == '__main__':
 
-    test = 'test_2'
+    test = 'test_6'
     if test == 'test_1':
 
         def check_inf_moves(text):
@@ -848,3 +850,73 @@ if __name__ == '__main__':
         print({pe_02, pe_01.other_pn_end})
         print(pe_02 is pe_01.other_pn_end)
         print('eq 2 = ', pe_03 == pn_01.end_nd)
+
+    if test == 'test_4':
+
+        pg = PolarGraph()
+        print('pg.inf_node_pu ', pg.inf_node_pu)
+        print('pg.inf_node_nd ', pg.inf_node_nd)
+        pn_01 = pg.insert_node()  # make_nd_stable=True
+        # pn_00 = copy(pn_01)
+        pn_02 = pg.insert_node(end_of_negative_down_node=pn_01.end_pu, make_nd_stable=True)
+        pg.connect_nodes(pn_01.end_pu, pn_02.end_nd)
+        pg.connect_nodes(pn_01.end_pu, pn_02.end_nd)
+        pn_03 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
+        pn_04 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
+        print('pn_01 ', pn_01)
+        print('pg nodes ', pg.nodes)
+        print('pg links len ', len(pg.links))
+        print('pg links ', pg.links)
+        print('pn_01 next all nd ', pn_01.next_nodes())
+        print('pn_01 next all pu ', pn_01.next_nodes(End('pu')))
+        print('pn_01 next active nd ', pn_01.next_active_move_node())
+        print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
+
+    if test == 'test_5':
+
+        pg = PolarGraph()
+        print('pg.inf_node_pu ', pg.inf_node_pu)
+        print('pg.inf_node_nd ', pg.inf_node_nd)
+        pn_01 = pg.insert_node()  # make_nd_stable=True
+        # pn_00 = copy(pn_01)
+        pg.connect_nodes(pn_01.end_nd, pg.inf_node_pu.end_nd)
+        print('pn_01 ', pn_01)
+        print('pg nodes ', pg.nodes)
+        print('pg links len ', len(pg.links))
+        print('pg links ', pg.links)
+        print('pn_01 next all nd ', pn_01.next_nodes())
+        print('pn_01 next all pu ', pn_01.next_nodes(End('pu')))
+        print('pn_01 next active nd ', pn_01.next_active_move_node())
+        print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
+
+    if test == 'test_6':
+
+        pg = PolarGraph()
+        print('pg.inf_node_pu ', pg.inf_node_pu)
+        print('pg.inf_node_nd ', pg.inf_node_nd)
+        pn_01 = pg.insert_node()  # make_nd_stable=True
+        # pn_00 = copy(pn_01)
+        pn_02 = pg.insert_node(end_of_negative_down_node=pn_01.end_pu, make_nd_stable=True)
+        # pg.connect_nodes(pn_01.end_nd, pn_02.end_pu)
+        # pg.connect_nodes(pn_01.end_pu, pn_02.end_nd)
+        # pn_03 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
+        # pn_04 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
+        print('pn_01 ', pn_01)
+        print('pg nodes ', pg.nodes)
+        print('pg links len ', len(pg.links))
+        print('pg links ', pg.links)
+        print('pn_01 next all nd ', pn_01.next_nodes())
+        print('pn_01 next all pu ', pn_01.next_nodes(End('pu')))
+        print('pn_01 next active nd ', pn_01.next_active_move_node())
+        print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
+
+        # pn_011 = copy(pn_01)
+        # print('pn_011 next all nd ', pn_011.next_nodes())
+        # print('pn_011 next all pu ', pn_011.next_nodes(End('pu')))
+        # print('pn_011 next active nd ', pn_011.next_active_move_node())
+        # print('pn_011 next active pu ', pn_011.next_active_move_node(End('pu')))
+
+        # pg_10 = copy(pg)
+        # print('pg_10 nodes ', pg_10.nodes)
+        # print('pg_10 links len ', len(pg_10.links))
+        # print('pg_10 links ', pg_10.links)
