@@ -1,5 +1,5 @@
 from __future__ import annotations
-from copy import copy
+from copy import copy, deepcopy
 from collections.abc import Iterable
 from itertools import product
 
@@ -150,6 +150,7 @@ class PGMovesGroup:
 
 
 class PGMove:
+    content = PGContentDescriptor()
 
     @strictly_typed
     def __init__(self, node_place: PolarNode, link_positive_up: PGLink, link_negative_down: PGLink) -> None:
@@ -319,6 +320,20 @@ class PGLink:
         return (set(self.pns) - {current_pn}).pop()
 
 
+class PGMovesState:
+
+    @strictly_typed
+    def __init__(self, pg: PolarGraph) -> None:
+        self._moves = []
+        for pn in pg.nodes:
+            self._moves.append(pn.moves_group.active_move)
+
+    @strictly_typed
+    def reset_state(self) -> None:
+        for move in self._moves:
+            move.node_place.switch_branch(move)
+
+
 @names_control
 class PolarGraph:
 
@@ -430,7 +445,7 @@ class PolarGraph:
     @strictly_typed
     def connect_nodes(self, end_pn_1: EndOfPolarNode, end_pn_2: EndOfPolarNode,
                       link_is_stable: bool = False) -> PGLink:
-        # appends pn_1 at down of pn_2 as default
+        assert not (end_pn_1.pn is end_pn_2.pn), 'Cannot connect node {} to himself'.format(end_pn_1.pn)
         assert {end_pn_1.pn, end_pn_2.pn} <= set(self.nodes), \
             'Nodes {}, {} not found in graph'.format(end_pn_1.pn, end_pn_2.pn)
         existing_link_group = self._get_link_group(end_pn_1, end_pn_2)
@@ -561,16 +576,6 @@ class PolarNode:
                 self.moves_group.random_move_activate()
 
     @strictly_typed
-    def get_move(self, pn_1: PolarNode, pn_2: PolarNode) -> Optional[tuple[PGMove, int]]:
-        if pn_1 is pn_2:
-            return
-        moves = [move for move in self.moves_group.moves
-                 if {pn_1, pn_2} == {move.node_positive_up, move.node_negative_down}]
-        count_of_equal = len(moves)
-        if moves:
-            return moves[0], count_of_equal
-
-    @strictly_typed
     def next_active_move_node(self, direction: End = End('nd')) -> PolarNode:
         active_move = self.moves_group.active_move
         if direction.is_negative_down:
@@ -579,8 +584,7 @@ class PolarNode:
             return active_move.node_positive_up
 
     @strictly_typed
-    def next_nodes(self, direction: End = End('nd'))\
-            -> list[PolarNode]:
+    def next_nodes(self, direction: End = End('nd')) -> list[PolarNode]:
         if direction.is_negative_down:
             next_links = self._links_negative_down
         else:
@@ -588,31 +592,46 @@ class PolarNode:
         return [link.opposite_pn(self) for link in next_links]
 
     @strictly_typed
-    def switch_branch(self, pn: PolarNode, pn_2: PolarNode = None, save_second_current: bool = False) -> None:
-        if pn_2:
-            new_active_move = self.get_move(pn, pn_2)[0]
-            assert new_active_move, 'Move not found'
-            self.moves_group.choice_move_activate(new_active_move)
-            return
-        elif save_second_current:
-            current_active_move = self.moves_group.active_move
-            active_nodes = current_active_move.node_positive_up, current_active_move.node_negative_down
-            for active_node in active_nodes:
-                new_active_move = self.get_move(pn, active_node)[0]
-                if new_active_move:
-                    self.moves_group.choice_move_activate(new_active_move)
-                    return
-            assert False, 'Move not found'
+    def switch_branch(self, move: PGMove) -> None:
+        assert move in self.moves_group.moves, 'Move not found in node'
+        self.moves_group.choice_move_activate(move)
+
+    @strictly_typed
+    def _get_move_by_defined_nodes(self, pn_1: PolarNode, pn_2: PolarNode) -> PGMove:
+        assert not (pn_1 is pn_2), 'Nodes should be different'
+        moves = [move for move in self.moves_group.moves
+                 if {pn_1, pn_2} == {move.node_positive_up, move.node_negative_down}]
+        assert moves, 'Move not found'
+        return moves[0]
+
+    @strictly_typed
+    def get_move_by_nodes(self, pn_1: PolarNode = None, pn_2: PolarNode = None, fill_by_current: bool = False)\
+            -> PGMove:
+        positive_up_nodes = self.next_nodes(End('pu'))
+        negative_down_nodes = self.next_nodes(End('nd'))
+        neighborhood_nodes = set(positive_up_nodes) | set(negative_down_nodes)
+        active_move = self.moves_group.active_move
+        if (not pn_1) and pn_2:
+            pn_1, pn_2 = pn_2, pn_1
+        for pn in [pn_1, pn_2]:
+            if pn:
+                assert pn in neighborhood_nodes, 'Node {} not found in neighborhood_nodes'.format(pn)
+        if bool(pn_1) & bool(pn_2):
+            if ((pn_1 in positive_up_nodes) and (pn_2 in negative_down_nodes)) or \
+                    ((pn_1 in negative_down_nodes) and (pn_2 in positive_up_nodes)):
+                return self._get_move_by_defined_nodes(pn_1, pn_2)
+            assert False, 'Given nodes at same side'
+        elif pn_1:
+            if pn_1 in positive_up_nodes:
+                assert fill_by_current or (len(negative_down_nodes) == 1), 'Negative_down_node should be defined'
+                return self._get_move_by_defined_nodes(pn_1, active_move.node_negative_down)
+            else:
+                assert fill_by_current or (len(positive_up_nodes) == 1), 'Positive_up_node should be defined'
+                return self._get_move_by_defined_nodes(pn_1, active_move.node_positive_up)
         else:
-            move_candidates = []
-            for link in (self.links_positive_up.union(self.links_negative_down)):
-                opposite_node = link.opposite_pn(self)
-                new_active_move = self.get_move(pn, opposite_node)[0]
-                if new_active_move:
-                    move_candidates.append(new_active_move)
-            assert move_candidates, 'Move not found'
-            assert len(move_candidates) <= 1, 'More then 1 variant for active move'
-            self.moves_group.choice_move_activate(move_candidates[0])
+            assert fill_by_current or (len(negative_down_nodes) == 1), 'Negative_down_node should be defined'
+            assert fill_by_current or (len(positive_up_nodes) == 1), 'Positive_up_node should be defined'
+            return active_move
 
 
 class AttributeTuple:
@@ -714,30 +733,30 @@ class AttributeGraph(PolarGraph):
 
 if __name__ == '__main__':
 
-    test = 'test_6'
+    test = 'test_2'
     if test == 'test_1':
 
         def check_inf_moves(text):
             print(text)
-            for mv in pg.inf_node_pu.moves_group.moves:
+            for mv in pg_00.inf_node_pu.moves_group.moves:
                 print('mv +inf pos/neg = ', mv.node_positive_up, mv.node_negative_down)
-            for mv in pg.inf_node_nd.moves_group.moves:
+            for mv in pg_00.inf_node_nd.moves_group.moves:
                 print('mv -inf pos/neg = ', mv.node_positive_up, mv.node_negative_down)
             print('end of '+text)
 
-        pg = PolarGraph()
-        print('pu infinity', pg.inf_node_pu)
-        print('nd infinity', pg.inf_node_nd)
+        pg_00 = PolarGraph()
+        print('pu infinity', pg_00.inf_node_pu)
+        print('nd infinity', pg_00.inf_node_nd)
         # check_inf_moves('before all connections: ')
         # print('Infinity node', pg._infinity_node_positive_up) #
-        pg_1 = PolarNode(pg, name='PolarNode_pg_1')
+        pg_1 = PolarNode(pg_00, name='PolarNode_pg_1')
         # check_inf_moves('after pg_1 creation: ')
         # print('take by name', PolarNode.get_inst_by_name('PolarNode_test_2'))
         print('pg_1 name = ', pg_1.name)
-        pg_2 = PolarNode(pg, name='PolarNode_pg_2')
-        pg_3 = PolarNode(pg, name='PolarNode_pg_3')
-        pg_4 = PolarNode(pg, name='PolarNode_pg_4')
-        pg_5 = PolarNode(pg, name='PolarNode_pg_5')
+        pg_2 = PolarNode(pg_00, name='PolarNode_pg_2')
+        pg_3 = PolarNode(pg_00, name='PolarNode_pg_3')
+        pg_4 = PolarNode(pg_00, name='PolarNode_pg_4')
+        pg_5 = PolarNode(pg_00, name='PolarNode_pg_5')
         # check_inf_moves('after pg_1-5 creation: ')
         print('pg1 links neg down =', pg_1.links_negative_down)
         pg_1.connect_to_its_end(pg_2, its_end=End('nd'), remove_infinity=False)
@@ -782,8 +801,8 @@ if __name__ == '__main__':
 
         pg_1.switch_branch(pg_4, pg_3)
 
-        pg.inf_node_pu.switch_branch(pg_2)
-        pg.inf_node_nd.switch_branch(pg_3)
+        # pg.inf_node_pu.switch_branch(pg_2)
+        # pg.inf_node_nd.switch_branch(pg_3)
 
         print('active nodes: ', pg_1.moves_group.active_move.node_positive_up,
               pg_1.moves_group.active_move.node_negative_down)
@@ -794,11 +813,11 @@ if __name__ == '__main__':
         print('all pu for pg_1', pg_1.next_nodes(End('pu')))
         print('next nd for pg_2', pg_2.next_active_move_node())
         print('next nd for pg_3', pg_3.next_active_move_node())
-        print('next pu for nd inf', pg.inf_node_nd.next_active_move_node(End('pu')))
-        print('next nd for pu inf', pg.inf_node_pu.next_active_move_node())
-        print('next pu for pu inf', pg.inf_node_pu.next_active_move_node(End('pu')))
-        print('next nd for nd inf', pg.inf_node_nd.next_active_move_node())
-        print('all nd for pu inf', pg.inf_node_pu.next_nodes())
+        print('next pu for nd inf', pg_00.inf_node_nd.next_active_move_node(End('pu')))
+        print('next nd for pu inf', pg_00.inf_node_pu.next_active_move_node())
+        print('next pu for pu inf', pg_00.inf_node_pu.next_active_move_node(End('pu')))
+        print('next nd for nd inf', pg_00.inf_node_nd.next_active_move_node())
+        print('all nd for pu inf', pg_00.inf_node_pu.next_nodes())
 
     if test == 'test_2':
 
@@ -806,24 +825,36 @@ if __name__ == '__main__':
             for node_ in pg_.nodes:
                 print('active move = ', node_.moves_group.active_move)
 
-        pg = PolarGraph()
-        print('pg.inf_node_pu ', pg.inf_node_pu)
-        print('pg.inf_node_nd ', pg.inf_node_nd)
-        pn_01 = pg.insert_node(make_pu_stable=True, make_nd_stable=True)  # make_nd_stable=True
+        pg_00 = PolarGraph()
+        print('pg.inf_node_pu ', pg_00.inf_node_pu)
+        print('pg.inf_node_nd ', pg_00.inf_node_nd)
+        pn_01 = pg_00.insert_node(make_pu_stable=True, make_nd_stable=True)  # make_nd_stable=True
         # pn_00 = copy(pn_01)
-        pn_02 = pg.insert_node(end_of_negative_down_node=pn_01.end_pu)
-        pn_03 = pg.insert_node(end_of_negative_down_node=pn_01.end_pu)
-        pn_04 = pg.insert_node(end_of_positive_up_node=pn_01.end_nd)
-        pn_05 = pg.insert_node(end_of_positive_up_node=pn_01.end_nd)
+        pn_02 = pg_00.insert_node(end_of_negative_down_node=pn_01.end_pu)
+        pn_03 = pg_00.insert_node(end_of_negative_down_node=pn_01.end_pu)
+        pn_04 = pg_00.insert_node(end_of_positive_up_node=pn_01.end_nd)
+        pn_05 = pg_00.insert_node(end_of_positive_up_node=pn_01.end_nd)
         print('pn_01 ', pn_01)
-        print('pg nodes ', pg.nodes)
+        print('pg nodes ', pg_00.nodes)
         # print_active_moves(pg)
-        pn_01.switch_branch(pn_05, pn_03)  # save_second_current=True
+        pn_01.switch_branch(pn_01.get_move_by_nodes(pn_02, pn_04))  # save_second_current=True
+        ms = PGMovesState(pg_00)
         # print_active_moves(pg)
-        print('pg links len ', len(pg.links))
-        print('pg links ', pg.links)
+        print('pg links len ', len(pg_00.links))
+        print('pg links ', pg_00.links)
         print('pn_01 next all nd ', pn_01.next_nodes())
         print('pn_01 next all pu ', pn_01.next_nodes(End('pu')))
+
+        print('before switch :')
+        print('pn_01 next active nd ', pn_01.next_active_move_node())
+        print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
+
+        pn_01.switch_branch(pn_01.get_move_by_nodes(pn_03, pn_05))
+        print('after switch :')
+        print('pn_01 next active nd ', pn_01.next_active_move_node())
+        print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
+        ms.reset_state()
+        print('after reset :')
         print('pn_01 next active nd ', pn_01.next_active_move_node())
         print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
 
@@ -853,20 +884,20 @@ if __name__ == '__main__':
 
     if test == 'test_4':
 
-        pg = PolarGraph()
-        print('pg.inf_node_pu ', pg.inf_node_pu)
-        print('pg.inf_node_nd ', pg.inf_node_nd)
-        pn_01 = pg.insert_node()  # make_nd_stable=True
+        pg_00 = PolarGraph()
+        print('pg.inf_node_pu ', pg_00.inf_node_pu)
+        print('pg.inf_node_nd ', pg_00.inf_node_nd)
+        pn_01 = pg_00.insert_node()  # make_nd_stable=True
         # pn_00 = copy(pn_01)
-        pn_02 = pg.insert_node(end_of_negative_down_node=pn_01.end_pu, make_nd_stable=True)
-        pg.connect_nodes(pn_01.end_pu, pn_02.end_nd)
-        pg.connect_nodes(pn_01.end_pu, pn_02.end_nd)
-        pn_03 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
-        pn_04 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
+        pn_02 = pg_00.insert_node(end_of_negative_down_node=pn_01.end_pu, make_nd_stable=True)
+        pg_00.connect_nodes(pn_01.end_pu, pn_02.end_nd)
+        pg_00.connect_nodes(pn_01.end_pu, pn_02.end_nd)
+        pn_03 = pg_00.insert_node(pn_02.end_nd, pn_01.end_pu)
+        pn_04 = pg_00.insert_node(pn_02.end_nd, pn_01.end_pu)
         print('pn_01 ', pn_01)
-        print('pg nodes ', pg.nodes)
-        print('pg links len ', len(pg.links))
-        print('pg links ', pg.links)
+        print('pg nodes ', pg_00.nodes)
+        print('pg links len ', len(pg_00.links))
+        print('pg links ', pg_00.links)
         print('pn_01 next all nd ', pn_01.next_nodes())
         print('pn_01 next all pu ', pn_01.next_nodes(End('pu')))
         print('pn_01 next active nd ', pn_01.next_active_move_node())
@@ -874,16 +905,16 @@ if __name__ == '__main__':
 
     if test == 'test_5':
 
-        pg = PolarGraph()
-        print('pg.inf_node_pu ', pg.inf_node_pu)
-        print('pg.inf_node_nd ', pg.inf_node_nd)
-        pn_01 = pg.insert_node()  # make_nd_stable=True
+        pg_00 = PolarGraph()
+        print('pg.inf_node_pu ', pg_00.inf_node_pu)
+        print('pg.inf_node_nd ', pg_00.inf_node_nd)
+        pn_01 = pg_00.insert_node()  # make_nd_stable=True
         # pn_00 = copy(pn_01)
-        pg.connect_nodes(pn_01.end_nd, pg.inf_node_pu.end_nd)
+        pg_00.connect_nodes(pn_01.end_nd, pg_00.inf_node_pu.end_nd)
         print('pn_01 ', pn_01)
-        print('pg nodes ', pg.nodes)
-        print('pg links len ', len(pg.links))
-        print('pg links ', pg.links)
+        print('pg nodes ', pg_00.nodes)
+        print('pg links len ', len(pg_00.links))
+        print('pg links ', pg_00.links)
         print('pn_01 next all nd ', pn_01.next_nodes())
         print('pn_01 next all pu ', pn_01.next_nodes(End('pu')))
         print('pn_01 next active nd ', pn_01.next_active_move_node())
@@ -891,32 +922,38 @@ if __name__ == '__main__':
 
     if test == 'test_6':
 
-        pg = PolarGraph()
-        print('pg.inf_node_pu ', pg.inf_node_pu)
-        print('pg.inf_node_nd ', pg.inf_node_nd)
-        pn_01 = pg.insert_node()  # make_nd_stable=True
+        pg_00 = PolarGraph()
+        print('pg.inf_node_pu ', pg_00.inf_node_pu)
+        print('pg.inf_node_nd ', pg_00.inf_node_nd)
+        pn_01 = pg_00.insert_node()  # make_nd_stable=True
         # pn_00 = copy(pn_01)
-        pn_02 = pg.insert_node(end_of_negative_down_node=pn_01.end_pu, make_nd_stable=True)
+        pn_02 = pg_00.insert_node(end_of_negative_down_node=pn_01.end_pu, make_nd_stable=True)
         # pg.connect_nodes(pn_01.end_nd, pn_02.end_pu)
         # pg.connect_nodes(pn_01.end_pu, pn_02.end_nd)
         # pn_03 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
         # pn_04 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
         print('pn_01 ', pn_01)
-        print('pg nodes ', pg.nodes)
-        print('pg links len ', len(pg.links))
-        print('pg links ', pg.links)
+        print('pg nodes ', pg_00.nodes)
+        print('pg links len ', len(pg_00.links))
+        print('pg links ', pg_00.links)
         print('pn_01 next all nd ', pn_01.next_nodes())
         print('pn_01 next all pu ', pn_01.next_nodes(End('pu')))
         print('pn_01 next active nd ', pn_01.next_active_move_node())
         print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
 
-        # pn_011 = copy(pn_01)
+        # pn_011 = deepcopy(pn_01)
+        # pg.connect_nodes(pn_01.end_pu, pn_02.end_nd)
+        # print('pn_01 next all nd ', pn_01.next_nodes())
+        # print('pn_01 next all pu ', pn_01.next_nodes(End('pu')))
+        # print('pn_01 next active nd ', pn_01.next_active_move_node())
+        # print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
         # print('pn_011 next all nd ', pn_011.next_nodes())
         # print('pn_011 next all pu ', pn_011.next_nodes(End('pu')))
         # print('pn_011 next active nd ', pn_011.next_active_move_node())
         # print('pn_011 next active pu ', pn_011.next_active_move_node(End('pu')))
 
-        # pg_10 = copy(pg)
-        # print('pg_10 nodes ', pg_10.nodes)
-        # print('pg_10 links len ', len(pg_10.links))
-        # print('pg_10 links ', pg_10.links)
+        pg_10 = deepcopy(pg_00)
+        print('pg_10 nodes ', pg_10.nodes)
+        print('pg_10 links len ', len(pg_10.links))
+        print('pg_10 links ', pg_10.links)
+        print('pg_10 nodes ', pg_10.nodes[0] is pg_00.nodes[0])
