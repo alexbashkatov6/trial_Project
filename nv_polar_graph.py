@@ -104,8 +104,21 @@ class PGContentDescriptor:
 
 class PGMovesGroup:
 
-    def __init__(self):
+    @strictly_typed
+    def __init__(self, pn: PolarNode, links: set[PGLink]) -> None:
+        self._pn = pn
+        self._links = links
         self._moves = set()
+
+    @property
+    @strictly_typed
+    def pn(self) -> PolarNode:
+        return self._pn
+
+    @property
+    @strictly_typed
+    def links(self) -> set[PGLink]:
+        return copy(self._links)
 
     @property
     @strictly_typed
@@ -148,45 +161,38 @@ class PGMovesGroup:
     def clear(self):
         self._moves.clear()
 
+    def refresh_moves(self):
+        self.clear()
+        for link in self.links:
+            self.add_move(PGMove(self.pn, link))
+        self.random_move_activate()
+
 
 class PGMove:
     content = PGContentDescriptor()
 
     @strictly_typed
-    def __init__(self, node_place: PolarNode, link_positive_up: PGLink, link_negative_down: PGLink) -> None:
-        self.links = (link_positive_up, link_negative_down)
-        self.node_place = node_place
-        self.active = False
-        assert link_positive_up in self.node_place.links_positive_up, 'check positive link'
-        assert link_negative_down in self.node_place.links_negative_down, 'check negative link'
+    def __init__(self, pn: PolarNode, link: PGLink) -> None:
+        self._link = link
+        self._pn = pn
+        self._active = False
 
     def __repr__(self):
-        return '{}({}, {}, {})'.format(self.__class__.__name__, self.node_place,
-                                       self.links[0].opposite_pn(self.node_place),
-                                       self.links[1].opposite_pn(self.node_place))
+        return '{}({}, {})'.format(self.__class__.__name__, self.pn, self.connected_node)
 
     @property
     @strictly_typed
-    def links(self) -> tuple[PGLink, PGLink]:
-        return self._links
-
-    @links.setter
-    @strictly_typed
-    def links(self, links_tuple: tuple[PGLink, PGLink]) -> None:
-        self._links = links_tuple
+    def link(self) -> PGLink:
+        return self._link
 
     @property
     @strictly_typed
-    def node_positive_up(self) -> PolarNode:
-        return self.links[0].opposite_pn(self.node_place)
+    def pn(self) -> PolarNode:
+        return self._pn
 
     @property
     @strictly_typed
-    def node_negative_down(self) -> PolarNode:
-        return self.links[1].opposite_pn(self.node_place)
-
-    @property
-    def active(self):
+    def active(self) -> bool:
         return self._active
 
     @active.setter
@@ -194,12 +200,18 @@ class PGMove:
     def active(self, value: bool) -> None:
         self._active = value
 
+    @property
+    @strictly_typed
+    def connected_node(self) -> PolarNode:
+        return self.link.opposite_pn(self.pn)
+
 
 class PGLinkGroup:
 
     @strictly_typed
-    def __init__(self, end_pn_1: EndOfPolarNode, end_pn_2: EndOfPolarNode, first_link_is_stable: bool = False) -> None:
-        assert end_pn_1 != end_pn_2, 'Cannot connect pn to itself'
+    def __init__(self, end_pn_1: EndOfPolarNode, end_pn_2: EndOfPolarNode,
+                 first_link_is_stable: bool = False) -> None:
+        assert not (end_pn_1 is end_pn_2), 'Cannot connect  node to itself'
         self.end_pns = (end_pn_1, end_pn_2)
         self._links = set()
         self.init_link(first_link_is_stable)
@@ -222,7 +234,7 @@ class PGLinkGroup:
     def unstable_links(self) -> set[PGLink]:
         stable_link = self.stable_link
         if stable_link:
-            return self.links-{stable_link}
+            return self.links - {stable_link}
         else:
             return self.links
 
@@ -265,7 +277,8 @@ class PGLinkGroup:
 
     @strictly_typed
     def init_link(self, init_stable: bool = False) -> PGLink:
-        assert not(self.stable_link and init_stable), 'Only 1 stable link may be between same nodes'
+        # assert not(self.if_fictive and self.count_of_links), 'Only 1 fictive link can be created in fictive group'
+        assert not (self.stable_link and init_stable), 'Only 1 stable link may be between same nodes'
         new_link = PGLink(self, init_stable)
         self._links.add(new_link)
         return new_link
@@ -323,15 +336,15 @@ class PGLink:
 class PGMovesState:
 
     @strictly_typed
-    def __init__(self, pg: PolarGraph) -> None:
+    def __init__(self, pg: BasePolarGraph) -> None:
         self._moves = []
         for pn in pg.nodes:
-            self._moves.append(pn.moves_group.active_move)
+            self._moves.append(pn._moves_group.active_move)
 
     @strictly_typed
     def reset_state(self) -> None:
         for move in self._moves:
-            move.node_place.switch_branch(move)
+            move.pn.switch_branch(move)
 
 
 @names_control
@@ -341,6 +354,13 @@ class PolarGraph:
         self._nodes = []
         self._link_groups = []
         self._links = []
+
+
+@names_control
+class BasePolarGraph(PolarGraph):
+
+    def __init__(self):
+        super().__init__()
         # self._sub_graphs = {}  # {tag: list[PG]}
 
         self._infinity_node_positive_up = self._init_node()
@@ -496,20 +516,30 @@ class PolarGraph:
 
     @strictly_typed
     def find_node_coverage(self, start_end_of_node: EndOfPolarNode,
-                           border_nodes: list[PolarNode] = None) -> PolarGraph:
+                           border_nodes: list[PolarNode] = None) -> BasePolarGraph:
         return self
 
     @strictly_typed
-    def cut_subgraph(self, border_nodes: list[PolarNode]) -> PolarGraph:
+    def cut_subgraph(self, border_nodes: list[PolarNode]) -> BasePolarGraph:
         return self
 
     @strictly_typed
-    def find_active_route(self, pn_1: PolarNode, pn_2: PolarNode) -> PolarGraph:
+    def find_active_route(self, pn_1: PolarNode, pn_2: PolarNode) -> BasePolarGraph:
         return self
 
     @strictly_typed
-    def find_all_routes(self, pn_1: PolarNode, pn_2: PolarNode) -> list[PolarGraph]:
+    def find_all_routes(self, pn_1: PolarNode, pn_2: PolarNode) -> list[BasePolarGraph]:
         return [self]
+
+
+class PNType:
+
+    @strictly_typed
+    def __init__(self, node_type: str = '0'):
+        assert node_type in ['not_connected', 'nd_connected', 'pu_connected', 'full_connected', 'not', 'nd', 'pu',
+                             'full'], \
+            "Str value should be one of ['not_connected', 'nd_connected', 'pu_connected', 'full_connected', " \
+            "'not', 'nd', 'pu', 'full']"
 
 
 @names_control
@@ -518,11 +548,12 @@ class PolarNode:
 
     @strictly_typed
     def __init__(self) -> None:
-        self._end_negative_down = EndOfPolarNode(self, End('nd'))
         self._end_positive_up = EndOfPolarNode(self, End('pu'))
+        self._end_negative_down = EndOfPolarNode(self, End('nd'))
         self._links_positive_up = set()
         self._links_negative_down = set()
-        self.moves_group = PGMovesGroup()
+        self._moves_group_positive_up = PGMovesGroup(self, self._links_positive_up)
+        self._moves_group_negative_down = PGMovesGroup(self, self._links_negative_down)
 
     @property
     @strictly_typed
@@ -544,40 +575,50 @@ class PolarNode:
     def links_negative_down(self) -> set[PGLink]:
         return copy(self._links_negative_down)
 
+    @property
+    @strictly_typed
+    def moves_group_positive_up(self) -> PGMovesGroup:
+        return self._moves_group_positive_up
+
+    @property
+    @strictly_typed
+    def moves_group_negative_down(self) -> PGMovesGroup:
+        return self._moves_group_negative_down
+
     @strictly_typed
     def add_link_to_node_end(self, link: PGLink,
                              node_end: End = End('nd')) -> None:
         assert self in link.pns, 'Node not found in link ends'
         if node_end.is_negative_down:
             self._links_negative_down.add(link)
+            self.refresh_end_moves(End('nd'))
         else:
             self._links_positive_up.add(link)
-        self.refresh_moves()
+            self.refresh_end_moves(End('pu'))
 
     @strictly_typed
     def remove_link(self, link: PGLink) -> None:
         assert self in link.pns, 'Node not found in link ends'
         if link in self._links_negative_down:
             self._links_negative_down.remove(link)
-            self.refresh_moves()
+            self.refresh_end_moves(End('nd'))
             return
         if link in self._links_positive_up:
             self._links_positive_up.remove(link)
-            self.refresh_moves()
+            self.refresh_end_moves(End('pu'))
             return
         assert False, 'Link not found in node'
 
-    def refresh_moves(self):
-        self.moves_group.clear()
-        if self._links_positive_up and self._links_negative_down:
-            product_tuples = product(self._links_positive_up, self._links_negative_down)
-            for product_tuple in product_tuples:
-                self.moves_group.add_move(PGMove(self, *product_tuple))
-                self.moves_group.random_move_activate()
+    @strictly_typed
+    def refresh_end_moves(self, end: End):
+        if end == 'pu':
+            self.moves_group_positive_up.refresh_moves()
+        elif end == 'nd':
+            self.moves_group_negative_down.refresh_moves()
 
     @strictly_typed
     def next_active_move_node(self, direction: End = End('nd')) -> PolarNode:
-        active_move = self.moves_group.active_move
+        active_move = self._moves_group.active_move
         if direction.is_negative_down:
             return active_move.node_negative_down
         else:
@@ -593,24 +634,24 @@ class PolarNode:
 
     @strictly_typed
     def switch_branch(self, move: PGMove) -> None:
-        assert move in self.moves_group.moves, 'Move not found in node'
-        self.moves_group.choice_move_activate(move)
+        assert move in self._moves_group.moves, 'Move not found in node'
+        self._moves_group.choice_move_activate(move)
 
     @strictly_typed
     def _get_move_by_defined_nodes(self, pn_1: PolarNode, pn_2: PolarNode) -> PGMove:
         assert not (pn_1 is pn_2), 'Nodes should be different'
-        moves = [move for move in self.moves_group.moves
+        moves = [move for move in self._moves_group.moves
                  if {pn_1, pn_2} == {move.node_positive_up, move.node_negative_down}]
         assert moves, 'Move not found'
         return moves[0]
 
     @strictly_typed
-    def get_move_by_nodes(self, pn_1: PolarNode = None, pn_2: PolarNode = None, fill_by_current: bool = False)\
+    def get_move_by_nodes(self, pn_1: PolarNode = None, pn_2: PolarNode = None, fill_by_current: bool = False) \
             -> PGMove:
         positive_up_nodes = self.next_nodes(End('pu'))
         negative_down_nodes = self.next_nodes(End('nd'))
         neighborhood_nodes = set(positive_up_nodes) | set(negative_down_nodes)
-        active_move = self.moves_group.active_move
+        active_move = self._moves_group.active_move
         if (not pn_1) and pn_2:
             pn_1, pn_2 = pn_2, pn_1
         for pn in [pn_1, pn_2]:
@@ -658,7 +699,7 @@ class AttributeNode(PolarNode):
         self.content.node_value = val
 
 
-class AttributeGraph(PolarGraph):
+class AttributeGraph(BasePolarGraph):
 
     def __init__(self):
         super().__init__()
@@ -738,13 +779,14 @@ if __name__ == '__main__':
 
         def check_inf_moves(text):
             print(text)
-            for mv in pg_00.inf_node_pu.moves_group.moves:
+            for mv in pg_00.inf_node_pu._moves_group.moves:
                 print('mv +inf pos/neg = ', mv.node_positive_up, mv.node_negative_down)
-            for mv in pg_00.inf_node_nd.moves_group.moves:
+            for mv in pg_00.inf_node_nd._moves_group.moves:
                 print('mv -inf pos/neg = ', mv.node_positive_up, mv.node_negative_down)
-            print('end of '+text)
+            print('end of ' + text)
 
-        pg_00 = PolarGraph()
+
+        pg_00 = BasePolarGraph()
         print('pu infinity', pg_00.inf_node_pu)
         print('nd infinity', pg_00.inf_node_nd)
         # check_inf_moves('before all connections: ')
@@ -792,20 +834,20 @@ if __name__ == '__main__':
         # print('pg_1.content.is_complex = ', pg_1.content.is_complex())
         # print('pg_2.content.is_complex = ', pg_2.content.is_complex())
 
-        print('moves pg_1 = ', pg_1.moves_group.moves)
-        print('moves pg_2 = ', pg_2.moves_group.moves)
-        print('moves pg_3 = ', pg_3.moves_group.moves)
+        print('moves pg_1 = ', pg_1._moves_group.moves)
+        print('moves pg_2 = ', pg_2._moves_group.moves)
+        print('moves pg_3 = ', pg_3._moves_group.moves)
 
         for i, pg_i in enumerate([pg_1, pg_2, pg_3, pg_4, pg_5]):
-            print('pg_'+str(i+1), pg_i)
+            print('pg_' + str(i + 1), pg_i)
 
         pg_1.switch_branch(pg_4, pg_3)
 
         # pg.inf_node_pu.switch_branch(pg_2)
         # pg.inf_node_nd.switch_branch(pg_3)
 
-        print('active nodes: ', pg_1.moves_group.active_move.node_positive_up,
-              pg_1.moves_group.active_move.node_negative_down)
+        print('active nodes: ', pg_1._moves_group.active_move.node_positive_up,
+              pg_1._moves_group.active_move.node_negative_down)
 
         print('next nd for pg_1', pg_1.next_active_move_node())
         print('next pu for pg_1', pg_1.next_active_move_node(End('pu')))
@@ -823,9 +865,10 @@ if __name__ == '__main__':
 
         def print_active_moves(pg_):
             for node_ in pg_.nodes:
-                print('active move = ', node_.moves_group.active_move)
+                print('active move = ', node_._moves_group.active_move)
 
-        pg_00 = PolarGraph()
+
+        pg_00 = BasePolarGraph()
         print('pg.inf_node_pu ', pg_00.inf_node_pu)
         print('pg.inf_node_nd ', pg_00.inf_node_nd)
         pn_01 = pg_00.insert_node(make_pu_stable=True, make_nd_stable=True)  # make_nd_stable=True
@@ -868,7 +911,6 @@ if __name__ == '__main__':
         # nt.q = 5
 
     if test == 'test_3':
-
         pn_01 = PolarNode()
         print(End('nd') == 'pu')
         pe_01 = EndOfPolarNode(pn_01, End('nd'))
@@ -883,8 +925,7 @@ if __name__ == '__main__':
         print('eq 2 = ', pe_03 == pn_01.end_nd)
 
     if test == 'test_4':
-
-        pg_00 = PolarGraph()
+        pg_00 = BasePolarGraph()
         print('pg.inf_node_pu ', pg_00.inf_node_pu)
         print('pg.inf_node_nd ', pg_00.inf_node_nd)
         pn_01 = pg_00.insert_node()  # make_nd_stable=True
@@ -904,8 +945,7 @@ if __name__ == '__main__':
         print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
 
     if test == 'test_5':
-
-        pg_00 = PolarGraph()
+        pg_00 = BasePolarGraph()
         print('pg.inf_node_pu ', pg_00.inf_node_pu)
         print('pg.inf_node_nd ', pg_00.inf_node_nd)
         pn_01 = pg_00.insert_node()  # make_nd_stable=True
@@ -921,8 +961,7 @@ if __name__ == '__main__':
         print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
 
     if test == 'test_6':
-
-        pg_00 = PolarGraph()
+        pg_00 = BasePolarGraph()
         print('pg.inf_node_pu ', pg_00.inf_node_pu)
         print('pg.inf_node_nd ', pg_00.inf_node_nd)
         pn_01 = pg_00.insert_node()  # make_nd_stable=True
