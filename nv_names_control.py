@@ -107,3 +107,16 @@ if __name__ == '__main__':
     # d.pop(6)
     # print(d)
 
+    # class Base:
+    #     def __init__(self, cls_name: str, params_dict: dict[str, int]):
+    #         type(cls_name, (self.__class__,), params_dict)
+    #
+    # subclass = Base('sbcl', {'par_1': 1})
+    # print(subclass)
+    # print(subclass.par_1)
+    # from collections import namedtuple
+    # a = namedtuple('a', ['ab', 'cd'])
+    # print(a)
+
+    # def class_gen(cls_name: str, )
+
