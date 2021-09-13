@@ -1,7 +1,7 @@
 from __future__ import annotations
 from copy import copy, deepcopy
 from collections.abc import Iterable
-from itertools import product
+# from itertools import product
 
 from nv_typing import *
 from nv_names_control import names_control
@@ -122,7 +122,9 @@ class PGMovesGroup:
 
     @property
     @strictly_typed
-    def inactive_moves(self) -> set[PGMove]:
+    def inactive_moves(self) -> Optional[set[PGMove]]:
+        if not self.moves:
+            return
         return copy(self.moves - {self.active_move})
 
     @strictly_typed
@@ -518,13 +520,16 @@ class PGGraphMovesState:
     def save_state(self, pg: BasePolarGraph) -> None:
         for pn in pg.nodes:
             ni_nd, ni_pu = pn.ni_nd, pn.ni_pu
-            self._moves.append(ni_nd.moves_group.active_move)
-            self._moves.append(ni_pu.moves_group.active_move)
+            nd_active_move, pu_active_move = ni_nd.moves_group.active_move, ni_pu.moves_group.active_move
+            if nd_active_move:
+                self._moves.append(ni_nd.moves_group.active_move)
+            if pu_active_move:
+                self._moves.append(ni_pu.moves_group.active_move)
 
     @strictly_typed
     def reset_state(self) -> None:
         for move in self._moves:
-            # print('Reset state in node ', move.pn)
+            # print('Reset state in move ', move)
             move.pn.switch_move_branch(move)
 
 
@@ -532,50 +537,40 @@ class PGGraphMovesState:
 class PolarGraph:
 
     def __init__(self):
-        self._nodes = []
-        self._link_groups = []
-        self._links = []
-
-
-@names_control
-class BasePolarGraph(PolarGraph):
-
-    def __init__(self):
-        super().__init__()
-
-        self._infinity_node_positive_up = self._init_node()
-        self._infinity_node_negative_down = self._init_node()
-        self.connect_nodes(self.inf_node_pu.end_pu, self.inf_node_nd.end_nd, link_is_stable=True)
-        self.connect_nodes(self.inf_node_pu.end_nd, self.inf_node_nd.end_pu)
-        # print('End of init BaseGraph')
+        self._nodes = set()
+        self._border_nodes = set()
+        self._link_groups = set()
+        self._links = set()
 
     @strictly_typed
     def _init_node(self) -> PolarNode:
         node = PolarNode()
-        self._nodes.append(node)
+        self._nodes.add(node)
         return node
 
     @property
-    def inf_node_pu(self):
-        return self._infinity_node_positive_up
-
-    @property
-    def inf_node_nd(self):
-        return self._infinity_node_negative_down
-
-    @property
     @strictly_typed
-    def nodes(self) -> list[PolarNode]:
+    def nodes(self) -> set[PolarNode]:
         return copy(self._nodes)
 
     @property
     @strictly_typed
-    def link_groups(self) -> list[PGLinkGroup]:
+    def border_nodes(self) -> set[PolarNode]:
+        return copy(self._border_nodes)
+
+    @border_nodes.setter
+    @strictly_typed
+    def border_nodes(self, value: Iterable[PolarNode]) -> None:
+        self._border_nodes = set(value)
+
+    @property
+    @strictly_typed
+    def link_groups(self) -> set[PGLinkGroup]:
         return copy(self._link_groups)
 
     @property
     @strictly_typed
-    def links(self) -> list[PGLink]:
+    def links(self) -> set[PGLink]:
         return copy(self._links)
 
     def _refresh_link_groups_and_links(self):
@@ -584,7 +579,7 @@ class BasePolarGraph(PolarGraph):
             if link_group.count_of_links == 0:
                 self._link_groups.remove(link_group)
             else:
-                self._links.extend(link_group.links)
+                self._links |= link_group.links
 
     @strictly_typed
     def _get_link_group_by_ends(self, end_pn_1: PNEnd, end_pn_2: PNEnd) -> Optional[PGLinkGroup]:
@@ -594,33 +589,19 @@ class BasePolarGraph(PolarGraph):
         if link_groups:
             return link_groups[0]
 
-    @strictly_typed
-    def _count_link_groups_eq_nodes(self, pn_1: PolarNode, pn_2: PolarNode) -> int:
-        ends_combinations = product([End('nd'), End('pu')], [End('nd'), End('pu')])
-        count = 0
-        for ends_combination in ends_combinations:
-            end_candidate_pn_1, end_candidate_pn_2 = \
-                PNEnd(pn_1, ends_combination[0]), PNEnd(pn_2, ends_combination[1])
-            count += int(bool(self._get_link_group_by_ends(end_candidate_pn_1, end_candidate_pn_2)))
-        return count
+    def _check_cycles(self):
+        pass
 
     @strictly_typed
     def _check_new_link_group_existing_possibility(self, end_pn_1: PNEnd, end_pn_2: PNEnd) -> bool:
         return not bool(self._get_link_group_by_ends(end_pn_1, end_pn_2))
 
     @strictly_typed
-    def _check_new_link_group_count_possibility(self, pn_1: PolarNode, pn_2: PolarNode) -> bool:
-        count_existing = self._count_link_groups_eq_nodes(pn_1, pn_2)
-        return bool(1 - count_existing + int(bool({pn_1, pn_2} & {self.inf_node_nd, self.inf_node_pu})))
-
-    @strictly_typed
     def _init_new_link_group(self, end_pn_1: PNEnd, end_pn_2: PNEnd,
                              first_link_is_stable: bool = False) -> PGLinkGroup:
-        assert self._check_new_link_group_existing_possibility(end_pn_1, end_pn_2), 'Lg already exists'
-        assert self._check_new_link_group_count_possibility(end_pn_1.pn, end_pn_2.pn), \
-            'Exceeds count of max LinkGroup between same nodes'
+        assert self._check_new_link_group_existing_possibility(end_pn_1, end_pn_2), 'Link_group already exists'
         new_link_group = PGLinkGroup(end_pn_1, end_pn_2, first_link_is_stable)
-        self._link_groups.append(new_link_group)
+        self._link_groups.add(new_link_group)
         return new_link_group
 
     @strictly_typed
@@ -673,15 +654,11 @@ class BasePolarGraph(PolarGraph):
         self._refresh_link_groups_and_links()
 
     @strictly_typed
-    def insert_node(self, end_of_positive_up_node: PNEnd = None,
-                    end_of_negative_down_node: PNEnd = None,
+    def insert_node(self, end_of_positive_up_node: PNEnd,
+                    end_of_negative_down_node: PNEnd,
                     insertion_node: PolarNode = None,
                     make_pu_stable: bool = False, make_nd_stable: bool = False) -> PolarNode:
         # positive_up and negative_down for insertion_node, but their ends is
-        if not end_of_positive_up_node:
-            end_of_positive_up_node = self.inf_node_pu.end_nd
-        if not end_of_negative_down_node:
-            end_of_negative_down_node = self.inf_node_nd.end_pu
         if not insertion_node:
             insertion_node = self._init_node()
         existing_old_nodes_link_group = self._get_link_group_by_ends(end_of_positive_up_node, end_of_negative_down_node)
@@ -693,117 +670,136 @@ class BasePolarGraph(PolarGraph):
 
     @strictly_typed
     def find_node_coverage(self, start_end_of_node: PNEnd,
-                           border_nodes: list[PolarNode] = None) -> BasePolarGraph:
+                           border_nodes: list[PolarNode] = None) -> PolarGraph:
         return self
 
     @strictly_typed
-    def cut_subgraph(self, border_nodes: list[PolarNode]) -> BasePolarGraph:
+    def cut_subgraph(self, border_nodes: list[PolarNode]) -> PolarGraph:
         return self
 
     @strictly_typed
-    def find_active_route(self, pn_1: PolarNode, pn_2: PolarNode) -> BasePolarGraph:
+    def find_active_route(self, pn_1: PolarNode, pn_2: PolarNode) -> PolarGraph:
         return self
 
     @strictly_typed
-    def find_all_routes(self, pn_1: PolarNode, pn_2: PolarNode) -> list[BasePolarGraph]:
+    def find_all_routes(self, pn_1: PolarNode, pn_2: PolarNode) -> list[PolarGraph]:
         return [self]
 
 
-class AttributeTuple:
-    def __init__(self, node_type, node_name, node_value):
-        self.node_type = node_type
-        self.node_name = node_name
-        self.node_value = node_value
-
-
-class AttributeNode(PolarNode):
-
-    @strictly_typed
-    def __init__(self, node_type: OneOfString(['title', 'splitter', 'value']), node_name: str = '',
-                 node_value: Any = None) -> None:
-        super().__init__()
-        self.content = AttributeTuple(node_type, node_name, node_value)
-
-    @property
-    def value(self):
-        return self.content.node_value
-
-    @value.setter
-    def value(self, val):
-        self.content.node_value = val
-
-
-class AttributeGraph(BasePolarGraph):
+@names_control
+class BasePolarGraph(PolarGraph):
 
     def __init__(self):
         super().__init__()
-        self._splitters_last_nodes = []  # list[an]
-        self._associations = {}  # {(split_an, str_val): derived_an}
 
-    @strictly_typed
-    def associate(self, splitter_an: AttributeNode, splitter_str_value: str, derived_an: AttributeNode) -> None:
-        assert splitter_an in self._nodes, 'Splitter not found in nodes list'
-        assert splitter_an.content.node_type == 'splitter', 'Can be only splitter associated'
-        assert splitter_str_value in splitter_an.content.node_value, 'Splitter str-value not found in values list'
-        self._associations[(splitter_an, splitter_str_value)] = derived_an
+        self._infinity_node_positive_up = self._init_node()
+        self._infinity_node_negative_down = self._init_node()
+        self.border_nodes = {self.inf_node_pu, self.inf_node_nd}
 
-    @strictly_typed
-    def _add_node(self, an: AttributeNode, to_splitter: AttributeNode = None, associated_splitter_value: str = '',
-                  out_splitter: bool = False) -> None:
-        self._nodes.append(an)
-        if len(self._nodes) == 1:
-            return
-        last_node = self._nodes[-1]
-        if to_splitter:
-            assert to_splitter in self._nodes, 'Splitter not found in nodes'
-            if last_node != to_splitter:
-                self._splitters_last_nodes.append(last_node)
-            an.connect_to_its_end(to_splitter)
-            self.associate(to_splitter, associated_splitter_value, an)
-        elif out_splitter:
-            for splitters_last_node in self._splitters_last_nodes:
-                an.connect_to_its_end(splitters_last_node)
-            self._splitters_last_nodes.clear()
-        else:
-            an.connect_to_its_end(last_node)
+    @property
+    def inf_node_pu(self):
+        return self._infinity_node_positive_up
 
-    @strictly_typed
-    def add_typed_node(self, node_type: OneOfString(['title', 'splitter', 'value']), node_name: str,
-                       to_splitter: AttributeNode = None, associated_splitter_value: str = '') -> None:
-        an = AttributeNode(node_type, node_name)
-        self._add_node(an, to_splitter, associated_splitter_value)
+    @property
+    def inf_node_nd(self):
+        return self._infinity_node_negative_down
 
-    @strictly_typed
-    def set_node_value(self, value_name: str, value: Any) -> None:
-        node_found = False
-        for node in self._nodes:
-            if (node.content.node_type in ['value', 'splitter']) and (node.content.node_name == value_name):
-                if node.content.node_type == 'splitter':
-                    assert isinstance(value, Iterable), 'Need iterable value for splitter'
-                    for val in value:
-                        assert type(val) == str, 'Values in splitter should be str'
-                node.content.node_value = value
-                return
-        assert node_found, 'Node for setting value is not found'
 
-    @strictly_typed
-    def last_splitter(self) -> Optional[AttributeNode]:
-        for node in reversed(self._nodes):
-            if node.content.node_type == 'splitter':
-                return node
-
-    @strictly_typed
-    def switch_splitter(self, splitter_name: str, to_splitter_str_value: str) -> None:
-        node_found = False
-        for node in self._nodes:
-            if (node.content.node_type == 'splitter') and (node.content.node_name == splitter_name):
-                node_found = True
-                node.switch_move_branch(self._associations[(node, to_splitter_str_value)])
-        assert node_found, 'Node for setting value is not found'
-
-    @strictly_typed
-    def get_linear_list(self) -> list[AttributeTuple]:
-        pass
+# class AttributeTuple:
+#     def __init__(self, node_type, node_name, node_value):
+#         self.node_type = node_type
+#         self.node_name = node_name
+#         self.node_value = node_value
+#
+#
+# class AttributeNode(PolarNode):
+#
+#     @strictly_typed
+#     def __init__(self, node_type: OneOfString(['title', 'splitter', 'value']), node_name: str = '',
+#                  node_value: Any = None) -> None:
+#         super().__init__()
+#         self.content = AttributeTuple(node_type, node_name, node_value)
+#
+#     @property
+#     def value(self):
+#         return self.content.node_value
+#
+#     @value.setter
+#     def value(self, val):
+#         self.content.node_value = val
+#
+#
+# class AttributeGraph(BasePolarGraph):
+#
+#     def __init__(self):
+#         super().__init__()
+#         self._splitters_last_nodes = []  # list[an]
+#         self._associations = {}  # {(split_an, str_val): derived_an}
+#
+#     @strictly_typed
+#     def associate(self, splitter_an: AttributeNode, splitter_str_value: str, derived_an: AttributeNode) -> None:
+#         assert splitter_an in self._nodes, 'Splitter not found in nodes list'
+#         assert splitter_an.content.node_type == 'splitter', 'Can be only splitter associated'
+#         assert splitter_str_value in splitter_an.content.node_value, 'Splitter str-value not found in values list'
+#         self._associations[(splitter_an, splitter_str_value)] = derived_an
+#
+#     @strictly_typed
+#     def _add_node(self, an: AttributeNode, to_splitter: AttributeNode = None, associated_splitter_value: str = '',
+#                   out_splitter: bool = False) -> None:
+#         self._nodes.append(an)
+#         if len(self._nodes) == 1:
+#             return
+#         last_node = self._nodes[-1]
+#         if to_splitter:
+#             assert to_splitter in self._nodes, 'Splitter not found in nodes'
+#             if last_node != to_splitter:
+#                 self._splitters_last_nodes.append(last_node)
+#             an.connect_to_its_end(to_splitter)
+#             self.associate(to_splitter, associated_splitter_value, an)
+#         elif out_splitter:
+#             for splitters_last_node in self._splitters_last_nodes:
+#                 an.connect_to_its_end(splitters_last_node)
+#             self._splitters_last_nodes.clear()
+#         else:
+#             an.connect_to_its_end(last_node)
+#
+#     @strictly_typed
+#     def add_typed_node(self, node_type: OneOfString(['title', 'splitter', 'value']), node_name: str,
+#                        to_splitter: AttributeNode = None, associated_splitter_value: str = '') -> None:
+#         an = AttributeNode(node_type, node_name)
+#         self._add_node(an, to_splitter, associated_splitter_value)
+#
+#     @strictly_typed
+#     def set_node_value(self, value_name: str, value: Any) -> None:
+#         node_found = False
+#         for node in self._nodes:
+#             if (node.content.node_type in ['value', 'splitter']) and (node.content.node_name == value_name):
+#                 if node.content.node_type == 'splitter':
+#                     assert isinstance(value, Iterable), 'Need iterable value for splitter'
+#                     for val in value:
+#                         assert type(val) == str, 'Values in splitter should be str'
+#                 node.content.node_value = value
+#                 return
+#         assert node_found, 'Node for setting value is not found'
+#
+#     @strictly_typed
+#     def last_splitter(self) -> Optional[AttributeNode]:
+#         for node in reversed(self._nodes):
+#             if node.content.node_type == 'splitter':
+#                 return node
+#
+#     @strictly_typed
+#     def switch_splitter(self, splitter_name: str, to_splitter_str_value: str) -> None:
+#         node_found = False
+#         for node in self._nodes:
+#             if (node.content.node_type == 'splitter') and (node.content.node_name == splitter_name):
+#                 node_found = True
+#                 node.switch_move_branch(self._associations[(node, to_splitter_str_value)])
+#         assert node_found, 'Node for setting value is not found'
+#
+#     @strictly_typed
+#     def get_linear_list(self) -> list[AttributeTuple]:
+#         pass
 
 
 if __name__ == '__main__':
@@ -825,17 +821,19 @@ if __name__ == '__main__':
         print('moves of inf_pu pu', pg_00.inf_node_pu.ni_pu.moves_group.moves)
         print('moves of inf_pu nd', pg_00.inf_node_pu.ni_nd.moves_group.moves)
 
-        pn_01 = pg_00.insert_node(make_pu_stable=True, make_nd_stable=True)  # make_nd_stable=True
+        pn_01 = pg_00.insert_node(pg_00.inf_node_pu.end_nd, pg_00.inf_node_nd.end_pu,
+                                  make_pu_stable=True, make_nd_stable=True)
         # pn_00 = copy(pn_01)
-        pn_02 = pg_00.insert_node(end_of_negative_down_node=pn_01.end_pu)
-        pn_03 = pg_00.insert_node(end_of_negative_down_node=pn_01.end_pu)
-        pn_04 = pg_00.insert_node(end_of_positive_up_node=pn_01.end_nd)
-        pn_05 = pg_00.insert_node(end_of_positive_up_node=pn_01.end_nd)
+        pn_02 = pg_00.insert_node(pg_00.inf_node_pu.end_nd, pn_01.end_pu)
+        pn_03 = pg_00.insert_node(pg_00.inf_node_pu.end_nd, pn_01.end_pu)
+        pn_04 = pg_00.insert_node(pn_01.end_nd, pg_00.inf_node_nd.end_pu)
+        pn_05 = pg_00.insert_node(pn_01.end_nd, pg_00.inf_node_nd.end_pu)
         print('pn_01 ', pn_01)
         print('pg nodes ', pg_00.nodes)
         print('pg.inf_node_pu ', pg_00.inf_node_pu)
         print('pg.inf_node_nd ', pg_00.inf_node_nd)
         print('links in pg ', pg_00.links)
+        print('len of links in pg ', len(pg_00.links))
         print('moves of inf_pu pu', pg_00.inf_node_pu.ni_pu.moves_group.moves)
         print('moves of inf_pu nd', pg_00.inf_node_pu.ni_nd.moves_group.moves)
         print('active move of inf_pu pu', pg_00.inf_node_pu.ni_pu.moves_group.active_move)
@@ -844,17 +842,17 @@ if __name__ == '__main__':
         print('next nodes of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_nodes)
         print('Before activation')
         ms = PGGraphMovesState(pg_00)
-        print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
+        # print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
         print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
         print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
         pg_00.moves_activate_by_ends(pn_01.end_pu, pg_00.inf_node_pu.end_nd)
         print('After activation')
-        print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
+        # print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
         print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
         print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
         print('After reset')
         ms.reset_state()
-        print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
+        # print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
         print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
         print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
         # print_active_moves(pg)
@@ -973,4 +971,4 @@ if __name__ == '__main__':
         print('pg_10 nodes ', pg_10.nodes)
         print('pg_10 links len ', len(pg_10.links))
         print('pg_10 links ', pg_10.links)
-        print('pg_10 nodes ', pg_10.nodes[0] is pg_00.nodes[0])
+        # print('pg_10 nodes ', pg_10.nodes[0] is pg_00.nodes[0])
