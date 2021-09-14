@@ -1,6 +1,5 @@
 from __future__ import annotations
 from copy import copy, deepcopy
-from collections import deque
 from collections.abc import Iterable
 # from itertools import product
 
@@ -446,7 +445,7 @@ class PolarNode:
         self._interface_negative_down, self._interface_positive_up = \
             NodeInterface(self.end_nd), NodeInterface(self.end_pu)
         self._ni_by_end: dict[PNEnd, NodeInterface] = {self._end_negative_down: self._interface_negative_down,
-                           self._end_positive_up: self._interface_positive_up}
+                                                       self._end_positive_up: self._interface_positive_up}
 
     @property
     @strictly_typed
@@ -655,78 +654,48 @@ class PolarGraph:
         return insertion_node
 
     @strictly_typed
-    def find_node_coverage_breadth(self, start_end_of_node: PNEnd,
-                                   additional_border_nodes: Iterable[PolarNode] = None) -> PolarGraph:
-        assert start_end_of_node.pn in self.nodes, 'Begin node for find coverage not found'
-        common_border_nodes = self.border_nodes
-        common_border_nodes.add(start_end_of_node.pn)
-        if additional_border_nodes:
-            assert all([ab_pn in self.nodes for ab_pn in additional_border_nodes]), 'Border node not found'
-            common_border_nodes |= set(additional_border_nodes)
-        coverage_pg = PolarGraph()
-        found_nodes = {start_end_of_node.pn}
-        found_link_groups = set()
-        found_enter_ends = set()
-        found_out_ends = {start_end_of_node}
-        found_border_ends = {start_end_of_node}
-        ends_stack = deque([start_end_of_node])  # : list[PNEnd]
-        while ends_stack:
-            current_ends_stack = copy(ends_stack)
-            for end in current_ends_stack:
-                ends_stack.popleft()
-                ni: NodeInterface = end.pn.get_ni_by_end(end)
-                found_link_groups.update(ni.link_groups)
-                next_enter_ends = ni.next_ends
-                for next_enter_end in next_enter_ends:
-                    node = next_enter_end.pn
-                    found_nodes.add(node)
-                    found_enter_ends.add(next_enter_end)
-                    if node in common_border_nodes:
-                        found_border_ends.add(next_enter_end)
-                    else:
-                        assert not (next_enter_end in found_out_ends), \
-                            'Cycle was found in node_end {}'.format(next_enter_end)
-                        if node.count_side_connected == 2:
-                            out_end = next_enter_end.other_pn_end
-                            found_out_ends.add(out_end)
-                            ends_stack.append(out_end)
-                        # assert node not in found_nodes, 'Cycle was found, node: {}'.format(node)
-                    # found_nodes.add(node)
-        print('Found nodes: ', found_nodes)
-        print('Found enter ends: ', found_enter_ends)
-        print('Found border ends: ', found_border_ends)
-        print('Found link groups: ', found_link_groups)
-        # coverage_pg.nodes =
-        return coverage_pg
-
-    @strictly_typed
     def find_node_coverage(self, start_end_of_node: PNEnd,
                            additional_border_nodes: Iterable[PolarNode] = None,
-                           cycles_assertion=True) -> PolarGraph:
+                           cycles_assertion: bool = True, blind_nodes_assertion: bool = True) -> PolarGraph:
         assert start_end_of_node.pn in self.nodes, 'Begin node for find coverage not found'
         common_border_nodes = self.border_nodes
-        common_border_nodes.add(start_end_of_node.pn)
         if additional_border_nodes:
             assert all([ab_pn in self.nodes for ab_pn in additional_border_nodes]), 'Border node not found'
             common_border_nodes |= set(additional_border_nodes)
         coverage_pg = PolarGraph()
         found_nodes = {start_end_of_node.pn}
         found_link_groups = set()
-        ends_stack = [start_end_of_node]
-        link_groups_need_to_check = {}
         found_border_ends = {start_end_of_node}
-        while ends_stack:
-            current_end = ends_stack[-1]
-            current_ni: NodeInterface = current_end.pn.get_ni_by_end(current_end)
-            if current_end not in link_groups_need_to_check:
-                link_groups_need_to_check[current_end] = current_ni.link_groups
-            if not link_groups_need_to_check[current_end]:
-                ends_stack.pop(-1)
+        out_ends_stack = [start_end_of_node]
+        link_groups_need_to_check = {}
+        while out_ends_stack:
+            current_out_end = out_ends_stack[-1]
+            # print('current_out_end: ', current_out_end)
+            current_ni = current_out_end.pn.get_ni_by_end(current_out_end)
+            if current_out_end not in link_groups_need_to_check:
+                link_groups_need_to_check[current_out_end] = current_ni.link_groups
+            if not link_groups_need_to_check[current_out_end]:
+                # link_groups_need_to_check.pop(current_out_end)
+                out_ends_stack.pop(-1)
                 continue
             else:
-                link_group_to_check = link_groups_need_to_check[current_end].pop()
-
-
+                link_group_to_check = link_groups_need_to_check[current_out_end].pop()
+                enter_end = link_group_to_check.other_end(current_out_end)
+                new_node = enter_end.pn
+                found_nodes.add(new_node)
+                found_link_groups.add(link_group_to_check)
+                if new_node in common_border_nodes:
+                    found_border_ends.add(enter_end)
+                    continue
+                if cycles_assertion:
+                    assert not (new_node in [out_end.pn for out_end in out_ends_stack]), \
+                        'Loop was found: again in {}'.format(new_node)
+                if blind_nodes_assertion:
+                    assert new_node.count_side_connected == 2, 'Blind node was found: {}'.format(new_node)
+                out_ends_stack.append(enter_end.other_pn_end)
+        print('Found nodes: {} {}'.format(len(found_nodes), found_nodes))
+        print('Found border ends: {} {}'.format(len(found_border_ends), found_border_ends))
+        print('Found link groups: {} {}'.format(len(found_link_groups), found_link_groups))
         return coverage_pg
 
     @strictly_typed
@@ -898,54 +867,95 @@ if __name__ == '__main__':
         pass
 
     if test == 'test_2':
-
         # def print_active_moves(pg_):
         #     for node_ in pg_.nodes:
         #         print('active move = ', node_._moves_group.active_move)
 
-        pg_00 = BasePolarGraph()
-        print('pg.inf_node_pu ', pg_00.inf_node_pu)
-        print('pg.inf_node_nd ', pg_00.inf_node_nd)
-        print('links in pg ', pg_00.links)
-        print('moves of inf_pu pu', pg_00.inf_node_pu.ni_pu.moves_group.moves)
-        print('moves of inf_pu nd', pg_00.inf_node_pu.ni_nd.moves_group.moves)
+        def create_graph_1():
+            pg_0 = BasePolarGraph()
+            nodes = ['zero_element']
+            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pg_0.inf_node_nd.end_pu,
+                                    make_pu_stable=True, make_nd_stable=True)
+            pn_2 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pn_1.end_pu)
+            pn_3 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pn_1.end_pu)
+            pn_4 = pg_0.insert_node(pn_1.end_nd, pg_0.inf_node_nd.end_pu)
+            pn_5 = pg_0.insert_node(pn_1.end_nd, pg_0.inf_node_nd.end_pu)
+            nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
+            return pg_0, nodes
 
-        pn_01 = pg_00.insert_node(pg_00.inf_node_pu.end_nd, pg_00.inf_node_nd.end_pu,
-                                  make_pu_stable=True, make_nd_stable=True)
-        # pn_00 = copy(pn_01)
-        pn_02 = pg_00.insert_node(pg_00.inf_node_pu.end_nd, pn_01.end_pu)
-        pn_03 = pg_00.insert_node(pg_00.inf_node_pu.end_nd, pn_01.end_pu)
-        pn_04 = pg_00.insert_node(pn_01.end_nd, pg_00.inf_node_nd.end_pu)
-        pn_05 = pg_00.insert_node(pn_01.end_nd, pg_00.inf_node_nd.end_pu)
-        print('pn_01 ', pn_01)
-        print('pg nodes ', pg_00.nodes)
-        print('pg.inf_node_pu ', pg_00.inf_node_pu)
-        print('pg.inf_node_nd ', pg_00.inf_node_nd)
-        print('links in pg ', pg_00.links)
-        print('len of links in pg ', len(pg_00.links))
-        print('moves of inf_pu pu', pg_00.inf_node_pu.ni_pu.moves_group.moves)
-        print('moves of inf_pu nd', pg_00.inf_node_pu.ni_nd.moves_group.moves)
-        print('active move of inf_pu pu', pg_00.inf_node_pu.ni_pu.moves_group.active_move)
-        print('active move of inf_pu nd', pg_00.inf_node_pu.ni_nd.moves_group.active_move)
-        print('next nodes of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_nodes)
-        print('next nodes of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_nodes)
-        print('Before activation')
-        ms = PGGraphMovesState(pg_00)
-        # print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
-        print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
-        print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
-        pg_00.moves_activate_by_ends(pn_01.end_pu, pg_00.inf_node_pu.end_nd)
-        print('After activation')
-        # print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
-        print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
-        print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
-        print('After reset')
-        ms.reset_state()
-        # print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
-        print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
-        print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
+        def create_graph_2():
+            pg_0 = BasePolarGraph()
+            nodes = ['zero_element']
+            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pg_0.inf_node_nd.end_pu)
+            pn_2 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pn_1.end_pu)
+            pn_3 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pn_1.end_pu)
+            pn_4 = pg_0.insert_node(pn_1.end_nd, pg_0.inf_node_nd.end_pu)
+            pn_5 = pg_0.insert_node(pn_1.end_nd, pg_0.inf_node_nd.end_pu)
+            nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
+            return pg_0, nodes
 
-        pg_00.find_node_coverage_breadth(pn_02.end_nd)
+        def create_graph_3():
+            pg_0 = BasePolarGraph()
+            nodes = ['zero_element']
+            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pg_0.inf_node_pu.end_nd)
+            nodes.extend([pn_1])
+            return pg_0, nodes
+
+        def create_graph_4():
+            pg_0 = BasePolarGraph()
+            nodes = ['zero_element']
+            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pg_0.inf_node_nd.end_pu)
+            pn_2 = pg_0.insert_node(pn_1.end_nd, pn_1.end_pu)
+            pn_3 = pg_0.insert_node(pn_1.end_nd, pn_2.end_pu)
+            nodes.extend([pn_1, pn_2, pn_3])
+            return pg_0, nodes
+
+        def create_graph_5():
+            pg_0 = BasePolarGraph()
+            nodes = ['zero_element']
+            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pg_0.inf_node_nd.end_pu, make_nd_stable=True)
+            pn_2 = pg_0.insert_node(pg_0.inf_node_nd.end_pu, pn_1.end_nd)
+            pg_0.connect_nodes(pg_0.inf_node_nd.end_pu, pn_2.end_nd)
+            pn_3 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pn_2.end_pu)
+            nodes.extend([pn_1, pn_2, pn_3])
+            return pg_0, nodes
+
+        pg_00, nodes_00 = create_graph_5()
+        pg_00.find_node_coverage(pg_00.inf_node_pu.end_nd)  # , [nodes_00[1]]
+        # pg_00.find_node_coverage(pg_00.inf_node_nd.end_pu)
+
+        # print('pg.inf_node_pu ', pg_00.inf_node_pu)
+        # print('pg.inf_node_nd ', pg_00.inf_node_nd)
+        # print('links in pg ', pg_00.links)
+        # print('moves of inf_pu pu', pg_00.inf_node_pu.ni_pu.moves_group.moves)
+        # print('moves of inf_pu nd', pg_00.inf_node_pu.ni_nd.moves_group.moves)
+        # print('pn_01 ', pn_01)
+        # print('pg nodes ', pg_00.nodes)
+        # print('pg.inf_node_pu ', pg_00.inf_node_pu)
+        # print('pg.inf_node_nd ', pg_00.inf_node_nd)
+        # print('links in pg ', pg_00.links)
+        # print('len of links in pg ', len(pg_00.links))
+        # print('moves of inf_pu pu', pg_00.inf_node_pu.ni_pu.moves_group.moves)
+        # print('moves of inf_pu nd', pg_00.inf_node_pu.ni_nd.moves_group.moves)
+        # print('active move of inf_pu pu', pg_00.inf_node_pu.ni_pu.moves_group.active_move)
+        # print('active move of inf_pu nd', pg_00.inf_node_pu.ni_nd.moves_group.active_move)
+        # print('next nodes of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_nodes)
+        # print('next nodes of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_nodes)
+        # print('Before activation')
+        # ms = PGGraphMovesState(pg_00)
+        # # print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
+        # print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
+        # print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
+        # pg_00.moves_activate_by_ends(pn_01.end_pu, pg_00.inf_node_pu.end_nd)
+        # print('After activation')
+        # # print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
+        # print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
+        # print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
+        # print('After reset')
+        # ms.reset_state()
+        # # print('active node of inf_pu pu', pg_00.inf_node_pu.ni_pu.next_active_node)
+        # print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
+        # print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
 
     if test == 'test_3':
         pn_01 = PolarNode()

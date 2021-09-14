@@ -107,7 +107,7 @@ if __name__ == '__main__':
     print('a = ', a)
 
     b = {1:{1,2,3}, 2:{4,5,6}}
-    b[1].pop()
+    b.pop(1)
     print(b)
 
     c = [1]
