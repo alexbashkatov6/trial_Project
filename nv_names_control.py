@@ -106,6 +106,14 @@ if __name__ == '__main__':
     a |= {5, 6}
     print('a = ', a)
 
+    b = {1:{1,2,3}, 2:{4,5,6}}
+    b[1].pop()
+    print(b)
+
+    c = [1]
+    c.pop(-1)
+    print(c)
+
     # d = {1:'1', 2:'2'}
     # d.pop(6)
     # print(d)

@@ -445,7 +445,7 @@ class PolarNode:
         self._end_negative_down, self._end_positive_up = PNEnd(self, End('nd')), PNEnd(self, End('pu'))
         self._interface_negative_down, self._interface_positive_up = \
             NodeInterface(self.end_nd), NodeInterface(self.end_pu)
-        self._ni_by_end = {self._end_negative_down: self._interface_negative_down,
+        self._ni_by_end: dict[PNEnd, NodeInterface] = {self._end_negative_down: self._interface_negative_down,
                            self._end_positive_up: self._interface_positive_up}
 
     @property
@@ -655,8 +655,8 @@ class PolarGraph:
         return insertion_node
 
     @strictly_typed
-    def find_node_coverage(self, start_end_of_node: PNEnd,
-                           additional_border_nodes: Iterable[PolarNode] = None) -> PolarGraph:
+    def find_node_coverage_breadth(self, start_end_of_node: PNEnd,
+                                   additional_border_nodes: Iterable[PolarNode] = None) -> PolarGraph:
         assert start_end_of_node.pn in self.nodes, 'Begin node for find coverage not found'
         common_border_nodes = self.border_nodes
         common_border_nodes.add(start_end_of_node.pn)
@@ -697,6 +697,36 @@ class PolarGraph:
         print('Found border ends: ', found_border_ends)
         print('Found link groups: ', found_link_groups)
         # coverage_pg.nodes =
+        return coverage_pg
+
+    @strictly_typed
+    def find_node_coverage(self, start_end_of_node: PNEnd,
+                           additional_border_nodes: Iterable[PolarNode] = None,
+                           cycles_assertion=True) -> PolarGraph:
+        assert start_end_of_node.pn in self.nodes, 'Begin node for find coverage not found'
+        common_border_nodes = self.border_nodes
+        common_border_nodes.add(start_end_of_node.pn)
+        if additional_border_nodes:
+            assert all([ab_pn in self.nodes for ab_pn in additional_border_nodes]), 'Border node not found'
+            common_border_nodes |= set(additional_border_nodes)
+        coverage_pg = PolarGraph()
+        found_nodes = {start_end_of_node.pn}
+        found_link_groups = set()
+        ends_stack = [start_end_of_node]
+        link_groups_need_to_check = {}
+        found_border_ends = {start_end_of_node}
+        while ends_stack:
+            current_end = ends_stack[-1]
+            current_ni: NodeInterface = current_end.pn.get_ni_by_end(current_end)
+            if current_end not in link_groups_need_to_check:
+                link_groups_need_to_check[current_end] = current_ni.link_groups
+            if not link_groups_need_to_check[current_end]:
+                ends_stack.pop(-1)
+                continue
+            else:
+                link_group_to_check = link_groups_need_to_check[current_end].pop()
+
+
         return coverage_pg
 
     @strictly_typed
@@ -915,7 +945,7 @@ if __name__ == '__main__':
         print('active node of inf_pu nd', pg_00.inf_node_pu.ni_nd.next_active_node)
         print('active node of pn_01 pu', pn_01.ni_pu.next_active_node)
 
-        pg_00.find_node_coverage(pn_02.end_nd)
+        pg_00.find_node_coverage_breadth(pn_02.end_nd)
 
     if test == 'test_3':
         pn_01 = PolarNode()
