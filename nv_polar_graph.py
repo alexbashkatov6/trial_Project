@@ -37,8 +37,10 @@ class PNEnd:
 
     @strictly_typed
     def __init__(self, pn: PolarNode, end: End = End('nd')) -> None:
+        print('in init')
         self._pn = pn
         self._end = end
+        self._ni = None
 
     def __repr__(self):
         return "{}({}, {})".format(self.__class__.__name__, self.pn, self.end)
@@ -52,6 +54,16 @@ class PNEnd:
     @strictly_typed
     def end(self) -> End:
         return self._end
+
+    @property
+    @strictly_typed
+    def ni(self) -> NodeInterface:
+        return self._ni
+
+    @ni.setter
+    @strictly_typed
+    def ni(self, value: NodeInterface) -> None:
+        self._ni = value
 
     @property
     @strictly_typed
@@ -237,10 +249,10 @@ class PGLinkGroup:
         assert first_end in self.end_pns, 'End of node not found in end_pns'
         return (self.end_pns - {first_end}).pop()
 
-    @strictly_typed
-    def rebind_node(self, old_end_pn: PNEnd, new_end_pn: PNEnd) -> None:
-        sec_node = self.other_end(old_end_pn)
-        self.end_pns = (sec_node, new_end_pn)
+    # @strictly_typed
+    # def rebind_node(self, old_end_pn: PNEnd, new_end_pn: PNEnd) -> None:
+    #     sec_node = self.other_end(old_end_pn)
+    #     self.end_pns = (sec_node, new_end_pn)
 
     @property
     @strictly_typed
@@ -279,11 +291,6 @@ class PGLinkGroup:
 
     @property
     @strictly_typed
-    def count_of_links(self) -> int:
-        return len(self.links)
-
-    @property
-    @strictly_typed
     def pns(self) -> set[PolarNode]:
         end_pn_1, end_pn_2 = tuple(self.end_pns)
         return {end_pn_1.pn, end_pn_2.pn}
@@ -305,6 +312,15 @@ class PGLinkGroup:
     @strictly_typed
     def remove_link(self, link: PGLink) -> None:
         self._links.remove(link)
+
+    @property
+    @strictly_typed
+    def count_of_links(self) -> int:
+        return len(self.links)
+
+    @strictly_typed
+    def is_thin(self) -> bool:
+        return self.count_of_links == 1
 
 
 class PGLink:
@@ -352,9 +368,16 @@ class PGLink:
 
 
 class NodeInterface:
+
     @strictly_typed
     def __init__(self, end_pn: PNEnd) -> None:
+        # print('in init 0')
+        # print('end_pn ='.format(end_pn))
         self._end_pn = end_pn
+        # print('Setting {}'.format(self))
+        # print('Setting {} by {}'.format(end_pn.ni, self))
+        end_pn.ni = self
+        # print('in init 1')
         self._links = set()
         self._moves_group = PGMovesGroup(self)
 
@@ -442,19 +465,21 @@ class PolarNode:
     @strictly_typed
     def __init__(self) -> None:
         self._end_negative_down, self._end_positive_up = PNEnd(self, End('nd')), PNEnd(self, End('pu'))
+        # print('_self.end_nd, self.end_pu'.format(self._end_negative_down, self._end_positive_up))
+        # print('self.end_nd, self.end_pu'.format(self.end_nd, self.end_pu))
         self._interface_negative_down, self._interface_positive_up = \
             NodeInterface(self.end_nd), NodeInterface(self.end_pu)
-        self._ni_by_end: dict[PNEnd, NodeInterface] = {self._end_negative_down: self._interface_negative_down,
-                                                       self._end_positive_up: self._interface_positive_up}
+        # self._ni_by_end: dict[PNEnd, NodeInterface] = {self._end_negative_down: self._interface_negative_down,
+        #                                                self._end_positive_up: self._interface_positive_up}
 
     @property
     @strictly_typed
     def count_side_connected(self) -> int:
         return int(not self.ni_nd.is_empty) + int(not self.ni_pu.is_empty)
 
-    @strictly_typed
-    def get_ni_by_end(self, end_pn: PNEnd) -> NodeInterface:
-        return self._ni_by_end[end_pn]
+    # @strictly_typed
+    # def get_ni_by_end(self, end_pn: PNEnd) -> NodeInterface:
+    #     return self._ni_by_end[end_pn]
 
     @property
     @strictly_typed
@@ -544,6 +569,66 @@ class PGGraphMovesState:
             move.pn.switch_move_branch(move)
 
 
+class PGRoute:
+    @strictly_typed
+    def __init__(self, pg: PolarGraph) -> None:
+        self._route_begin = None
+        self._route_end = None
+        self._node_sequence = []
+        self._link_sequence = []
+        self._move_sequence = []
+
+    @property
+    @strictly_typed
+    def route_begin(self) -> PNEnd:
+        return self._route_begin
+
+    @route_begin.setter
+    @strictly_typed
+    def route_begin(self, value: PNEnd) -> None:
+        self._route_begin = value
+
+    @property
+    @strictly_typed
+    def route_end(self) -> PNEnd:
+        return self._route_end
+
+    @route_end.setter
+    @strictly_typed
+    def route_end(self, value: PNEnd) -> None:
+        self._route_end = value
+
+    @property
+    @strictly_typed
+    def node_sequence(self) -> list[PolarNode]:
+        return self._node_sequence
+
+    @node_sequence.setter
+    @strictly_typed
+    def node_sequence(self, value: list[PolarNode]) -> None:
+        self._node_sequence = value
+
+    @property
+    @strictly_typed
+    def link_sequence(self) -> list[PGLink]:
+        return self._link_sequence
+
+    @link_sequence.setter
+    @strictly_typed
+    def link_sequence(self, value: list[PGLink]) -> None:
+        self._link_sequence = value
+
+    @property
+    @strictly_typed
+    def move_sequence(self) -> list[PGMove]:
+        return self._move_sequence
+
+    @move_sequence.setter
+    @strictly_typed
+    def move_sequence(self, value: list[PGMove]) -> None:
+        self._move_sequence = value
+
+
 @names_control
 class PolarGraph:
 
@@ -555,7 +640,9 @@ class PolarGraph:
 
     @strictly_typed
     def _init_node(self) -> PolarNode:
+        # print('Node init 0')
         node = PolarNode()
+        # print('Node init')
         self._nodes.add(node)
         return node
 
@@ -599,7 +686,7 @@ class PolarGraph:
                 pn_get = end_pn.pn
                 if pn_only_for and not (pn_get is pn_only_for):
                     continue
-                ni = pn_get.get_ni_by_end(end_pn)
+                ni = end_pn.ni  # pn_get.get_ni_by_end(end_pn)
                 link = link_group.get_link()
                 move = ni.moves_group.get_move_by_link(link)
                 ni.moves_group.choice_move_activate(move)
@@ -616,14 +703,13 @@ class PolarGraph:
         else:
             new_link_group = self._init_new_link_group(end_pn_1, end_pn_2, link_is_stable)
             new_link = new_link_group.get_link()
-            # new_link = self._get_link_from_group(new_link_group, True)
         end_pn_1.pn.add_link_to_node_end(new_link, end_pn_1.end)
         end_pn_2.pn.add_link_to_node_end(new_link, end_pn_2.end)
         self._refresh_link_groups_and_links()
         return new_link
 
     @strictly_typed
-    def disconnect_nodes(self, end_pn_1: PNEnd, end_pn_2: PNEnd) -> None:
+    def _disconnect_nodes(self, end_pn_1: PNEnd, end_pn_2: PNEnd) -> None:
         # removes 1 unstable link if exists
         pn_1, pn_2 = end_pn_1.pn, end_pn_2.pn
         link_group = self._get_link_group_by_ends(end_pn_1, end_pn_2)
@@ -643,15 +729,19 @@ class PolarGraph:
                     end_of_negative_down_node: PNEnd,
                     insertion_node: PolarNode = None,
                     make_pu_stable: bool = False, make_nd_stable: bool = False) -> PolarNode:
-        # positive_up and negative_down for insertion_node, but their ends is
+        # positive_up and negative_down for insertion_node, their ends
         if not insertion_node:
             insertion_node = self._init_node()
         existing_old_nodes_link_group = self._get_link_group_by_ends(end_of_positive_up_node, end_of_negative_down_node)
         if existing_old_nodes_link_group:
-            self.disconnect_nodes(end_of_positive_up_node, end_of_negative_down_node)
+            self._disconnect_nodes(end_of_positive_up_node, end_of_negative_down_node)
         self.connect_nodes(end_of_positive_up_node, insertion_node.end_pu, make_pu_stable)
         self.connect_nodes(end_of_negative_down_node, insertion_node.end_nd, make_nd_stable)
         return insertion_node
+
+    @strictly_typed
+    def check_thin_link_groups(self) -> None:
+        assert all([link_group.is_thin for link_group in self.link_groups]), 'Link groups not thin'
 
     @strictly_typed
     def find_node_coverage(self, start_end_of_node: PNEnd,
@@ -666,18 +756,24 @@ class PolarGraph:
         found_nodes = {start_end_of_node.pn}
         found_link_groups = set()
         found_border_ends = {start_end_of_node}
+
+        found_routes = list()
+
         out_ends_stack = [start_end_of_node]
         link_groups_need_to_check = {}
+        link_groups_stack = []
+
         while out_ends_stack:
             current_out_end = out_ends_stack[-1]
-            # print('current_out_end: ', current_out_end)
-            current_ni = current_out_end.pn.get_ni_by_end(current_out_end)
+            print('current_out_end: ', current_out_end)
+            current_ni = current_out_end.ni
             if current_out_end not in link_groups_need_to_check:
                 link_groups_need_to_check[current_out_end] = current_ni.link_groups
             if not link_groups_need_to_check[current_out_end]:
-                # link_groups_need_to_check.pop(current_out_end)
+                link_groups_need_to_check.pop(current_out_end)
                 out_ends_stack.pop(-1)
-                continue
+                if link_groups_stack:
+                    link_groups_stack.pop(-1)
             else:
                 link_group_to_check = link_groups_need_to_check[current_out_end].pop()
                 enter_end = link_group_to_check.other_end(current_out_end)
@@ -686,6 +782,25 @@ class PolarGraph:
                 found_link_groups.add(link_group_to_check)
                 if new_node in common_border_nodes:
                     found_border_ends.add(enter_end)
+                    route_nodes = [out_end.pn for out_end in out_ends_stack]+[enter_end.pn]
+                    route_link_groups = copy(link_groups_stack+[link_group_to_check])
+                    route_links: list[PGLink] = [link_group.get_link() for link_group in route_link_groups]
+                    route_moves = []
+                    for i, out_end in enumerate(out_ends_stack):
+                        out_move = out_end.ni.moves_group.get_move_by_link(route_links[i])
+                        in_move = route_links[i].link_group.other_end(out_end).ni.moves_group.\
+                            get_move_by_link(route_links[i])
+                        route_moves.extend([out_move, in_move])
+                    # for link in route_links:
+                    #     end_pn_1, end_pn_2 = tuple(link.end_pns)
+                    #     ni_1: NodeInterface = end_pn_1.pn.get_ni_by_end(end_pn_1)
+                    #     route_moves.append()ni_1.moves_group.get_move_by_link(link)
+                    route_border_ends = [start_end_of_node, enter_end]
+                    route = {'nodes': (len(route_nodes), copy(route_nodes)),
+                             'links': (len(route_links), route_links),
+                             'moves': (len(route_moves), route_moves),
+                             'border_ends': (len(route_border_ends), copy(route_border_ends))}
+                    found_routes.append(route)
                     continue
                 if cycles_assertion:
                     assert not (new_node in [out_end.pn for out_end in out_ends_stack]), \
@@ -693,9 +808,11 @@ class PolarGraph:
                 if blind_nodes_assertion:
                     assert new_node.count_side_connected == 2, 'Blind node was found: {}'.format(new_node)
                 out_ends_stack.append(enter_end.other_pn_end)
+                link_groups_stack.append(link_group_to_check)
         print('Found nodes: {} {}'.format(len(found_nodes), found_nodes))
         print('Found border ends: {} {}'.format(len(found_border_ends), found_border_ends))
         print('Found link groups: {} {}'.format(len(found_link_groups), found_link_groups))
+        print('Found routes: {} {}'.format(len(found_routes), found_routes))
         return coverage_pg
 
     @strictly_typed
@@ -880,8 +997,10 @@ if __name__ == '__main__':
             pn_3 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pn_1.end_pu)
             pn_4 = pg_0.insert_node(pn_1.end_nd, pg_0.inf_node_nd.end_pu)
             pn_5 = pg_0.insert_node(pn_1.end_nd, pg_0.inf_node_nd.end_pu)
+            pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
             return pg_0, nodes
+
 
         def create_graph_2():
             pg_0 = BasePolarGraph()
@@ -891,15 +1010,19 @@ if __name__ == '__main__':
             pn_3 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pn_1.end_pu)
             pn_4 = pg_0.insert_node(pn_1.end_nd, pg_0.inf_node_nd.end_pu)
             pn_5 = pg_0.insert_node(pn_1.end_nd, pg_0.inf_node_nd.end_pu)
+            pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
             return pg_0, nodes
+
 
         def create_graph_3():
             pg_0 = BasePolarGraph()
             nodes = ['zero_element']
             pn_1 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pg_0.inf_node_pu.end_nd)
+            pg_0.check_thin_link_groups()
             nodes.extend([pn_1])
             return pg_0, nodes
+
 
         def create_graph_4():
             pg_0 = BasePolarGraph()
@@ -907,8 +1030,10 @@ if __name__ == '__main__':
             pn_1 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pg_0.inf_node_nd.end_pu)
             pn_2 = pg_0.insert_node(pn_1.end_nd, pn_1.end_pu)
             pn_3 = pg_0.insert_node(pn_1.end_nd, pn_2.end_pu)
+            pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3])
             return pg_0, nodes
+
 
         def create_graph_5():
             pg_0 = BasePolarGraph()
@@ -917,11 +1042,14 @@ if __name__ == '__main__':
             pn_2 = pg_0.insert_node(pg_0.inf_node_nd.end_pu, pn_1.end_nd)
             pg_0.connect_nodes(pg_0.inf_node_nd.end_pu, pn_2.end_nd)
             pn_3 = pg_0.insert_node(pg_0.inf_node_pu.end_nd, pn_2.end_pu)
+            pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3])
             return pg_0, nodes
 
+
         pg_00, nodes_00 = create_graph_5()
         pg_00.find_node_coverage(pg_00.inf_node_pu.end_nd)  # , [nodes_00[1]]
+
         # pg_00.find_node_coverage(pg_00.inf_node_nd.end_pu)
 
         # print('pg.inf_node_pu ', pg_00.inf_node_pu)
