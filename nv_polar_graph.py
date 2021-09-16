@@ -113,11 +113,6 @@ class PGNodeInterface:
 
     @property
     @strictly_typed
-    def other_ni(self) -> PGNodeInterface:
-        return self.pn.ni_nd if (self is self.pn.ni_pu) else self.pn.ni_pu
-
-    @property
-    @strictly_typed
     def active_move(self) -> Optional[PGMove]:
         active_moves = set(filter(lambda item: item.active, self.moves))
         assert len(active_moves) <= 1, 'Only <= 1 Move should be active'
@@ -338,6 +333,10 @@ class PolarNode:
     def ni_pu(self) -> PGNodeInterface:
         return self._ni_positive_up
 
+    @strictly_typed
+    def opposite_ni(self, given_ni: PGNodeInterface) -> PGNodeInterface:
+        return ({self.ni_nd, self.ni_pu} - {given_ni}).pop()
+
 
 class PGGraphMovesState:
 
@@ -362,15 +361,92 @@ class PGGraphMovesState:
             move.ni.choice_move_activate(move)
 
 
+class LMNSequence:
+    @strictly_typed
+    def __init__(self, seq: list = None) -> None:
+        if not seq:
+            seq = []
+        self.sequence = seq
+
+    @property
+    @strictly_typed
+    def sequence(self) -> list:
+        return self._sequence
+
+    @sequence.setter
+    @strictly_typed
+    def sequence(self, value: list) -> None:
+        if value:
+            self.check_sequence(value)
+        self._sequence = value
+
+    @property
+    @strictly_typed
+    def nodes(self) -> list[PolarNode]:
+        return self.decompose()[0]
+
+    @property
+    @strictly_typed
+    def links(self) -> list[PGLink]:
+        return self.decompose()[1]
+
+    @property
+    @strictly_typed
+    def moves(self) -> list[PGMove]:
+        return self.decompose()[2]
+
+    @staticmethod
+    @strictly_typed
+    def check_sequence(seq: list) -> None:
+        assert len(seq) % 4 == 1, 'Len of list is not (4n+1)'
+        for index, element in enumerate(seq):
+            if index % 4 == 0:
+                assert isinstance(element, PolarNode)
+            elif index % 4 == 2:
+                assert isinstance(element, PGLink)
+            else:
+                assert isinstance(element, PGMove)
+
+    @strictly_typed
+    def compose(self, nodes: list[PolarNode], links: list[PGLink], moves: list[PGMove]) -> None:
+        nodes_r = list(reversed(nodes))
+        links_r = list(reversed(links))
+        moves_r = list(reversed(moves))
+        sum_len = len(nodes) + len(links) + len(moves)
+        for index in range(sum_len):
+            if index % 4 == 0:
+                self._sequence.append(nodes_r.pop())
+            elif index % 4 == 2:
+                self._sequence.append(links_r.pop())
+            else:
+                self._sequence.append(moves_r.pop())
+
+    @strictly_typed
+    def decompose(self) -> tuple[list[PolarNode], list[PGLink], list[PGMove]]:
+        nodes = []
+        links = []
+        moves = []
+        seq_r = list(reversed(self._sequence))
+        for index in range(len(self._sequence)):
+            if index % 4 == 0:
+                nodes.append(seq_r.pop())
+            elif index % 4 == 2:
+                links.append(seq_r.pop())
+            else:
+                moves.append(seq_r.pop())
+        return nodes, links, moves
+
+
 class PGRoute:
     @strictly_typed
     def __init__(self, pg: PolarGraph) -> None:
         self._pg = pg
         self._route_begin = None
         self._route_end = None
-        self._node_sequence = []
-        self._link_sequence = []
-        self._move_sequence = []
+        self._lmn_sequence = LMNSequence()
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.lmn.nodes)
 
     @property
     @strictly_typed
@@ -394,33 +470,8 @@ class PGRoute:
 
     @property
     @strictly_typed
-    def node_sequence(self) -> list[PolarNode]:
-        return self._node_sequence
-
-    @node_sequence.setter
-    @strictly_typed
-    def node_sequence(self, value: list[PolarNode]) -> None:
-        self._node_sequence = value
-
-    @property
-    @strictly_typed
-    def link_sequence(self) -> list[PGLink]:
-        return self._link_sequence
-
-    @link_sequence.setter
-    @strictly_typed
-    def link_sequence(self, value: list[PGLink]) -> None:
-        self._link_sequence = value
-
-    @property
-    @strictly_typed
-    def move_sequence(self) -> list[PGMove]:
-        return self._move_sequence
-
-    @move_sequence.setter
-    @strictly_typed
-    def move_sequence(self, value: list[PGMove]) -> None:
-        self._move_sequence = value
+    def lmn(self) -> LMNSequence:
+        return self._lmn_sequence
 
 
 @names_control
@@ -556,11 +607,11 @@ class PolarGraph:
                 links_need_to_check[current_out_ni] = current_out_ni.links
             if not links_need_to_check[current_out_ni]:
                 links_need_to_check.pop(current_out_ni)
-                out_ni_stack.pop(-1)
+                out_ni_stack.pop()
                 if links_stack:
-                    links_stack.pop(-1)
-                    moves_stack.pop(-1)
-                    moves_stack.pop(-1)
+                    links_stack.pop()
+                    moves_stack.pop()
+                    moves_stack.pop()
             else:
                 link_to_check = links_need_to_check[current_out_ni].pop()
                 enter_ni: PGNodeInterface = link_to_check.opposite_ni(current_out_ni)
@@ -571,14 +622,13 @@ class PolarGraph:
                 found_links.add(link_to_check)
                 if new_node in common_border_nodes:
                     found_border_ends.add(enter_ni)
-                    route_nodes = [out_ni.pn for out_ni in out_ni_stack]+[enter_ni.pn]
-                    route_links = copy(links_stack+[link_to_check])
-                    route_moves = copy(moves_stack+[out_move, in_move])
+                    route = PGRoute(self)
+                    route_nodes = [out_ni.pn for out_ni in out_ni_stack] + [enter_ni.pn]
+                    route_links = copy(links_stack + [link_to_check])
+                    route_moves = copy(moves_stack + [out_move, in_move])
                     route_border_ends = [start_ni_of_node, enter_ni]
-                    route = {'nodes': (len(route_nodes), copy(route_nodes)),
-                             'links': (len(route_links), route_links),
-                             'moves': (len(route_moves), route_moves),
-                             'border_ends': (len(route_border_ends), copy(route_border_ends))}
+                    route.lmn.compose(route_nodes, route_links, route_moves)
+                    route.route_begin, route.route_end = route_border_ends
                     found_routes.append(route)
                     continue
                 if cycles_assertion:
@@ -586,14 +636,14 @@ class PolarGraph:
                         'Loop was found: again in {}'.format(new_node)
                 if blind_nodes_assertion:
                     assert new_node.count_side_connected == 2, 'Blind node was found: {}'.format(new_node)
-                out_ni_stack.append(enter_ni.other_ni)
+                out_ni_stack.append(enter_ni.pn.opposite_ni(enter_ni))
                 links_stack.append(link_to_check)
                 moves_stack.append(out_move)
                 moves_stack.append(in_move)
-        # print('Found nodes: {} {}'.format(len(found_nodes), found_nodes))
-        # print('Found border ends: {} {}'.format(len(found_border_ends), found_border_ends))
-        # print('Found links: {} {}'.format(len(found_links), found_links))
-        # print('Found routes: {} {}'.format(len(found_routes), found_routes))
+        print('Found nodes: {} {}'.format(len(found_nodes), found_nodes))
+        print('Found border ends: {} {}'.format(len(found_border_ends), found_border_ends))
+        print('Found links: {} {}'.format(len(found_links), found_links))
+        print('Found routes: {} {}'.format(len(found_routes), found_routes))
         return coverage_pg
 
     @strictly_typed
@@ -831,6 +881,8 @@ if __name__ == '__main__':
         pg_00, nodes_00 = create_graph_5()
 
         pg_00.find_node_coverage(pg_00.inf_node_pu.ni_nd)  # , [nodes_00[1]]
+
+        # lmn = LMNSequence([1, 2, 3])
 
         # pg_00.find_node_coverage(pg_00.inf_node_nd.end_pu)
 
