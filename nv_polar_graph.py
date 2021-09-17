@@ -9,23 +9,18 @@ from nv_string_set_class import StringSet
 
 class PGContentDescriptor:
 
-    def __get__(self, instance, owner=None):
+    def __get__(self, instance, owner=None) -> Union[PGContentDescriptor, dict]:
         if instance is None:
             return self
-        assert len(instance.element_content) > 0, 'Empty content for instance {}'.format(instance)
-        if len(instance.element_content) == 1:
-            return instance.element_content['whole']
-        return instance.element_content
+        if not hasattr(instance, '_content'):
+            instance._content = {'whole': None}
+            return instance._content
+        return instance._content
 
     def __set__(self, instance, value):
-        if not hasattr(instance, 'element_content'):
-            instance.element_content = {}
-        if type(value) != dict:
-            instance.element_content['whole'] = value
-        else:
-            keys = value.keys()
-            for key in keys:
-                instance.element_content[key] = value[key]
+        if not hasattr(instance, '_content'):
+            instance._content = {}
+        instance._content['whole'] = value
 
 
 class End(StringSet):
@@ -558,6 +553,7 @@ class PolarGraph:
     def walk_to_borders(self, start_ni_of_node: PGNodeInterface,
                         additional_border_nodes: Optional[Iterable[PolarNode]] = None,
                         cycles_assertion: bool = True, blind_nodes_assertion: bool = True) -> set[PGRoute]:
+        self.base_polar_graph.check_thin_link_groups()
         assert start_ni_of_node.pn in self.nodes, 'Begin node for find coverage not found'
         common_border_nodes = self.border_nodes
         if additional_border_nodes:
@@ -636,7 +632,7 @@ class PolarGraph:
         return coverage_graph
 
     @strictly_typed
-    def cut_subgraph(self, border_nodes: Iterable[PolarNode]) -> PolarGraph:  # , check_holes: bool = True
+    def cut_subgraph(self, border_nodes: Iterable[PolarNode]) -> PolarGraph:
         sbg_ni_s: set[PGNodeInterface] = set()
         sbg_links = self.links
         sbg_nodes = set()
@@ -653,13 +649,32 @@ class PolarGraph:
         subgraph.border_ni_s = sbg_ni_s - set(ni.pn.opposite_ni(ni) for ni in sbg_ni_s)
         return subgraph
 
-    # @strictly_typed
-    # def find_active_route(self, pn_1: PolarNode, pn_2: PolarNode) -> PolarGraph:
-    #     return self
-    #
-    # @strictly_typed
-    # def find_all_routes(self, pn_1: PolarNode, pn_2: PolarNode) -> list[PolarGraph]:
-    #     return [self]
+    @strictly_typed
+    def find_routes(self, start_node: PolarNode, end_node: PolarNode) -> set[PGRoute]:
+        found_route_candidates: set[PGRoute] = set()
+        for start_ni in (start_node.ni_nd,  start_node.ni_pu):
+            found_route_candidates |= self.walk_to_borders(start_ni, [end_node])
+        return set(frc for frc in found_route_candidates if frc.route_end.pn is end_node)
+
+    @strictly_typed
+    def find_single_route(self, start_node: PolarNode, end_node: PolarNode,
+                          checkpoint_nodes: Iterable[PolarNode] = None) -> PGRoute:
+        if not checkpoint_nodes:
+            checkpoint_nodes = set()
+        candidate_routes: set[PGRoute] = self.find_routes(start_node, end_node)
+        assert candidate_routes, 'Routes from {} to {} not found'.format(start_node, end_node)
+        routes_throw_checkpoints = set()
+        for candidate_route in candidate_routes:
+            if set(checkpoint_nodes) <= set(candidate_route.lmn.nodes):
+                routes_throw_checkpoints.add(candidate_route)
+        assert routes_throw_checkpoints, 'Route throw checkpoint nodes not found'
+        assert len(routes_throw_checkpoints) == 1, 'More then 1 route throw checkpoint nodes not found'
+        return routes_throw_checkpoints.pop()
+
+    @strictly_typed
+    def activate_route(self, route: PGRoute) -> None:
+        for link in route.lmn.links:
+            self.moves_activate_by_ends(*link.ni_s)
 
 
 @names_control
@@ -691,7 +706,7 @@ class BasePolarGraph(PolarGraph):
 
     @strictly_typed
     def check_thin_link_groups(self) -> None:
-        assert all([link_group.is_thin for link_group in self.link_groups]), 'Link groups not thin'
+        assert all([link_group.is_thin for link_group in self.link_groups]), 'Base graph link_groups is not thin'
 
     @strictly_typed
     def connect_nodes(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface, link_is_stable: bool = False) -> PGLink:
@@ -881,7 +896,7 @@ if __name__ == '__main__':
             pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
             pn_4 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
             pn_5 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
-            pg_0.check_thin_link_groups()
+            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
             return pg_0, nodes
 
@@ -894,7 +909,7 @@ if __name__ == '__main__':
             pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
             pn_4 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
             pn_5 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
-            pg_0.check_thin_link_groups()
+            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
             return pg_0, nodes
 
@@ -903,7 +918,7 @@ if __name__ == '__main__':
             pg_0 = BasePolarGraph()
             nodes = ['zero_element']
             pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_pu.ni_nd)
-            pg_0.check_thin_link_groups()
+            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1])
             return pg_0, nodes
 
@@ -914,7 +929,7 @@ if __name__ == '__main__':
             pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
             pn_2 = pg_0.insert_node(pn_1.ni_nd, pn_1.ni_pu)
             pn_3 = pg_0.insert_node(pn_1.ni_nd, pn_2.ni_pu)
-            pg_0.check_thin_link_groups()
+            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3])
             return pg_0, nodes
 
@@ -926,31 +941,50 @@ if __name__ == '__main__':
             pn_2 = pg_0.insert_node(pg_0.inf_node_nd.ni_pu, pn_1.ni_nd)
             pg_0.connect_nodes(pg_0.inf_node_nd.ni_pu, pn_2.ni_nd)
             pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_2.ni_pu)
-            pg_0.check_thin_link_groups()
+            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3])
             return pg_0, nodes
 
 
         pg_00, nodes_00 = create_graph_2()
 
-        routes_ = pg_00.walk_to_borders(pg_00.inf_node_pu.ni_nd)  # , [nodes_00[1]]
-        cover_graph: PolarGraph = pg_00.find_node_coverage(nodes_00[1].ni_pu, [nodes_00[2], nodes_00[3]])
-        subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[4], nodes_00[5]])
-        # ,nodes_00[3], nodes_00[4], nodes_00[5]]
+        # routes_ = pg_00.walk_to_borders(pg_00.inf_node_pu.ni_nd)
+        # cover_graph: PolarGraph = pg_00.find_node_coverage(nodes_00[1].ni_pu, [nodes_00[2], nodes_00[3]])
+        # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[4], nodes_00[5]])
+        # routes_pn1_pn2_: set[PGRoute] = pg_00.find_routes(pg_00.inf_node_pu, nodes_00[1])
 
-        print('routes_count = ', len(routes_))
-        for route_ in routes_:
-            print(route_)
+        route_from_to_: PGRoute = pg_00.find_single_route(pg_00.inf_node_pu, pg_00.inf_node_nd,
+                                                          [nodes_00[2], nodes_00[4]])
+        pg_00.activate_route(route_from_to_)
 
-        print('cover_graph = ', cover_graph)
-        print('cover_graph nodes = ', len(cover_graph.nodes), cover_graph.nodes)
-        print('cover_graph links = ', len(cover_graph.links), cover_graph.links)
-        print('cover_graph borders = ', len(cover_graph.border_ni_s), cover_graph.border_ni_s)
+        for node_ in route_from_to_.lmn.nodes:
+            node_.content = 'ups'
+            node_.content['my_key'] = 'lala'
+        for node_ in route_from_to_.lmn.nodes:
+            print('node content = ', node_.content)
 
-        print('sub_graph = ', subgraph_)
-        print('sub_graph nodes = ', len(subgraph_.nodes), subgraph_.nodes)
-        print('sub_graph links = ', len(subgraph_.links), subgraph_.links)
-        print('sub_graph borders = ', len(subgraph_.border_ni_s), subgraph_.border_ni_s)
+        # for move_ in route_from_to_.lmn.moves:
+        #     print(move_.active)
+
+        # print('routes_count = ', len(routes_))
+        # for route_ in routes_:
+        #     print(route_)
+        #
+        # print('cover_graph = ', cover_graph)
+        # print('cover_graph nodes = ', len(cover_graph.nodes), cover_graph.nodes)
+        # print('cover_graph links = ', len(cover_graph.links), cover_graph.links)
+        # print('cover_graph borders = ', len(cover_graph.border_ni_s), cover_graph.border_ni_s)
+        #
+        # print('sub_graph = ', subgraph_)
+        # print('sub_graph nodes = ', len(subgraph_.nodes), subgraph_.nodes)
+        # print('sub_graph links = ', len(subgraph_.links), subgraph_.links)
+        # print('sub_graph borders = ', len(subgraph_.border_ni_s), subgraph_.border_ni_s)
+
+        # print('routes_pn1_pn2_count = ', len(routes_pn1_pn2_))
+        # for route_pn1_pn2_ in routes_pn1_pn2_:
+        #     print(route_pn1_pn2_)
+
+        # print('route_from_to_ = ', route_from_to_)
 
         # lmn = LMNSequence([1, 2, 3])
 
