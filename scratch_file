@@ -1,0 +1,96 @@
+
+# class AttributeTuple:
+#     def __init__(self, node_type, node_name, node_value):
+#         self.node_type = node_type
+#         self.node_name = node_name
+#         self.node_value = node_value
+#
+#
+# class AttributeNode(PolarNode):
+#
+#     @strictly_typed
+#     def __init__(self, node_type: OneOfString(['title', 'splitter', 'value']), node_name: str = '',
+#                  node_value: Any = None) -> None:
+#         super().__init__()
+#         self.content = AttributeTuple(node_type, node_name, node_value)
+#
+#     @property
+#     def value(self):
+#         return self.content.node_value
+#
+#     @value.setter
+#     def value(self, val):
+#         self.content.node_value = val
+#
+#
+# class AttributeGraph(BasePolarGraph):
+#
+#     def __init__(self):
+#         super().__init__()
+#         self._splitters_last_nodes = []  # list[an]
+#         self._associations = {}  # {(split_an, str_val): derived_an}
+#
+#     @strictly_typed
+#     def associate(self, splitter_an: AttributeNode, splitter_str_value: str, derived_an: AttributeNode) -> None:
+#         assert splitter_an in self._nodes, 'Splitter not found in nodes list'
+#         assert splitter_an.content.node_type == 'splitter', 'Can be only splitter associated'
+#         assert splitter_str_value in splitter_an.content.node_value, 'Splitter str-value not found in values list'
+#         self._associations[(splitter_an, splitter_str_value)] = derived_an
+#
+#     @strictly_typed
+#     def _add_node(self, an: AttributeNode, to_splitter: AttributeNode = None, associated_splitter_value: str = '',
+#                   out_splitter: bool = False) -> None:
+#         self._nodes.append(an)
+#         if len(self._nodes) == 1:
+#             return
+#         last_node = self._nodes[-1]
+#         if to_splitter:
+#             assert to_splitter in self._nodes, 'Splitter not found in nodes'
+#             if last_node != to_splitter:
+#                 self._splitters_last_nodes.append(last_node)
+#             an.connect_to_its_end(to_splitter)
+#             self.associate(to_splitter, associated_splitter_value, an)
+#         elif out_splitter:
+#             for splitters_last_node in self._splitters_last_nodes:
+#                 an.connect_to_its_end(splitters_last_node)
+#             self._splitters_last_nodes.clear()
+#         else:
+#             an.connect_to_its_end(last_node)
+#
+#     @strictly_typed
+#     def add_typed_node(self, node_type: OneOfString(['title', 'splitter', 'value']), node_name: str,
+#                        to_splitter: AttributeNode = None, associated_splitter_value: str = '') -> None:
+#         an = AttributeNode(node_type, node_name)
+#         self._add_node(an, to_splitter, associated_splitter_value)
+#
+#     @strictly_typed
+#     def set_node_value(self, value_name: str, value: Any) -> None:
+#         node_found = False
+#         for node in self._nodes:
+#             if (node.content.node_type in ['value', 'splitter']) and (node.content.node_name == value_name):
+#                 if node.content.node_type == 'splitter':
+#                     assert isinstance(value, Iterable), 'Need iterable value for splitter'
+#                     for val in value:
+#                         assert type(val) == str, 'Values in splitter should be str'
+#                 node.content.node_value = value
+#                 return
+#         assert node_found, 'Node for setting value is not found'
+#
+#     @strictly_typed
+#     def last_splitter(self) -> Optional[AttributeNode]:
+#         for node in reversed(self._nodes):
+#             if node.content.node_type == 'splitter':
+#                 return node
+#
+#     @strictly_typed
+#     def switch_splitter(self, splitter_name: str, to_splitter_str_value: str) -> None:
+#         node_found = False
+#         for node in self._nodes:
+#             if (node.content.node_type == 'splitter') and (node.content.node_name == splitter_name):
+#                 node_found = True
+#                 node.switch_move_branch(self._associations[(node, to_splitter_str_value)])
+#         assert node_found, 'Node for setting value is not found'
+#
+#     @strictly_typed
+#     def get_linear_list(self) -> list[AttributeTuple]:
+#         pass

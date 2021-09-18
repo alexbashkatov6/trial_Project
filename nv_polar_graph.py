@@ -4,26 +4,54 @@ from collections.abc import Iterable
 
 from nv_typing import *
 from nv_names_control import names_control
-from nv_string_set_class import StringSet
+from nv_string_set_class import BoundedStringSet, BoundedStringDict
 
 
-class PGContentDescriptor:
+class TypedBSD(BoundedStringDict):
 
-    def __get__(self, instance, owner=None) -> Union[PGContentDescriptor, dict]:
+    def __init__(self, control_bsd: BoundedStringDict):
+        self._control_bsd = control_bsd
+        super().__init__(control_bsd.possible_keys)
+
+    def check_type(self, key: str, value: Any) -> None:
+        self.check_possibility(key)
+        assert isinstance(value, self._control_bsd[key]), \
+            'Value {} should be instance of {}'.format(value, self._control_bsd[key])
+
+    def __setitem__(self, key, value):
+        self.check_type(key, value)
+        super().__setitem__(key, value)
+
+
+class PGAssociationDescriptor:
+
+    def __get__(self, instance, owner=None) -> Union[PGAssociationDescriptor, TypedBSD]:
         if instance is None:
             return self
-        if not hasattr(instance, '_content'):
-            instance._content = {'whole': None}
-            return instance._content
-        return instance._content
+        elif isinstance(instance, PolarNode):
+            possible_associations = instance.base_polar_graph.node_associations
+        elif isinstance(instance, PGLink):
+            possible_associations = instance.base_polar_graph.link_associations
+        elif isinstance(instance, PGMove):
+            possible_associations = instance.base_polar_graph.move_associations
+        else:
+            assert False, 'Class associations not found'
+        if not hasattr(instance, '_associations'):
+            instance._associations = TypedBSD(possible_associations)
+        return instance._associations
 
-    def __set__(self, instance, value):
-        if not hasattr(instance, '_content'):
-            instance._content = {}
-        instance._content['whole'] = value
+    def __set__(self, instance, value) -> None:
+        assert False, 'Association descriptor setter not implemented'
 
 
-class End(StringSet):
+class StringPolarGraphElement(BoundedStringSet):
+
+    @strictly_typed
+    def __init__(self, str_element: str) -> None:
+        super().__init__([['node'], ['link'], ['move']], str_element)
+
+
+class End(BoundedStringSet):
 
     @strictly_typed
     def __init__(self, str_end: str) -> None:
@@ -51,7 +79,8 @@ class End(StringSet):
 class PGNodeInterface:
 
     @strictly_typed
-    def __init__(self, pn: PolarNode, end: End) -> None:
+    def __init__(self, bpg: BasePolarGraph, pn: PolarNode, end: End) -> None:
+        self._base_polar_graph = bpg
         self._pn = pn
         self._end = end
         self._move_by_link: dict[PGLink, PGMove] = dict()
@@ -65,6 +94,11 @@ class PGNodeInterface:
 
     def __hash__(self):
         return hash((self.pn, self.end))
+
+    @property
+    @strictly_typed
+    def base_polar_graph(self) -> BasePolarGraph:
+        return self._base_polar_graph
 
     @property
     @strictly_typed
@@ -93,7 +127,7 @@ class PGNodeInterface:
     @strictly_typed
     def add_link(self, link: PGLink) -> None:
         assert not (link in self._move_by_link), 'Link already connected'
-        self._move_by_link[link] = PGMove(self, link)
+        self._move_by_link[link] = PGMove(self.base_polar_graph, self, link)
         self._random_move_activate()
 
     @strictly_typed
@@ -150,16 +184,22 @@ class PGNodeInterface:
 
 
 class PGMove:
-    content = PGContentDescriptor()
+    associations = PGAssociationDescriptor()
 
     @strictly_typed
-    def __init__(self, ni: PGNodeInterface, link: PGLink) -> None:
+    def __init__(self, bpg: BasePolarGraph, ni: PGNodeInterface, link: PGLink) -> None:
+        self._base_polar_graph = bpg
         self._link = link
         self._ni = ni
         self._active = False
 
     def __repr__(self):
         return '{}({}, {})'.format(self.__class__.__name__, self.ni, self.link)
+
+    @property
+    @strictly_typed
+    def base_polar_graph(self) -> BasePolarGraph:
+        return self._base_polar_graph
 
     @property
     @strictly_typed
@@ -185,13 +225,20 @@ class PGMove:
 class PGLinkGroup:
 
     @strictly_typed
-    def __init__(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface, first_link_is_stable: bool = False) -> None:
+    def __init__(self, bpg: BasePolarGraph, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
+                 first_link_is_stable: bool = False) -> None:
+        self._base_polar_graph = bpg
         self.ni_s = (ni_1, ni_2)
         self._links = set()
         self.init_link(ni_1, ni_2, first_link_is_stable)
 
     def __repr__(self):
         return '{}({}, {})'.format(self.__class__.__name__, self.ni_s[0], self.ni_s[1])
+
+    @property
+    @strictly_typed
+    def base_polar_graph(self) -> BasePolarGraph:
+        return self._base_polar_graph
 
     @property
     @strictly_typed
@@ -246,7 +293,7 @@ class PGLinkGroup:
     @strictly_typed
     def init_link(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface, init_stable: bool = False) -> PGLink:
         assert not (self.stable_link and init_stable), 'Only 1 stable link may be between same nodes'
-        new_link = PGLink(ni_1, ni_2, init_stable)
+        new_link = PGLink(self.base_polar_graph, ni_1, ni_2, init_stable)
         self._links.add(new_link)
         return new_link
 
@@ -266,16 +313,23 @@ class PGLinkGroup:
 
 
 class PGLink:
-    content = PGContentDescriptor()
+    associations = PGAssociationDescriptor()
 
     @strictly_typed
-    def __init__(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface, is_stable: bool = False) -> None:
+    def __init__(self, bpg: BasePolarGraph, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
+                 is_stable: bool = False) -> None:
+        self._base_polar_graph = bpg
         self.stable = is_stable
         self.ni_s = (ni_1, ni_2)
 
     def __repr__(self):
         stable_str = 'stable' if self.stable else ''
         return '{}({}, {}, {})'.format(self.__class__.__name__, self.ni_s[0], self.ni_s[1], stable_str)
+
+    @property
+    @strictly_typed
+    def base_polar_graph(self) -> BasePolarGraph:
+        return self._base_polar_graph
 
     @property
     @strictly_typed
@@ -306,12 +360,19 @@ class PGLink:
 
 @names_control
 class PolarNode:
-    content = PGContentDescriptor()
+    associations = PGAssociationDescriptor()
 
     @strictly_typed
-    def __init__(self) -> None:
+    def __init__(self, bpg: BasePolarGraph) -> None:
+        self._base_polar_graph = bpg
         self._ni_negative_down, self._ni_positive_up = \
-            PGNodeInterface(self, End('nd')), PGNodeInterface(self, End('pu'))
+            PGNodeInterface(self.base_polar_graph, self, End('nd')), \
+            PGNodeInterface(self.base_polar_graph, self, End('pu'))
+
+    @property
+    @strictly_typed
+    def base_polar_graph(self) -> BasePolarGraph:
+        return self._base_polar_graph
 
     @property
     @strictly_typed
@@ -481,12 +542,6 @@ class PolarGraph:
         self._border_ni_s = set()
         self._links = set()
 
-    @strictly_typed
-    def _init_node(self) -> PolarNode:
-        node = PolarNode()
-        self._nodes.add(node)
-        return node
-
     @property
     @strictly_typed
     def base_polar_graph(self) -> BasePolarGraph:
@@ -535,7 +590,7 @@ class PolarGraph:
             return links[0]
 
     @strictly_typed
-    def moves_activate_by_ends(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface, pn_only_for: PolarNode = None) \
+    def _moves_activate_by_ends(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface, pn_only_for: PolarNode = None) \
             -> None:
         link: PGLink = self._get_link_by_ends(ni_1, ni_2)
         if link:
@@ -652,7 +707,7 @@ class PolarGraph:
     @strictly_typed
     def find_routes(self, start_node: PolarNode, end_node: PolarNode) -> set[PGRoute]:
         found_route_candidates: set[PGRoute] = set()
-        for start_ni in (start_node.ni_nd,  start_node.ni_pu):
+        for start_ni in (start_node.ni_nd, start_node.ni_pu):
             found_route_candidates |= self.walk_to_borders(start_ni, [end_node])
         return set(frc for frc in found_route_candidates if frc.route_end.pn is end_node)
 
@@ -674,7 +729,7 @@ class PolarGraph:
     @strictly_typed
     def activate_route(self, route: PGRoute) -> None:
         for link in route.lmn.links:
-            self.moves_activate_by_ends(*link.ni_s)
+            self._moves_activate_by_ends(*link.ni_s)
 
 
 @names_control
@@ -688,6 +743,52 @@ class BasePolarGraph(PolarGraph):
         self.border_ni_s = {self.inf_node_pu.ni_nd, self.inf_node_nd.ni_pu}
 
         self._link_groups = set()
+
+        self._node_associations = BoundedStringDict()
+        self._link_associations = BoundedStringDict()
+        self._move_associations = BoundedStringDict()
+
+    @strictly_typed
+    def _init_node(self) -> PolarNode:
+        node = PolarNode(self)
+        self._nodes.add(node)
+        return node
+
+    @strictly_typed
+    def register_associations(self, element: StringPolarGraphElement, value: dict[str, type]) -> None:
+        # print('compare ', element == 'node')
+        if element == 'node':
+            # print('hey')
+            self._node_associations.register_keys(value.keys())
+            for key in value.keys():
+                self._node_associations[key] = value[key]
+            return
+        elif element == 'link':
+            self._link_associations.register_keys(value.keys())
+            for key in value.keys():
+                self._link_associations[key] = value[key]
+            return
+        elif element == 'move':
+            self._move_associations.register_keys(value.keys())
+            for key in value.keys():
+                self._move_associations[key] = value[key]
+            return
+        assert False, 'Element not found'
+
+    @property
+    @strictly_typed
+    def node_associations(self) -> BoundedStringDict:
+        return self._node_associations
+
+    @property
+    @strictly_typed
+    def link_associations(self) -> BoundedStringDict:
+        return self._link_associations
+
+    @property
+    @strictly_typed
+    def move_associations(self) -> BoundedStringDict:
+        return self._move_associations
 
     @property
     @strictly_typed
@@ -775,105 +876,9 @@ class BasePolarGraph(PolarGraph):
     def _init_new_link_group(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
                              first_link_is_stable: bool = False) -> PGLinkGroup:
         assert self._check_new_link_group_existing_possibility(ni_1, ni_2), 'Link_group already exists'
-        new_link_group = PGLinkGroup(ni_1, ni_2, first_link_is_stable)
+        new_link_group = PGLinkGroup(self, ni_1, ni_2, first_link_is_stable)
         self._link_groups.add(new_link_group)
         return new_link_group
-
-# class AttributeTuple:
-#     def __init__(self, node_type, node_name, node_value):
-#         self.node_type = node_type
-#         self.node_name = node_name
-#         self.node_value = node_value
-#
-#
-# class AttributeNode(PolarNode):
-#
-#     @strictly_typed
-#     def __init__(self, node_type: OneOfString(['title', 'splitter', 'value']), node_name: str = '',
-#                  node_value: Any = None) -> None:
-#         super().__init__()
-#         self.content = AttributeTuple(node_type, node_name, node_value)
-#
-#     @property
-#     def value(self):
-#         return self.content.node_value
-#
-#     @value.setter
-#     def value(self, val):
-#         self.content.node_value = val
-#
-#
-# class AttributeGraph(BasePolarGraph):
-#
-#     def __init__(self):
-#         super().__init__()
-#         self._splitters_last_nodes = []  # list[an]
-#         self._associations = {}  # {(split_an, str_val): derived_an}
-#
-#     @strictly_typed
-#     def associate(self, splitter_an: AttributeNode, splitter_str_value: str, derived_an: AttributeNode) -> None:
-#         assert splitter_an in self._nodes, 'Splitter not found in nodes list'
-#         assert splitter_an.content.node_type == 'splitter', 'Can be only splitter associated'
-#         assert splitter_str_value in splitter_an.content.node_value, 'Splitter str-value not found in values list'
-#         self._associations[(splitter_an, splitter_str_value)] = derived_an
-#
-#     @strictly_typed
-#     def _add_node(self, an: AttributeNode, to_splitter: AttributeNode = None, associated_splitter_value: str = '',
-#                   out_splitter: bool = False) -> None:
-#         self._nodes.append(an)
-#         if len(self._nodes) == 1:
-#             return
-#         last_node = self._nodes[-1]
-#         if to_splitter:
-#             assert to_splitter in self._nodes, 'Splitter not found in nodes'
-#             if last_node != to_splitter:
-#                 self._splitters_last_nodes.append(last_node)
-#             an.connect_to_its_end(to_splitter)
-#             self.associate(to_splitter, associated_splitter_value, an)
-#         elif out_splitter:
-#             for splitters_last_node in self._splitters_last_nodes:
-#                 an.connect_to_its_end(splitters_last_node)
-#             self._splitters_last_nodes.clear()
-#         else:
-#             an.connect_to_its_end(last_node)
-#
-#     @strictly_typed
-#     def add_typed_node(self, node_type: OneOfString(['title', 'splitter', 'value']), node_name: str,
-#                        to_splitter: AttributeNode = None, associated_splitter_value: str = '') -> None:
-#         an = AttributeNode(node_type, node_name)
-#         self._add_node(an, to_splitter, associated_splitter_value)
-#
-#     @strictly_typed
-#     def set_node_value(self, value_name: str, value: Any) -> None:
-#         node_found = False
-#         for node in self._nodes:
-#             if (node.content.node_type in ['value', 'splitter']) and (node.content.node_name == value_name):
-#                 if node.content.node_type == 'splitter':
-#                     assert isinstance(value, Iterable), 'Need iterable value for splitter'
-#                     for val in value:
-#                         assert type(val) == str, 'Values in splitter should be str'
-#                 node.content.node_value = value
-#                 return
-#         assert node_found, 'Node for setting value is not found'
-#
-#     @strictly_typed
-#     def last_splitter(self) -> Optional[AttributeNode]:
-#         for node in reversed(self._nodes):
-#             if node.content.node_type == 'splitter':
-#                 return node
-#
-#     @strictly_typed
-#     def switch_splitter(self, splitter_name: str, to_splitter_str_value: str) -> None:
-#         node_found = False
-#         for node in self._nodes:
-#             if (node.content.node_type == 'splitter') and (node.content.node_name == splitter_name):
-#                 node_found = True
-#                 node.switch_move_branch(self._associations[(node, to_splitter_str_value)])
-#         assert node_found, 'Node for setting value is not found'
-#
-#     @strictly_typed
-#     def get_linear_list(self) -> list[AttributeTuple]:
-#         pass
 
 
 if __name__ == '__main__':
@@ -883,9 +888,6 @@ if __name__ == '__main__':
         pass
 
     if test == 'test_2':
-        # def print_active_moves(pg_):
-        #     for node_ in pg_.nodes:
-        #         print('active move = ', node_._moves_group.active_move)
 
         def create_graph_1():
             pg_0 = BasePolarGraph()
@@ -896,20 +898,21 @@ if __name__ == '__main__':
             pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
             pn_4 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
             pn_5 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
-            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
             return pg_0, nodes
 
 
         def create_graph_2():
             pg_0 = BasePolarGraph()
+            pg_0.register_associations(StringPolarGraphElement('node'), {'node_assoc': int})
+            pg_0.register_associations(StringPolarGraphElement('link'), {'link_assoc': float})
+            pg_0.register_associations(StringPolarGraphElement('move'), {'move_assoc': str})
             nodes = ['zero_element']
             pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
             pn_2 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
             pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
             pn_4 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
             pn_5 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
-            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
             return pg_0, nodes
 
@@ -918,7 +921,6 @@ if __name__ == '__main__':
             pg_0 = BasePolarGraph()
             nodes = ['zero_element']
             pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_pu.ni_nd)
-            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1])
             return pg_0, nodes
 
@@ -929,7 +931,6 @@ if __name__ == '__main__':
             pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
             pn_2 = pg_0.insert_node(pn_1.ni_nd, pn_1.ni_pu)
             pn_3 = pg_0.insert_node(pn_1.ni_nd, pn_2.ni_pu)
-            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3])
             return pg_0, nodes
 
@@ -941,27 +942,42 @@ if __name__ == '__main__':
             pn_2 = pg_0.insert_node(pg_0.inf_node_nd.ni_pu, pn_1.ni_nd)
             pg_0.connect_nodes(pg_0.inf_node_nd.ni_pu, pn_2.ni_nd)
             pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_2.ni_pu)
-            # pg_0.check_thin_link_groups()
             nodes.extend([pn_1, pn_2, pn_3])
             return pg_0, nodes
 
 
         pg_00, nodes_00 = create_graph_2()
 
+        # i = 0
+        # for node_ in pg_00.nodes:
+        #     i += 1
+        #     node_.associations['node_assoc'] = i
+        #     print(node_.associations)
+        # for link_ in pg_00.links:
+        #     i += 1
+        #     link_.associations['link_assoc'] = float(i)
+        #     print(link_.associations)
+        #     for ni in link_.ni_s:
+        #         for move_ in ni.moves:
+        #             move_.associations['move_assoc'] = str(i)
+        #             print(move_.associations)
+
         # routes_ = pg_00.walk_to_borders(pg_00.inf_node_pu.ni_nd)
         # cover_graph: PolarGraph = pg_00.find_node_coverage(nodes_00[1].ni_pu, [nodes_00[2], nodes_00[3]])
         # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[4], nodes_00[5]])
         # routes_pn1_pn2_: set[PGRoute] = pg_00.find_routes(pg_00.inf_node_pu, nodes_00[1])
 
-        route_from_to_: PGRoute = pg_00.find_single_route(pg_00.inf_node_pu, pg_00.inf_node_nd,
-                                                          [nodes_00[2], nodes_00[4]])
-        pg_00.activate_route(route_from_to_)
+        # route_from_to_: PGRoute = pg_00.find_single_route(pg_00.inf_node_pu, pg_00.inf_node_nd,
+        #                                                   [nodes_00[2], nodes_00[4]])
+        # pg_00.activate_route(route_from_to_)
 
-        for node_ in route_from_to_.lmn.nodes:
-            node_.content = 'ups'
-            node_.content['my_key'] = 'lala'
-        for node_ in route_from_to_.lmn.nodes:
-            print('node content = ', node_.content)
+        # i = 0
+        # for node_ in route_from_to_.lmn.nodes:
+        #     i += 1
+        #     node_.associations = 'ups'
+        #     node_.associations['my_key'] = str(i)
+        # for node_ in route_from_to_.lmn.nodes:
+        #     print('node associations = ', node_.associations)
 
         # for move_ in route_from_to_.lmn.moves:
         #     print(move_.active)

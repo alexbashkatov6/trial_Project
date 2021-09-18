@@ -199,7 +199,7 @@ if __name__ == '__main__':
     print('mf3 result = ', my_func3(True))
 
     @strictly_typed
-    def my_func4(a: bool) -> dict[tuple[str, str], int]:
+    def my_func4(a: bool) -> Optional[dict[tuple[str, str], int]]:
         if a:
             return {('str_1', 'str_1'): 345}
         else:
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     print('mf4 result = ', my_func4(True))
 
     @strictly_typed
-    def my_func5(a: bool) -> Iterable[int]:
+    def my_func5(a: bool) -> Optional[Iterable[int]]:
         if a:
             return [1]
         else:
