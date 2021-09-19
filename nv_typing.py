@@ -1,22 +1,18 @@
 from __future__ import annotations
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Type
 from collections.abc import Iterable
 from functools import wraps
 import inspect
 
-__all__ = ['strictly_typed', 'Any', 'Optional', 'Union', 'OneOfString']
+__all__ = ['strictly_typed', 'Any', 'Optional', 'Union', 'OneOfString', 'Type']
 
 
 class OneOfString:
     def __init__(self, item):
         pass
-# class OneOfStringClass:
-#     def __getitem__(self, item):
-#         pass
-# OneOfString = OneOfStringClass()
 
 
-def arg_verification(string_requirement, value, function, first_enter=False):
+def arg_verification(string_requirement, value, function, mode='instance_check', first_enter=False):
     def out_bracket_split(string):
         result_of_split = []
         depth_of_bracket = 0
@@ -55,28 +51,37 @@ def arg_verification(string_requirement, value, function, first_enter=False):
             return False
         return cls
 
-    def class_check(str_name, val, func):
+    def class_check(str_name, val, func, mode_):
         # print('in class check, get str: ', str_name, ', get val: ', val)
         if (str_name == 'None') and (val is None):
             return True
         cls = get_class(str_name, func)
         assert cls, 'Name {} is unknown'.format(str_name)
-        return isinstance(val, cls)
+        if mode_ == 'instance_check':
+            return isinstance(val, cls)
+        elif mode_ == 'class_check':
+            return issubclass(val, cls)
+        else:
+            assert False, 'Mode {} not found'.format(mode_)
 
     try:
         sq_br_res = square_brackets_handling(string_requirement)  # operat_cls,
         if not sq_br_res:
             if string_requirement == 'Any':
                 return True
-            assert class_check(string_requirement, value, function), \
+            assert class_check(string_requirement, value, function, mode), \
                 'Cls check failed for req_cls={}, val={}'.format(string_requirement, value)
             return True
         else:
+            if string_requirement.startswith('Type'):
+                assert arg_verification(sq_br_res[0], value, function, mode='class_check'), \
+                    'Class check {} failed for value(class) {}'.format(string_requirement, value)
+                return True
             if string_requirement.startswith('Optional'):
                 if value is None:
                     return True
                 else:
-                    assert arg_verification(sq_br_res[0], value, function), \
+                    assert arg_verification(sq_br_res[0], value, function, mode), \
                         'Class check {} failed for value {}'.format(string_requirement, value)
                     return True
             if string_requirement.startswith('Union'):
@@ -85,28 +90,28 @@ def arg_verification(string_requirement, value, function, first_enter=False):
                 class_founded = False
                 for varint_cls in sq_br_res:
                     # print('variants get: ', varint_cls)
-                    class_founded |= arg_verification(varint_cls, value, function)
+                    class_founded |= arg_verification(varint_cls, value, function, mode)
                 assert class_founded, 'Class check {} failed for value {}'.format(string_requirement, value)
                 return True
             if string_requirement.startswith('list'):
                 assert type(value) == list, 'Should be list: {}'.format(value)
                 assert len(sq_br_res) == 1, 'Only single type {} supported for list'.format(value)
                 for element in value:
-                    assert arg_verification(sq_br_res[0], element, function), \
+                    assert arg_verification(sq_br_res[0], element, function, mode), \
                         'Class check {} failed for value {} in list'.format(string_requirement, element)
                 return True
             if string_requirement.startswith('set'):
                 assert type(value) == set, 'Should be set: {}'.format(value)
                 assert len(sq_br_res) == 1, 'Only single type {} supported for set'.format(value)
                 for element in value:
-                    assert arg_verification(sq_br_res[0], element, function), \
+                    assert arg_verification(sq_br_res[0], element, function, mode), \
                         'Class check {} failed for value {} in set'.format(string_requirement, element)
                 return True
             if string_requirement.startswith('Iterable'):
                 assert issubclass(type(value), Iterable), 'Should be Iterable: {}'.format(value)
                 assert len(sq_br_res) == 1, 'Only single type {} supported for Iterable'.format(value)
                 for element in value:
-                    assert arg_verification(sq_br_res[0], element, function), \
+                    assert arg_verification(sq_br_res[0], element, function, mode), \
                         'Class check {} failed for value {} in Iterable'.format(string_requirement, element)
                 return True
             if string_requirement.startswith('tuple'):
@@ -114,16 +119,16 @@ def arg_verification(string_requirement, value, function, first_enter=False):
                 assert len(value) == len(sq_br_res), \
                     'Not equal count of elements in tuple {} and requirements {}'.format(value, sq_br_res)
                 for i, element in enumerate(value):
-                    assert arg_verification(sq_br_res[i], element, function), \
+                    assert arg_verification(sq_br_res[i], element, function, mode), \
                         'Class check {}({}) failed for value {} in tuple'.format(string_requirement, sq_br_res[i], element)
                 return True
             if string_requirement.startswith('dict'):
                 assert type(value) == dict, 'Should be dict: {}'.format(value)
                 assert len(sq_br_res) == 2, 'Only double type {} supported for dict'.format(value)
                 for d_key, d_val in value.items():
-                    assert arg_verification(sq_br_res[0], d_key, function), \
+                    assert arg_verification(sq_br_res[0], d_key, function, mode), \
                         'Class check {} failed for key {} in dict'.format(string_requirement, d_key)
-                    assert arg_verification(sq_br_res[1], d_val, function), \
+                    assert arg_verification(sq_br_res[1], d_val, function, mode), \
                         'Class check {} failed for value {} in dict'.format(string_requirement, d_val)
                 return True
             if string_requirement.startswith('OneOfString'):
@@ -152,9 +157,9 @@ def strictly_typed(function):
                 continue
             if name == 'name':
                 continue
-            arg_verification(annotats[name], arg_val, function, True)
+            arg_verification(annotats[name], arg_val, function, 'instance_check', True)
         result = function(*args, **kwargs)
-        arg_verification(annotats["return"], result, function, True)
+        arg_verification(annotats["return"], result, function, 'instance_check', True)
         return result
     return wrapper
 
