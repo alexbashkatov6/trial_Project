@@ -73,6 +73,9 @@ class BoundedStringDict:
         self.check_possibility(key)
         self._storage_dict[key] = value
 
+    def __contains__(self, item):
+        return item in self._storage_dict
+
     def check_possibility(self, item: str):
         assert item in self.possible_keys, 'Key {} not in possible set {}'.format(item, self.possible_keys)
 
