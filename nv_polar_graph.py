@@ -1,5 +1,5 @@
 from __future__ import annotations
-from copy import copy, deepcopy
+from copy import copy  # , deepcopy
 from collections.abc import Iterable
 
 from nv_typing import *
@@ -15,8 +15,10 @@ class TypedBSD(BoundedStringDict):
 
     def check_type(self, key: str, value: Any) -> None:
         self.check_possibility(key)
-        assert isinstance(value, self._control_bsd[key]), \
-            'Value {} should be instance of {}'.format(value, self._control_bsd[key])
+        # print('check type: ', value, self._control_bsd[key])
+        if not (value is None):
+            assert isinstance(value, self._control_bsd[key]), \
+                'Value {} should be instance of {}'.format(value, self._control_bsd[key])
 
     def __setitem__(self, key, value):
         self.check_type(key, value)
@@ -48,11 +50,11 @@ class AssociatedElement:
     associations = PGAssociationDescriptor()
 
 
-class StringPolarGraphElement(BoundedStringSet):
-
-    @strictly_typed
-    def __init__(self, str_element: str) -> None:
-        super().__init__([['node'], ['link'], ['move']], str_element)
+# class StringPolarGraphElement(BoundedStringSet):
+#
+#     @strictly_typed
+#     def __init__(self, str_element: str) -> None:
+#         super().__init__([['node'], ['link'], ['move']], str_element)
 
 
 class End(BoundedStringSet):
@@ -624,7 +626,7 @@ class PolarGraph:
             if set(checkpoint_nodes) <= set(candidate_route.nodes):
                 routes_throw_checkpoints.add(candidate_route)
         assert routes_throw_checkpoints, 'Route throw checkpoint nodes not found'
-        assert len(routes_throw_checkpoints) == 1, 'More then 1 route throw checkpoint nodes not found'
+        assert len(routes_throw_checkpoints) == 1, 'More then 1 route throw checkpoint nodes was found'
         return routes_throw_checkpoints.pop()
 
     @strictly_typed
@@ -726,10 +728,12 @@ class BasePolarGraph(PolarGraph):
 
         self._infinity_node_positive_up = self._init_node()
         self._infinity_node_negative_down = self._init_node()
-        self.border_ni_s = {self.inf_node_pu.ni_nd, self.inf_node_nd.ni_pu}
 
         self._link_groups = set()
-        self._associations = None
+        self._associations = Associations(self)
+
+        self.border_ni_s = {self.inf_node_pu.ni_nd, self.inf_node_nd.ni_pu}
+        self.connect_nodes(*self.border_ni_s)
 
     @strictly_typed
     def _init_node(self) -> PolarNode:
@@ -796,17 +800,40 @@ class BasePolarGraph(PolarGraph):
         self._refresh_link_groups_links_moves()
 
     @strictly_typed
-    def insert_node(self, ni_of_positive_up_node: PGNodeInterface,
-                    ni_of_negative_down_node: PGNodeInterface,
-                    insertion_node: PolarNode = None,
-                    make_pu_stable: bool = False, make_nd_stable: bool = False) -> PolarNode:
-        if not insertion_node:
-            insertion_node = self._init_node()
+    def insert_node_single_link(self, ni_of_positive_up_node: PGNodeInterface,
+                                ni_of_negative_down_node: PGNodeInterface,
+                                make_pu_stable: bool = False, make_nd_stable: bool = False)\
+            -> tuple[PolarNode, PGLink, PGLink]:
+        #                         insertion_node: PolarNode = None,
+        # if not insertion_node:
+        #     insertion_node = self._init_node()
+        insertion_node = self._init_node()
         existing_old_nodes_link_group = self._get_link_group_by_ends(ni_of_positive_up_node, ni_of_negative_down_node)
         if existing_old_nodes_link_group:
             self._disconnect_nodes(ni_of_positive_up_node, ni_of_negative_down_node)
-        self.connect_nodes(ni_of_positive_up_node, insertion_node.ni_pu, make_pu_stable)
-        self.connect_nodes(ni_of_negative_down_node, insertion_node.ni_nd, make_nd_stable)
+        pu_link = self.connect_nodes(ni_of_positive_up_node, insertion_node.ni_pu, make_pu_stable)
+        nd_link = self.connect_nodes(ni_of_negative_down_node, insertion_node.ni_nd, make_nd_stable)
+        return insertion_node, pu_link, nd_link
+
+    @strictly_typed
+    def insert_node_neck(self, ni_necked: PGNodeInterface, make_between_stable: bool = False) -> PolarNode:
+        insertion_node: PolarNode = self._init_node()
+        if ni_necked.end.is_negative_down:
+            ni_instead_necked = insertion_node.ni_nd
+        else:
+            ni_instead_necked = insertion_node.ni_pu
+        ni_s_for_reconnect: set[PGNodeInterface] = set()
+        # print('ni_necked.links = ', ni_necked.links)
+        for link in ni_necked.links:
+            # print('link found')
+            assert not link.stable, 'Stable link was found when makes neck'
+            ni_s_for_reconnect.add(link.opposite_ni(ni_necked))
+            self._disconnect_nodes(*link.ni_s)
+        for ni_for_reconnect in ni_s_for_reconnect:
+            # print('connection 1 of ', ni_instead_necked, ni_for_reconnect)
+            self.connect_nodes(ni_instead_necked, ni_for_reconnect)
+        # print('connection 2 of ', insertion_node.opposite_ni(ni_instead_necked), ni_necked)
+        self.connect_nodes(insertion_node.opposite_ni(ni_instead_necked), ni_necked, make_between_stable)
         return insertion_node
 
     def _refresh_link_groups_links_moves(self):
@@ -848,7 +875,6 @@ class Associations:
     @strictly_typed
     def __init__(self, bpg: BasePolarGraph) -> None:
         self._base_polar_graph = bpg
-        bpg.associations = self
 
         self._node_association_types = BoundedStringDict()
         self._link_association_types = BoundedStringDict()
@@ -894,12 +920,16 @@ class Associations:
         return self._move_association_types
 
     @strictly_typed
-    def get_element_by_content_value(self, element_type: Type[Union[PolarNode, PGLink, PGMove]], content_key: str,
-                                     content_value: Any) -> AssociatedElement:
+    def get_element_by_content_value(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
+                                     content_found: dict[str, Any]) -> Union[PolarNode, PGLink, PGMove]:
         storage = getattr(self.base_polar_graph, self.storage_attribute[element_type])
         found_elements = set()
         for element in storage:
-            if (content_key in element.associations) and (element.associations[content_key] == content_value):
+            found = True
+            for content_key, content_value in content_found.items():
+                if not ((content_key in element.associations) and (element.associations[content_key] == content_value)):
+                    found = False
+            if found:
                 found_elements.add(element)
         assert found_elements, 'Element not found'
         assert len(found_elements) == 1, 'More then 1 element was found'
@@ -939,23 +969,113 @@ class Associations:
         return result
 
 
+class PropertiesNodeType(BoundedStringSet):
+    @strictly_typed
+    def __init__(self, prop_node_type: str) -> None:
+        super().__init__([['title'], ['splitter'], ['prop']], prop_node_type)
+
+
+class AppendNodeMethod(BoundedStringSet):
+    @strictly_typed
+    def __init__(self, prop_node_type: str) -> None:
+        super().__init__([['continue_chain'], ['to_splitter_value'], ['out_splitters']], prop_node_type)
+
+
+class PropertiesCreator:
+    def __init__(self):
+        self._base_graph = BasePolarGraph()
+        self._assoc = self.base_graph.associations
+        self._last_node = self.base_graph.inf_node_pu
+        self.assoc.register_association_types(PolarNode, {'node_type': PropertiesNodeType,
+                                                          'str_node_name': str,
+                                                          'str_node_values': list[str]})
+        self.assoc.register_association_types(PGMove, {'splitter_value': str})
+
+    @property
+    def base_graph(self):
+        return self._base_graph
+
+    @property
+    def assoc(self):
+        return self._assoc
+
+    @property
+    def last_node(self):
+        return self._last_node
+
+    def add_prop_node(self, str_node_name: str, str_node_values: list[str] = None,
+                      prop_node_type: PropertiesNodeType = None,
+                      append_method: AppendNodeMethod = None,
+                      connect_to_splitter_name_and_value: tuple[str, str] = None):
+        if not prop_node_type:
+            prop_node_type = PropertiesNodeType('prop')
+        if not append_method:
+            append_method = AppendNodeMethod('continue_chain')
+        bg = self.base_graph
+        assoc = self.assoc
+        prop_node: Optional[PolarNode] = None
+        if append_method == 'continue_chain':
+            ni_nd = self.last_node.ni_nd
+            prop_node, _, _ = bg.insert_node_single_link(ni_nd, bg.inf_node_nd.ni_pu)
+        elif append_method == 'out_splitters':
+            prop_node = bg.insert_node_neck(bg.inf_node_nd.ni_pu)
+        elif append_method == 'to_splitter_value':
+            assert connect_to_splitter_name_and_value, 'Splitter value should be specified'
+            spl_name, spl_value = connect_to_splitter_name_and_value
+            spl: PolarNode = assoc.get_element_by_content_value(PolarNode,
+                                                                {'node_type': PropertiesNodeType('splitter'),
+                                                                 'str_node_name': spl_name})
+            assert spl, 'Splitter not found'
+            assert spl_value in spl.associations['str_node_values'], 'Splitter value not found'
+            ni_nd = spl.ni_nd
+            prop_node, pu_link, _ = bg.insert_node_single_link(ni_nd, bg.inf_node_nd.ni_pu)
+            move: PGMove = ni_nd.get_move(pu_link)  # 'splitter_value'
+            move.associations['splitter_value'] = spl_value
+
+        prop_node.associations['node_type'] = prop_node_type
+        prop_node.associations['str_node_name'] = str_node_name
+        prop_node.associations['str_node_values'] = str_node_values
+
+        self._last_node = prop_node
+
+
 if __name__ == '__main__':
 
-    test = 'test_2'
+    test = 'test_1'
     if test == 'test_1':
-        pass
+
+        pc = PropertiesCreator()
+        # pnt = PropertiesNodeType('title')
+        pc.add_prop_node('First_title', prop_node_type=PropertiesNodeType('title'))
+        pc.add_prop_node('Second_title', prop_node_type=PropertiesNodeType('title'))
+        pc.add_prop_node('First_splitter', ['First branch', 'Second branch'],
+                         prop_node_type=PropertiesNodeType('splitter'))
+        bg_ = pc.base_graph
+        print('nodes links ', len(bg_.nodes), len(bg_.links), bg_.nodes, bg_.links)
+        route_ = bg_.find_single_route(bg_.inf_node_pu, bg_.inf_node_nd)
+        route2_ = bg_.find_single_route(bg_.inf_node_nd, bg_.inf_node_pu)
+        print(bg_.associations.extract_route_content({PolarNode: 'str_node_name'}, route_))
+
+        # neck_test
+        # pg_0 = BasePolarGraph()
+        # pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
+        # pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
+        # pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
+        # pg_0.insert_node_neck(pg_0.inf_node_nd.ni_pu)
+        # print('nodes: ', len(pg_0.nodes), pg_0.nodes)
+        # print('links: ', len(pg_0.links), pg_0.links)
 
     if test == 'test_2':
 
         def create_graph_1():
             pg_0 = BasePolarGraph()
             nodes = ['zero_element']
-            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu,
-                                    make_pu_stable=True, make_nd_stable=True)
-            pn_2 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
-            pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
-            pn_4 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
-            pn_5 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
+            pn_1, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu,
+                                                      make_pu_stable=True, make_nd_stable=True)
+            pn_2, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
+            pn_3, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
+            pn_4, _, _ = pg_0.insert_node_single_link(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
+            pn_5, _, _ = pg_0.insert_node_single_link(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
             nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
             return pg_0, nodes
 
@@ -963,11 +1083,11 @@ if __name__ == '__main__':
         def create_graph_2():
             pg_0 = BasePolarGraph()
             nodes = ['zero_element']
-            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
-            pn_2 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
-            pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
-            pn_4 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
-            pn_5 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
+            pn_1, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
+            pn_2, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
+            pn_3, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
+            pn_4, _, _ = pg_0.insert_node_single_link(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
+            pn_5, _, _ = pg_0.insert_node_single_link(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
             nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
             return pg_0, nodes
 
@@ -975,7 +1095,7 @@ if __name__ == '__main__':
         def create_graph_3():
             pg_0 = BasePolarGraph()
             nodes = ['zero_element']
-            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_pu.ni_nd)
+            pn_1, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_pu.ni_nd)
             nodes.extend([pn_1])
             return pg_0, nodes
 
@@ -983,9 +1103,9 @@ if __name__ == '__main__':
         def create_graph_4():
             pg_0 = BasePolarGraph()
             nodes = ['zero_element']
-            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
-            pn_2 = pg_0.insert_node(pn_1.ni_nd, pn_1.ni_pu)
-            pn_3 = pg_0.insert_node(pn_1.ni_nd, pn_2.ni_pu)
+            pn_1, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
+            pn_2, _, _ = pg_0.insert_node_single_link(pn_1.ni_nd, pn_1.ni_pu)
+            pn_3, _, _ = pg_0.insert_node_single_link(pn_1.ni_nd, pn_2.ni_pu)
             nodes.extend([pn_1, pn_2, pn_3])
             return pg_0, nodes
 
@@ -993,27 +1113,28 @@ if __name__ == '__main__':
         def create_graph_5() -> tuple[PolarGraph, list[PolarNode]]:
             pg_0 = BasePolarGraph()
             nodes = ['zero_element']
-            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu, make_nd_stable=True)
-            pn_2 = pg_0.insert_node(pg_0.inf_node_nd.ni_pu, pn_1.ni_nd)
+            pn_1, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu,
+                                                      make_nd_stable=True)
+            pn_2, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_nd.ni_pu, pn_1.ni_nd)
             pg_0.connect_nodes(pg_0.inf_node_nd.ni_pu, pn_2.ni_nd)
-            pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_2.ni_pu)
+            pn_3, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pn_2.ni_pu)
             nodes.extend([pn_1, pn_2, pn_3])
             return pg_0, nodes
 
 
         def create_graph_6():
             pg_0 = BasePolarGraph()
-            assoc = Associations(pg_0)
+            assoc = pg_0.associations
             assoc.register_association_types(PolarNode, {'node_assoc': int})
             assoc.register_association_types(PolarNode, {'string': str})
             assoc.register_association_types(PGLink, {'link_assoc': float})
             assoc.register_association_types(PGMove, {'move_assoc': str})
             nodes = ['zero_element']
-            pn_1 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
-            pn_2 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
-            pn_3 = pg_0.insert_node(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
-            pn_4 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
-            pn_5 = pg_0.insert_node(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
+            pn_1, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
+            pn_2, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
+            pn_3, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
+            pn_4, _, _ = pg_0.insert_node_single_link(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
+            pn_5, _, _ = pg_0.insert_node_single_link(pn_1.ni_nd, pg_0.inf_node_nd.ni_pu)
             nodes.extend([pn_1, pn_2, pn_3, pn_4, pn_5])
             return pg_0, nodes
 
@@ -1037,19 +1158,20 @@ if __name__ == '__main__':
 
         # print(pg_00.associations.get_element_by_content_value(PolarNode, 'node_assoc', 5))
 
-        subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
-        pg_00.associations.apply_sbg_content(PGLink, 'link_assoc', 0., subgraph_)
-        pg_00.associations.apply_sbg_content(PolarNode, 'node_assoc', 100, subgraph_)
-
-        for node_ in pg_00.nodes:
-            print(node_.associations)
-        for link_ in pg_00.links:
-            print(link_.associations)
-        for move_ in pg_00.moves:
-            print(move_.associations)
+        # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
+        # pg_00.associations.apply_sbg_content(PGLink, 'link_assoc', 0., subgraph_)
+        # pg_00.associations.apply_sbg_content(PolarNode, 'node_assoc', 100, subgraph_)
+        #
+        # for node_ in pg_00.nodes:
+        #     print(node_.associations)
+        # for link_ in pg_00.links:
+        #     print(link_.associations)
+        # for move_ in pg_00.moves:
+        #     print(move_.associations)
 
         route_from_to_: PGRoute = pg_00.find_single_route(pg_00.inf_node_pu, pg_00.inf_node_nd,
                                                           [nodes_00[2], nodes_00[4]])
+        pg_00.associations.apply_sbg_content(PolarNode, 'node_assoc', 300, route_from_to_)
         route_result_ = pg_00.associations.extract_route_content({PGLink: 'link_assoc', PolarNode: 'node_assoc'},
                                                                  route_from_to_)
         print(route_result_)
@@ -1138,88 +1260,12 @@ if __name__ == '__main__':
 
     if test == 'test_3':
         pass
-        # pn_01 = PolarNode()
-        # print(End('nd') == 'pu')
-        # pe_01 = PNEnd(pn_01, End('nd'))
-        # pe_02 = PNEnd(pn_01, End('pu'))
-        # pe_03 = PNEnd(pn_01, End('nd'))
-        # print(pe_01, pe_01.other_pn_end)
-        # print(pe_02 == pe_01.other_pn_end)
-        # print('eq = ', pe_03 == pe_01)
-        # print('in = ', pe_03 in {pe_01})
-        # print({pe_02, pe_01.other_pn_end})
-        # print(pe_02 is pe_01.other_pn_end)
-        # print('eq 2 = ', pe_03 == pn_01.end_nd)
 
     if test == 'test_4':
-        pg_00 = BasePolarGraph()
-        print('pg.inf_node_pu ', pg_00.inf_node_pu)
-        print('pg.inf_node_nd ', pg_00.inf_node_nd)
-        pn_01 = pg_00.insert_node()  # make_nd_stable=True
-        # pn_00 = copy(pn_01)
-        pn_02 = pg_00.insert_node(ni_of_negative_down_node=pn_01.end_pu, make_nd_stable=True)
-        pg_00.connect_nodes(pn_01.end_pu, pn_02.end_nd)
-        pg_00.connect_nodes(pn_01.end_pu, pn_02.end_nd)
-        pn_03 = pg_00.insert_node(pn_02.end_nd, pn_01.end_pu)
-        pn_04 = pg_00.insert_node(pn_02.end_nd, pn_01.end_pu)
-        print('pn_01 ', pn_01)
-        print('pg nodes ', pg_00.nodes)
-        print('pg links len ', len(pg_00.links))
-        print('pg links ', pg_00.links)
-        print('pn_01 next all nd ', pn_01.next_direction_nodes())
-        print('pn_01 next all pu ', pn_01.next_direction_nodes(End('pu')))
-        print('pn_01 next active nd ', pn_01.next_active_direction_node())
-        print('pn_01 next active pu ', pn_01.next_active_direction_node(End('pu')))
+        pass
 
     if test == 'test_5':
-        pg_00 = BasePolarGraph()
-        print('pg.inf_node_pu ', pg_00.inf_node_pu)
-        print('pg.inf_node_nd ', pg_00.inf_node_nd)
-        pn_01 = pg_00.insert_node()  # make_nd_stable=True
-        # pn_00 = copy(pn_01)
-        pg_00.connect_nodes(pn_01.end_nd, pg_00.inf_node_pu.end_nd)
-        print('pn_01 ', pn_01)
-        print('pg nodes ', pg_00.nodes)
-        print('pg links len ', len(pg_00.links))
-        print('pg links ', pg_00.links)
-        print('pn_01 next all nd ', pn_01.next_direction_nodes())
-        print('pn_01 next all pu ', pn_01.next_direction_nodes(End('pu')))
-        print('pn_01 next active nd ', pn_01.next_active_direction_node())
-        print('pn_01 next active pu ', pn_01.next_active_direction_node(End('pu')))
+        pass
 
     if test == 'test_6':
-        pg_00 = BasePolarGraph()
-        print('pg.inf_node_pu ', pg_00.inf_node_pu)
-        print('pg.inf_node_nd ', pg_00.inf_node_nd)
-        pn_01 = pg_00.insert_node()  # make_nd_stable=True
-        # pn_00 = copy(pn_01)
-        pn_02 = pg_00.insert_node(ni_of_negative_down_node=pn_01.end_pu, make_nd_stable=True)
-        # pg.connect_nodes(pn_01.end_nd, pn_02.end_pu)
-        # pg.connect_nodes(pn_01.end_pu, pn_02.end_nd)
-        # pn_03 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
-        # pn_04 = pg.insert_node(pn_02.end_nd, pn_01.end_pu)
-        print('pn_01 ', pn_01)
-        print('pg nodes ', pg_00.nodes)
-        print('pg links len ', len(pg_00.links))
-        print('pg links ', pg_00.links)
-        print('pn_01 next all nd ', pn_01.next_direction_nodes())
-        print('pn_01 next all pu ', pn_01.next_direction_nodes(End('pu')))
-        print('pn_01 next active nd ', pn_01.next_active_direction_node())
-        print('pn_01 next active pu ', pn_01.next_active_direction_node(End('pu')))
-
-        # pn_011 = deepcopy(pn_01)
-        # pg.connect_nodes(pn_01.end_pu, pn_02.end_nd)
-        # print('pn_01 next all nd ', pn_01.next_nodes())
-        # print('pn_01 next all pu ', pn_01.next_nodes(End('pu')))
-        # print('pn_01 next active nd ', pn_01.next_active_move_node())
-        # print('pn_01 next active pu ', pn_01.next_active_move_node(End('pu')))
-        # print('pn_011 next all nd ', pn_011.next_nodes())
-        # print('pn_011 next all pu ', pn_011.next_nodes(End('pu')))
-        # print('pn_011 next active nd ', pn_011.next_active_move_node())
-        # print('pn_011 next active pu ', pn_011.next_active_move_node(End('pu')))
-
-        pg_10 = deepcopy(pg_00)
-        print('pg_10 nodes ', pg_10.nodes)
-        print('pg_10 links len ', len(pg_10.links))
-        print('pg_10 links ', pg_10.links)
-        # print('pg_10 nodes ', pg_10.nodes[0] is pg_00.nodes[0])
+        pass
