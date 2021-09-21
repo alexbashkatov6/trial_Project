@@ -15,10 +15,8 @@ class TypedBSD(BoundedStringDict):
 
     def check_type(self, key: str, value: Any) -> None:
         self.check_possibility(key)
-        # print('check type: ', value, self._control_bsd[key])
         if not (value is None):
-            assert isinstance(value, self._control_bsd[key]), \
-                'Value {} should be instance of {}'.format(value, self._control_bsd[key])
+            arg_verification(self._control_bsd[key], value, self.check_type, 'instance_check', True)
 
     def __setitem__(self, key, value):
         self.check_type(key, value)
@@ -48,13 +46,6 @@ class PGAssociationDescriptor:
 
 class AssociatedElement:
     associations = PGAssociationDescriptor()
-
-
-# class StringPolarGraphElement(BoundedStringSet):
-#
-#     @strictly_typed
-#     def __init__(self, str_element: str) -> None:
-#         super().__init__([['node'], ['link'], ['move']], str_element)
 
 
 class End(BoundedStringSet):
@@ -899,7 +890,7 @@ class Associations:
 
     @strictly_typed
     def register_association_types(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
-                                   value: dict[str, type]) -> None:
+                                   value: dict[str, str]) -> None:
         self.association_types[element_type].register_keys(value.keys())
         for key in value.keys():
             self.association_types[element_type][key] = value[key]
@@ -986,10 +977,10 @@ class PropertiesCreator:
         self._base_graph = BasePolarGraph()
         self._assoc = self.base_graph.associations
         self._last_node = self.base_graph.inf_node_pu
-        self.assoc.register_association_types(PolarNode, {'node_type': PropertiesNodeType,
-                                                          'str_node_name': str,
-                                                          'str_node_values': list[str]})
-        self.assoc.register_association_types(PGMove, {'splitter_value': str})
+        self.assoc.register_association_types(PolarNode, {'node_type': 'PropertiesNodeType',
+                                                          'str_node_name': 'str',
+                                                          'str_node_values': 'list[str]'})
+        self.assoc.register_association_types(PGMove, {'splitter_value': 'str'})
 
     @property
     def base_graph(self):
@@ -1125,10 +1116,10 @@ if __name__ == '__main__':
         def create_graph_6():
             pg_0 = BasePolarGraph()
             assoc = pg_0.associations
-            assoc.register_association_types(PolarNode, {'node_assoc': int})
-            assoc.register_association_types(PolarNode, {'string': str})
-            assoc.register_association_types(PGLink, {'link_assoc': float})
-            assoc.register_association_types(PGMove, {'move_assoc': str})
+            assoc.register_association_types(PolarNode, {'node_assoc': 'int'})
+            assoc.register_association_types(PolarNode, {'string': 'str'})
+            assoc.register_association_types(PGLink, {'link_assoc': 'float'})
+            assoc.register_association_types(PGMove, {'move_assoc': 'str'})
             nodes = ['zero_element']
             pn_1, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
             pn_2, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)

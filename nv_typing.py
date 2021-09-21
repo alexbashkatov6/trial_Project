@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from functools import wraps
 import inspect
 
-__all__ = ['strictly_typed', 'Any', 'Optional', 'Union', 'OneOfString', 'Type']
+__all__ = ['strictly_typed', 'Any', 'Optional', 'Union', 'OneOfString', 'Type', 'arg_verification']
 
 
 class OneOfString:
