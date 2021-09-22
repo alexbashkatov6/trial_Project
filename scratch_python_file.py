@@ -25,7 +25,9 @@ class DependentBasis(CoordSystem):
         self.basis = basis
 
 
-arg_spec = inspect.getfullargspec(DependentBasis.__init__)
-print('arg_spec', arg_spec)
+arg_spec_DB = inspect.getfullargspec(DependentBasis.__init__)
+arg_spec_CS = inspect.getfullargspec(CoordSystem.__init__)
+print('arg_spec_DB', arg_spec_DB)
+print('arg_spec_CS', arg_spec_CS)
 print('mro', DependentBasis.mro())
 print('annotations', DependentBasis.__init__.__annotations__)
