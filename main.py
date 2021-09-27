@@ -12,9 +12,9 @@ class Director(QObject):
         self.mw = MW()
         self.ds = DataStorage()
         self.mm = MessagesManager(self.mw)
-        self.setConnections()
+        self.set_connections()
 
-    def setConnections(self):
+    def set_connections(self):
         self.mw.ttb.sendClassName.connect(self.mw.ce.setClassName)
         self.mw.ce.sendClassNameStr.connect(self.mw.rtb.setClassName)
         self.mw.ce.sendAttribsStructure.connect(self.mw.rtb.setAttrStruct)

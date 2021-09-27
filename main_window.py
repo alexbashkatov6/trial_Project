@@ -17,13 +17,15 @@ class ToolBarOfClasses(QToolBar):
 
     def __init__(self):
         super().__init__()
+        self.pic_names_sorted_list = None
+        self.qb_list = []
 
-    def extractPictures(self, classes_names):
+    def extract_pictures(self, classes_names):
         # pictures for tool icons extracting
         pic_names = {}
         nums_of_pict = []
-        rootPath = os.getcwd()
-        tree = os.walk(rootPath + '\\' + self.picFolder)
+        root_path = os.getcwd()
+        tree = os.walk(root_path + '\\' + self.picFolder)
         for d, dirs, files in tree:
             for file in files:
                 file_without_extent = file[:file.rfind('.')]
@@ -39,26 +41,25 @@ class ToolBarOfClasses(QToolBar):
                 pic_names[int_prefix] = file_without_extent
         self.pic_names_sorted_list = [pic_names[i] for i in sorted(pic_names)]
 
-    def constructWidget(self, min_size):
+    def construct_widget(self, min_size):
         self.setMinimumSize(min_size, min_size)
-        self.qb_list = []
         for pic_name in self.pic_names_sorted_list:
             icon = QIcon('{}/{}.jpg'.format(self.picFolder, pic_name))
             qb = QPushButton(icon, '')
             qb.setIconSize(QSize(min_size, min_size))
             qb.setToolTip(pic_name[pic_name.find('_') + 1:])
-            qb.clicked.connect(self.actTriggered)
+            qb.clicked.connect(self.act_triggered)
             self.qb_list.append(qb)
             self.addWidget(qb)
 
-    def actTriggered(self):
+    def act_triggered(self):
         sender = self.sender()
         long_name = self.pic_names_sorted_list[self.qb_list.index(sender)]
         self.sendClassName.emit(long_name[long_name.index('_') + 1:])
 
 
 class AttribRow(QHBoxLayout):
-    def __init__(self, classMode=True):
+    def __init__(self, class_mode=True):
         super().__init__()
         self.attrName = ''
         self.attrValue = ''
@@ -68,22 +69,22 @@ class AttribRow(QHBoxLayout):
         self.addWidget(self.textEditWidget)
         self.widgetsList = [self.labelWidget, self.textEditWidget]
 
-        assert type(classMode) == bool, 'Bool is expected'
-        if classMode:
+        assert type(class_mode) == bool, 'Bool is expected'
+        if class_mode:
             self.textEditWidget.setReadOnly(True)
             self.textEditWidget.setStyleSheet("background-color: grey")
 
-    def setNameText(self, val):
+    def set_name_text(self, val):
         assert type(val) == str, 'Str is expected'
         self.labelWidget.setText(val)
 
-    def setValueText(self, val):
+    def set_value_text(self, val):
         assert type(val) == str, 'Str is expected'
         self.textEditWidget.setText(val)
 
 
 class ComboRow(QHBoxLayout):
-    def __init__(self, classMode=True):
+    def __init__(self, class_mode=True):
         super().__init__()
         self.comboName = ''
         self.labelWidget = QLabel(self.comboName)
@@ -92,28 +93,28 @@ class ComboRow(QHBoxLayout):
         self.addWidget(self.comboWidget)
         self.widgetsList = [self.labelWidget, self.comboWidget]
 
-        assert type(classMode) == bool, 'Bool is expected'
-        if classMode:
+        assert type(class_mode) == bool, 'Bool is expected'
+        if class_mode:
             self.comboWidget.setDisabled(True)
 
-    def setComboName(self, val):
+    def set_combo_name(self, val):
         assert type(val) == str, 'Str is expected'
         self.labelWidget.setText(val + ':')
 
-    def addComboValue(self, val):
+    def add_combo_value(self, val):
         assert type(val) == str, 'Str is expected'
         self.comboWidget.addItem(val)
 
 
 class CreationButtonLayout(QHBoxLayout):
-    def __init__(self, classMode=True):
+    def __init__(self, class_mode=True):
         super().__init__()
         self.buttonWidget = QPushButton('Create/Apply')
         self.addWidget(self.buttonWidget)
         self.widgetsList = [self.buttonWidget]
 
-        assert type(classMode) == bool, 'Bool is expected'
-        if classMode:
+        assert type(class_mode) == bool, 'Bool is expected'
+        if class_mode:
             self.buttonWidget.setDisabled(True)
 
 
@@ -142,13 +143,13 @@ class AttribColumn(QVBoxLayout):
             if type(item) == ComplexAttrib:
                 new_row = AttribRow(classMode)
                 self.addLayout(new_row)
-                new_row.setNameText(item.name)
+                new_row.set_name_text(item.name)
             if type(item) == CompetitorAttribGroup:
                 new_row = ComboRow(classMode)
                 self.addLayout(new_row)
-                new_row.setComboName(item.name)
+                new_row.set_combo_name(item.name)
                 group = item.attribGroups[0]
-                new_row.addComboValue(group.name)
+                new_row.add_combo_value(group.name)
                 self.initFromContainer(group.complexAttribs, False)
         if initEnter:
             crButL = CreationButtonLayout(classMode)
@@ -225,8 +226,8 @@ class MW(QMainWindow):
 
         # Top tool bar format
         self.ttb = ToolBarOfClasses()
-        self.ttb.extractPictures(self.ce.extractedClasses)
-        self.ttb.constructWidget(top_toolbar_min_height_width)
+        self.ttb.extract_pictures(self.ce.extractedClasses)
+        self.ttb.construct_widget(top_toolbar_min_height_width)
 
         # Right tool bar format
         self.rtb = ToolBarOfAttribs(right_toolbar_min_height_width)
