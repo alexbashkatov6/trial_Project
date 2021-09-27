@@ -4,15 +4,7 @@ from copy import copy  # , deepcopy
 from nv_typing import *
 from nv_names_control import names_control
 from nv_string_set_class import bounded_string_set, BoundedStringDict
-import inspect
-import sys
-# print(inspect.currentframe().f_code)
-# def f():
-#     pass
-# print(sys)
-# for mod in sys.modules:
-#     print(mod)
-# raise ValueError
+
 
 class TypedBSD(BoundedStringDict):
 
@@ -23,7 +15,7 @@ class TypedBSD(BoundedStringDict):
     def check_type(self, key: str, value: Any) -> None:
         self.check_possibility(key)
         if not (value is None):
-            arg_verification(self._control_bsd[key], value, inspect.getmodule(self), 'instance_check', True)
+            type_verification(self._control_bsd[key], value, 'instance_check', True)
 
     def __setitem__(self, key, value):
         self.check_type(key, value)
@@ -80,13 +72,6 @@ class PGNodeInterface:
 
     def __repr__(self):
         return "{}({}, {})".format(self.__class__.__name__, self.pn, self.end)
-
-    @strictly_typed
-    def __eq__(self, other: PGNodeInterface) -> bool:
-        return (self.end == other.end) and (self.pn is other.pn)
-
-    def __hash__(self):
-        return hash((self.pn, self.end))
 
     @property
     @strictly_typed
@@ -1119,6 +1104,7 @@ if __name__ == '__main__':
         pg_00, nodes_00 = create_graph_6()
 
         subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
+        print(pg_00.links)
         pg_00.associations.apply_sbg_content(PGLink, 'link_assoc', 0., subgraph_)
         pg_00.associations.apply_sbg_content(PolarNode, 'node_assoc', 100, subgraph_)
         print(pg_00.associations.extract_sbg_content({PGLink: 'link_assoc', PolarNode: 'node_assoc'},

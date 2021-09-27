@@ -26,7 +26,7 @@ class BoundedStringSet(metaclass=ABCMeta):
             return other.value in self.eq_strings
 
     def __hash__(self):
-        return hash(self.value)
+        return hash(id(self))
 
     @property
     def eq_strings(self) -> list[str]:

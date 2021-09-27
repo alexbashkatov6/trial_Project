@@ -15,7 +15,7 @@ from nv_typing import *
 
 # !! Переписать name через дескриптор класса, а не декоратор
 
-NameType = namedtuple('NameType', ['name_', 'type_'])
+NameType = namedtuple('NameType', ['name', 'type'])
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
@@ -156,7 +156,8 @@ class GraphTemplatesDescriptor:
             return
         for node_str, move_str in splitter_preferences_.items():
             print('node, move = ', node_str, move_str)
-            node: PolarNode = graph_template_.associations.get_element_by_content_value(PolarNode, {'attr_tuple': node_str})
+            node: PolarNode = graph_template_.associations.get_element_by_content_value(PolarNode,
+                                                                                        {'attr_tuple': node_str})
             move = graph_template_.associations.get_element_by_content_value(PGMove, {'splitter_value': node_str},
                                                                              node.ni_nd.moves)
             node.ni_nd.choice_move_activate(move)
