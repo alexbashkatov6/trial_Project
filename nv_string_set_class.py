@@ -56,12 +56,21 @@ class CopyDescriptor:
 
 
 @strictly_typed
-def bounded_string_set(type_name: str, eq_value_groups: Iterable[Iterable[str]]) -> type:
+def bounded_string_set(type_name: str, eq_value_groups: Iterable[Iterable[str]],
+                       additional_base_classes: Optional[Union[type, Iterable[type]]] = None) -> type:
     possible_strings = list(chain(*eq_value_groups))
     unique_values = [list(eq_values)[0] for eq_values in eq_value_groups]
-    new_type = type(type_name, (BoundedStringSet,), {'eq_value_groups': CopyDescriptor(eq_value_groups),
-                                                     'possible_strings': CopyDescriptor(possible_strings),
-                                                     'unique_values': CopyDescriptor(unique_values)})
+    base_classes = (BoundedStringSet,)
+    if additional_base_classes is None:
+        pass
+    elif type(additional_base_classes) == type:
+        base_classes = (*base_classes, additional_base_classes)
+    else:
+        base_classes = (*base_classes, *set(additional_base_classes))
+    new_type = type(type_name, base_classes,
+                    {'eq_value_groups': CopyDescriptor(eq_value_groups),
+                     'possible_strings': CopyDescriptor(possible_strings),
+                     'unique_values': CopyDescriptor(unique_values)})
     return new_type
 
 

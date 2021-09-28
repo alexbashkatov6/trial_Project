@@ -1,12 +1,12 @@
 from __future__ import annotations
 from typing import Any, Optional, Union, Type
-from collections.abc import Iterable
+from collections.abc import Iterable, Callable
 from functools import wraps
 import inspect
 import sys
 import os
 
-__all__ = ['strictly_typed', 'Any', 'Optional', 'Union', 'Type', 'type_verification', 'Iterable']
+__all__ = ['strictly_typed', 'Any', 'Optional', 'Union', 'Type', 'type_verification', 'Iterable', 'Callable']
 
 
 def type_verification(string_requirement, value, mode='instance_check', first_enter=False):

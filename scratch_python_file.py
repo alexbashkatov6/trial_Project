@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import namedtuple
+from functools import partial
 
 from nv_names_control import names_control
 from nv_string_set_class import bounded_string_set, BoundedStringSet
@@ -33,8 +34,8 @@ class AttribDescriptor:
             return self
         g_t = instance.graph_template
         route_from_to_: PGRoute = g_t.free_roll(g_t.inf_node_pu.ni_nd)
-        route_result_ = g_t.associations.extract_route_content({PolarNode: 'attr_tuple', PGMove: 'splitter_value'},
-                                                               route_from_to_, get_as_strings=False)
+        route_result_ = g_t.am.extract_route_content({PolarNode: 'attr_tuple', PGMove: 'splitter_value'},
+                                                     route_from_to_, get_as_strings=False)
         result: list[AttributeFormat] = []
         for i, element in enumerate(route_result_):
             if not(type(element) == tuple):
@@ -71,8 +72,8 @@ class DynamicAttributeControl:
 
     def init_all_attributes(self):
         g_t: BasePolarGraph = self.graph_template
-        all_attribute_values = g_t.associations.extract_sbg_content({PolarNode: 'attr_tuple'}, g_t,
-                                                                    get_as_strings=False)
+        all_attribute_values = g_t.am.extract_sbg_content({PolarNode: 'attr_tuple'}, g_t,
+                                                          get_as_strings=False)
         print('all attributes :', all_attribute_values)
 
 
@@ -84,8 +85,8 @@ class GraphTemplatesDescriptor:
         if instance is None:
             return self
         g_t = BasePolarGraph()
-        g_t.associations.register_association_types(PolarNode, {'attr_tuple': "NameType"})
-        g_t.associations.register_association_types(PGMove, {'splitter_value': 'str'})
+        g_t.am.register_association_types(PolarNode, {'attr_tuple': "NameType"})
+        g_t.am.register_association_types(PGMove, {'splitter_value': 'str'})
 
         splitter_preferences = None
 
@@ -156,10 +157,10 @@ class GraphTemplatesDescriptor:
             return
         for node_str, move_str in splitter_preferences_.items():
             print('node, move = ', node_str, move_str)
-            node: PolarNode = graph_template_.associations.get_element_by_content_value(PolarNode,
-                                                                                        {'attr_tuple': node_str})
-            move = graph_template_.associations.get_element_by_content_value(PGMove, {'splitter_value': node_str},
-                                                                             node.ni_nd.moves)
+            node: PolarNode = graph_template_.am.get_element_by_content_value(PolarNode,
+                                                                              {'attr_tuple': node_str})
+            move = graph_template_.am.get_element_by_content_value(PGMove, {'splitter_value': node_str},
+                                                                   node.ni_nd.moves)
             node.ni_nd.choice_move_activate(move)
 
 
