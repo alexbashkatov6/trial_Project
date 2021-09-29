@@ -28,10 +28,6 @@ class BoundedStringSet(metaclass=ABCMeta):
     def __hash__(self):
         return hash(id(self))
 
-    # def __instancecheck__(self, instance):
-    #     print('poos str = ', self.possible_strings)
-    #     return isinstance(instance, super) or ((type(instance) == str) and (instance in self.possible_strings))
-
     @property
     def eq_strings(self) -> list[str]:
         return self._eq_strings
