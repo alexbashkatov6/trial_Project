@@ -3,40 +3,40 @@ from copy import copy  # , deepcopy
 
 from nv_typing import *
 from nv_names_control import names_control
-from nv_string_set_class import bounded_string_set, BoundedStringDict
+from nv_string_set_class import bounded_string_set  # , BoundedStringDict
 from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
 from nv_typed_cell import TypedCell
 
 
-class TypedBSD(BoundedStringDict):
-
-    def __init__(self, control_bsd: BoundedStringDict):
-        self._control_bsd = control_bsd
-        super().__init__(control_bsd.possible_keys)
-
-    def check_type(self, key: str, value: Any) -> None:
-        self.check_possibility(key)
-        if not (value is None):
-            type_verification(self._control_bsd[key], value, 'instance_check', True)
-
-    def __setitem__(self, key, value):
-        self.check_type(key, value)
-        super().__setitem__(key, value)
-
-
-class PGAssociationDescriptor:
-
-    def __get__(self, instance, owner=None) -> Union[PGAssociationDescriptor, TypedBSD]:
-        if instance is None:
-            return self
-        else:
-            possible_associations = instance.base_polar_graph.am.association_types[owner]
-        if not hasattr(instance, '_associations'):
-            instance._associations = TypedBSD(possible_associations)
-        return instance._associations
-
-    def __set__(self, instance, value) -> None:
-        assert False, 'Association descriptor setter not implemented'
+# class TypedBSD(BoundedStringDict):
+#
+#     def __init__(self, control_bsd: BoundedStringDict):
+#         self._control_bsd = control_bsd
+#         super().__init__(control_bsd.possible_keys)
+#
+#     def check_type(self, key: str, value: Any) -> None:
+#         self.check_possibility(key)
+#         if not (value is None):
+#             type_verification(self._control_bsd[key], value, 'instance_check', True)
+#
+#     def __setitem__(self, key, value):
+#         self.check_type(key, value)
+#         super().__setitem__(key, value)
+#
+#
+# class PGAssociationDescriptor:
+#
+#     def __get__(self, instance, owner=None) -> Union[PGAssociationDescriptor, TypedBSD]:
+#         if instance is None:
+#             return self
+#         else:
+#             possible_associations = instance.base_polar_graph.am.association_types[owner]
+#         if not hasattr(instance, '_associations'):
+#             instance._associations = TypedBSD(possible_associations)
+#         return instance._associations
+#
+#     def __set__(self, instance, value) -> None:
+#         assert False, 'Association descriptor setter not implemented'
 
 
 NoFunctionalityEnd = bounded_string_set('NoFunctionalityEnd', [['negative_down', 'nd'], ['positive_up', 'pu']])
@@ -153,7 +153,7 @@ class PGNodeInterface:
 
 
 class PGMove:
-    associations = PGAssociationDescriptor()
+    # associations = PGAssociationDescriptor()
 
     @strictly_typed
     def __init__(self, bpg: BasePolarGraph, ni: PGNodeInterface, link: PGLink) -> None:
@@ -283,7 +283,7 @@ class PGLinkGroup:
 
 
 class PGLink:
-    associations = PGAssociationDescriptor()
+    # associations = PGAssociationDescriptor()
 
     @strictly_typed
     def __init__(self, bpg: BasePolarGraph, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
@@ -330,7 +330,7 @@ class PGLink:
 
 @names_control
 class PolarNode:
-    associations = PGAssociationDescriptor()
+    # associations = PGAssociationDescriptor()
 
     @strictly_typed
     def __init__(self, bpg: BasePolarGraph) -> None:
@@ -873,137 +873,6 @@ class BasePolarGraph(PolarGraph):
         return new_link_group
 
 
-# class AssociationsManager:
-#
-#     @strictly_typed
-#     def __init__(self, bpg: BasePolarGraph) -> None:
-#         self._base_polar_graph = bpg
-#
-#         self._node_association_types = BoundedStringDict()
-#         self._link_association_types = BoundedStringDict()
-#         self._move_association_types = BoundedStringDict()
-#
-#     @property
-#     @strictly_typed
-#     def storage_attribute(self) -> dict[Type[Union[PolarNode, PGLink, PGMove]], str]:
-#         return {PolarNode: 'nodes', PGLink: 'links', PGMove: 'moves'}
-#
-#     @property
-#     @strictly_typed
-#     def association_types(self) -> dict[Type[Union[PolarNode, PGLink, PGMove]], BoundedStringDict]:
-#         return {PolarNode: self._node_association_types,
-#                 PGLink: self._link_association_types,
-#                 PGMove: self._move_association_types}
-#
-#     @property
-#     @strictly_typed
-#     def base_polar_graph(self) -> BasePolarGraph:
-#         return self._base_polar_graph
-#
-#     @strictly_typed
-#     def register_association_types(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
-#                                    value: dict[str, str]) -> None:
-#         self.association_types[element_type].register_keys(value.keys())
-#         for key in value.keys():
-#             self.association_types[element_type][key] = value[key]
-#
-#     @property
-#     @strictly_typed
-#     def node_association_types(self) -> BoundedStringDict:
-#         return self._node_association_types
-#
-#     @property
-#     @strictly_typed
-#     def link_association_types(self) -> BoundedStringDict:
-#         return self._link_association_types
-#
-#     @property
-#     @strictly_typed
-#     def move_association_types(self) -> BoundedStringDict:
-#         return self._move_association_types
-#
-#     @strictly_typed
-#     def get_element_by_content_value(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
-#                                      content_found: dict[str, Any],
-#                                      given_elements: Optional[Iterable[Union[PolarNode, PGLink, PGMove]]] = None) -> \
-#             Union[PolarNode, PGLink, PGMove]:
-#         if given_elements is None:
-#             storage = getattr(self.base_polar_graph, self.storage_attribute[element_type])
-#         else:
-#             assert all([issubclass(type(elt), element_type) for elt in given_elements]), 'Type <> type(elts)'
-#             storage = given_elements
-#         found_elements = set()
-#         for element in storage:
-#             found = True
-#             for content_key, content_value in content_found.items():
-#                 if not ((content_key in element.associations) and (element.associations[content_key] == content_value)):
-#                     found = False
-#             if found:
-#                 found_elements.add(element)
-#         assert found_elements, 'Element not found'
-#         assert len(found_elements) == 1, 'More then 1 element was found'
-#         return found_elements.pop()
-#
-#     @strictly_typed
-#     def apply_sbg_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]], content_key: str,
-#                           content_value: Any, subgraph: PolarGraph = None) -> None:
-#         if not subgraph:
-#             subgraph = self.base_polar_graph
-#         storage: set[Union[PolarNode, PGLink, PGMove]] = getattr(subgraph, self.storage_attribute[element_type])
-#         for element in storage:
-#             element.associations[content_key] = content_value
-#
-#     @strictly_typed
-#     def extract_sbg_content(self, extract_keys: dict[Type[Union[PolarNode, PGLink, PGMove]], Union[str, set[str]]],
-#                             subgraph: PolarGraph, ignore_empties: bool = True, expand_result: bool = True,
-#                             get_as_strings: bool = True) -> set[Any]:
-#         result = set()
-#         types_storages = {PolarNode: subgraph.nodes, PGLink: subgraph.links, PGMove: subgraph.moves}
-#         for type_ in types_storages:
-#             if type_ in extract_keys:
-#                 for element in types_storages[type_]:
-#                     element_result = set()
-#                     keys_for_extraction = extract_keys[type_]
-#                     if type(keys_for_extraction) == str:
-#                         keys_for_extraction = {keys_for_extraction}
-#                     for key in keys_for_extraction:
-#                         if not (element.associations[key] is None):
-#                             element_result.add(element.associations[key])
-#                     if ignore_empties and not element_result:
-#                         continue
-#                     if expand_result:
-#                         assert len(element_result) <= 1, 'Cannot expand result if several elements'
-#                         element_result = element_result.pop()
-#                     if get_as_strings:
-#                         element_result = str(element_result)
-#                     result.add(element_result)
-#         return result
-#
-#     @strictly_typed
-#     def extract_route_content(self, extract_keys: dict[Type[Union[PolarNode, PGLink, PGMove]], Union[str, set[str]]],
-#                               route: PGRoute, ignore_empties: bool = True, expand_result: bool = True,
-#                               get_as_strings: bool = True) -> list[Any]:
-#         result = []
-#         for element in route.sequence:
-#             element_result = set()
-#             if type(element) in extract_keys:
-#                 keys_for_extraction = extract_keys[type(element)]
-#                 if type(keys_for_extraction) == str:
-#                     keys_for_extraction = {keys_for_extraction}
-#                 for key in keys_for_extraction:
-#                     if not (element.associations[key] is None):
-#                         element_result.add(element.associations[key])
-#                 if ignore_empties and not element_result:
-#                     continue
-#                 if expand_result:
-#                     assert len(element_result) <= 1, 'Cannot expand result if several elements'
-#                     element_result = element_result.pop()
-#                 if get_as_strings:
-#                     element_result = str(element_result)
-#                 result.append(element_result)
-#         return result
-
-
 class AssociationsManager:
 
     @strictly_typed
@@ -1011,23 +880,31 @@ class AssociationsManager:
         self._base_polar_graph = bpg
 
         self._cells = {}
-        self._cell_names = set()
+        # self._cell_names = set()
 
         self._node_assoc_class = None
         self._link_assoc_class = None
         self._move_assoc_class = None
 
         self._dict_storage_attribute = {PolarNode: 'nodes', PGLink: 'links', PGMove: 'moves'}
-        self._dict_assoc_class = {PolarNode: self.node_assoc_class, PGLink: self.link_assoc_class,
-                                  PGMove: self.move_assoc_class}
+        self._dict_assoc_class = None
 
-        self._key_function = lambda x: x
+        self._find_function = self.default_find_function
+        self._access_function = self.default_access_function
         self._curr_context = {}
 
     @property
     @strictly_typed
     def base_polar_graph(self) -> BasePolarGraph:
         return self._base_polar_graph
+
+    @staticmethod
+    def default_find_function(x):
+        return x.name
+
+    @staticmethod
+    def default_access_function(x, val):
+        x.candidate_value = val
 
     @property
     @strictly_typed
@@ -1036,19 +913,20 @@ class AssociationsManager:
 
     @strictly_typed
     def create_cell(self, element: Union[PolarNode, PGLink, PGMove],
-                    cell_name: str, cell_req_type: type, cell_candidate_value: Optional[Any] = None,
+                    cell_name: str, cell_req_type: str, cell_candidate_value: Optional[Any] = None,
                     context: Optional[str] = None) -> TypedCell:
-        assert not (cell_name in self._cell_names), 'Cell name {} already exists'.format(cell_name)
+        # assert not (cell_name in self._cell_names), 'Cell name {} already exists'.format(cell_name)
         if not (context is None):
             assert context in self.dict_assoc_class[type(element)].possible_strings, \
                 'Context {} not found'.format(context)
         else:
+            # print(type(element), self.dict_assoc_class)
             poss_str = self.dict_assoc_class[type(element)].possible_strings
             assert len(poss_str) == 1, \
                 'Context should be specified, more then 1 values: {}'.format(poss_str)
             context = set(poss_str).pop()
         if not (element in self.cells):
-            self._cells[element] = set()
+            self._cells[element] = {}
         assert not (context in self.cells[element]), 'Context {} for element {} already exists'.format(context, element)
         typed_cell = TypedCell(cell_name, cell_req_type, cell_candidate_value)
         self.cells[element][context] = typed_cell
@@ -1057,11 +935,18 @@ class AssociationsManager:
     @property
     @strictly_typed
     def curr_context(self) -> dict[Type[Union[PolarNode, PGLink, PGMove]], set[str]]:
-        return copy(self._curr_context)
+        return {key: copy(val) for key, val in self._curr_context.items()}
 
     @strictly_typed
     def clear_curr_context(self) -> None:
         self._curr_context.clear()
+
+    @strictly_typed
+    def auto_set_curr_context(self) -> None:
+        self.clear_curr_context()
+        for t, cls in self.dict_assoc_class.items():
+            if not (cls is None):
+                self._curr_context[t] = set(cls.possible_strings)
 
     @strictly_typed
     def add_to_curr_context(self, key: Type[Union[PolarNode, PGLink, PGMove]], value: str) -> None:
@@ -1070,17 +955,28 @@ class AssociationsManager:
         self._curr_context[key].add(value)
 
     @strictly_typed
-    def remove_from_curr_context(self, key: Type[Union[PolarNode, PGLink, PGMove]], value: str) -> None:
+    def pop_from_curr_context(self, key: Type[Union[PolarNode, PGLink, PGMove]], value: str) -> None:
         self._curr_context[key].pop(value)
 
     @property
     @strictly_typed
-    def key_function(self) -> Callable:
-        return self._key_function
+    def find_function(self) -> Callable:
+        return self._find_function
 
-    @key_function.setter
-    def key_function(self, value: Callable) -> None:
-        self._key_function = value
+    @find_function.setter
+    @strictly_typed
+    def find_function(self, value: Callable) -> None:
+        self._find_function = value
+
+    @property
+    @strictly_typed
+    def access_function(self) -> Callable:
+        return self._access_function
+
+    @access_function.setter
+    @strictly_typed
+    def access_function(self, value: Callable) -> None:
+        self._access_function = value
 
     @property
     @strictly_typed
@@ -1091,8 +987,6 @@ class AssociationsManager:
     @strictly_typed
     def node_assoc_class(self, value: Type[NodeAssociation]) -> None:
         assert self._node_assoc_class is None, 'Node assoc class is already defined'
-        if len(value.possible_strings) == 1:
-            self._curr_context[PolarNode] = set(value.possible_strings).pop()
         self._node_assoc_class = value
 
     @property
@@ -1104,8 +998,6 @@ class AssociationsManager:
     @strictly_typed
     def link_assoc_class(self, value: Type[LinkAssociation]) -> None:
         assert self._link_assoc_class is None, 'Link assoc class is already defined'
-        if len(value.possible_strings) == 1:
-            self._curr_context[PGLink] = set(value.possible_strings).pop()
         self._link_assoc_class = value
 
     @property
@@ -1117,8 +1009,6 @@ class AssociationsManager:
     @strictly_typed
     def move_assoc_class(self, value: Type[MoveAssociation]) -> None:
         assert self._move_assoc_class is None, 'Move assoc class is already defined'
-        if len(value.possible_strings) == 1:
-            self._curr_context[PGMove] = set(value.possible_strings).pop()
         self._move_assoc_class = value
 
     @property
@@ -1129,27 +1019,24 @@ class AssociationsManager:
     @property
     @strictly_typed
     def dict_assoc_class(self) -> dict[Type[Union[PolarNode, PGLink, PGMove]],
-                                       Type[Union[NodeAssociation, LinkAssociation, MoveAssociation]]]:
-        return self._dict_assoc_class
+                                       Optional[Type[Union[NodeAssociation, LinkAssociation, MoveAssociation]]]]:
+        return {PolarNode: self.node_assoc_class, PGLink: self.link_assoc_class, PGMove: self.move_assoc_class}
 
-    @strictly_typed
-    def get_all_elm_cells(self, element: Union[PolarNode, PGLink, PGMove]) -> Optional[set[TypedCell]]:
-        if element not in self.cells:
-            return
-        cells = set()
-        for _, val in self.cells[element].values():
-            cells.add(val)
-        return cells
+    # @strictly_typed
+    # def get_all_elm_cells(self, element: Union[PolarNode, PGLink, PGMove]) -> Optional[set[TypedCell]]:
+    #     if element not in self.cells:
+    #         return
+    #     cells = set()
+    #     for _, val in self.cells[element].values():
+    #         cells.add(val)
+    #     return cells
 
     @strictly_typed
     def get_elm_cell_by_context(self, element: Union[PolarNode, PGLink, PGMove], context: str) \
             -> Optional[TypedCell]:
         if element not in self.cells:
             return
-        for key, val in self.cells[element].values():
-            if key == context:
-                return val
-        assert False, 'Context {} for element {} not found'.format(context, element)
+        return self.cells[element][context]
 
     # @strictly_typed
     # def get_all_elms_by_cell_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
@@ -1170,78 +1057,76 @@ class AssociationsManager:
             assert all([issubclass(type(elt), element_type) for elt in given_elements]), 'Type <> type(elts)'
             storage = given_elements
         found_elements = set()
+        assert element_type in self.curr_context, 'Context not initialized for {}'.format(element_type)
         context_set = self.curr_context[element_type]
         assert len(context_set) == 1, 'More then 1 context in context set'
         context = context_set.pop()
-        key_function = self.key_function
         for element in storage:
             context_result = self.get_elm_cell_by_context(element, context)
             if context_result is None:
                 continue
-            func_value = key_function(context_result)
+            func_value = self.find_function(context_result)
             if func_value == searched_value:
                 found_elements.add(element)
-        assert found_elements, 'Element not found'
+        assert found_elements, 'Element {} not found'.format(searched_value)
         assert len(found_elements) == 1, 'More then 1 element was found'
         return found_elements.pop()
 
     @strictly_typed
-    def apply_sbg_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]], content_key: str,
-                          content_value: Any, subgraph: PolarGraph = None) -> None:
+    def apply_sbg_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
+                          value: Any, subgraph: PolarGraph = None) -> None:
         if not subgraph:
             subgraph = self.base_polar_graph
-        storage: set[Union[PolarNode, PGLink, PGMove]] = getattr(subgraph, self.storage_attribute[element_type])
+        storage: set[Union[PolarNode, PGLink, PGMove]] = getattr(subgraph, self.dict_storage_attribute[element_type])
+        assert self.curr_context[element_type], 'Context of {} not defined'.format(element_type)
+        assert len(self.curr_context[element_type]) == 1, 'More then 1 value of context {}'.format(element_type)
+        context = self.curr_context[element_type].pop()
         for element in storage:
-            element.associations[content_key] = content_value
+            if (element not in self.cells) or (context not in self.cells[element]):
+                continue
+            cell = self.cells[element][context]
+            self.access_function(cell, value)
+    #
+    # @strictly_typed
+    # def extract_sbg_content(self, extract_keys: dict[Type[Union[PolarNode, PGLink, PGMove]], Union[str, set[str]]],
+    #                         subgraph: PolarGraph, ignore_empties: bool = True, expand_result: bool = True,
+    #                         get_as_strings: bool = True) -> set[Any]:
+    #     result = set()
+    #     types_storages = {PolarNode: subgraph.nodes, PGLink: subgraph.links, PGMove: subgraph.moves}
+    #     for type_ in types_storages:
+    #         if type_ in extract_keys:
+    #             for element in types_storages[type_]:
+    #                 element_result = set()
+    #                 keys_for_extraction = extract_keys[type_]
+    #                 if type(keys_for_extraction) == str:
+    #                     keys_for_extraction = {keys_for_extraction}
+    #                 for key in keys_for_extraction:
+    #                     if not (element.associations[key] is None):
+    #                         element_result.add(element.associations[key])
+    #                 if ignore_empties and not element_result:
+    #                     continue
+    #                 if expand_result:
+    #                     assert len(element_result) <= 1, 'Cannot expand result if several elements'
+    #                     element_result = element_result.pop()
+    #                 if get_as_strings:
+    #                     element_result = str(element_result)
+    #                 result.add(element_result)
+    #     return result
+    #
 
     @strictly_typed
-    def extract_sbg_content(self, extract_keys: dict[Type[Union[PolarNode, PGLink, PGMove]], Union[str, set[str]]],
-                            subgraph: PolarGraph, ignore_empties: bool = True, expand_result: bool = True,
-                            get_as_strings: bool = True) -> set[Any]:
-        result = set()
-        types_storages = {PolarNode: subgraph.nodes, PGLink: subgraph.links, PGMove: subgraph.moves}
-        for type_ in types_storages:
-            if type_ in extract_keys:
-                for element in types_storages[type_]:
-                    element_result = set()
-                    keys_for_extraction = extract_keys[type_]
-                    if type(keys_for_extraction) == str:
-                        keys_for_extraction = {keys_for_extraction}
-                    for key in keys_for_extraction:
-                        if not (element.associations[key] is None):
-                            element_result.add(element.associations[key])
-                    if ignore_empties and not element_result:
-                        continue
-                    if expand_result:
-                        assert len(element_result) <= 1, 'Cannot expand result if several elements'
-                        element_result = element_result.pop()
-                    if get_as_strings:
-                        element_result = str(element_result)
-                    result.add(element_result)
-        return result
-
-    @strictly_typed
-    def extract_route_content(self, extract_keys: dict[Type[Union[PolarNode, PGLink, PGMove]], Union[str, set[str]]],
-                              route: PGRoute, ignore_empties: bool = True, expand_result: bool = True,
-                              get_as_strings: bool = True) -> list[Any]:
+    def extract_route_content(self, route: PGRoute) -> list[set[TypedCell]]:
         result = []
         for element in route.sequence:
             element_result = set()
-            if type(element) in extract_keys:
-                keys_for_extraction = extract_keys[type(element)]
-                if type(keys_for_extraction) == str:
-                    keys_for_extraction = {keys_for_extraction}
-                for key in keys_for_extraction:
-                    if not (element.associations[key] is None):
-                        element_result.add(element.associations[key])
-                if ignore_empties and not element_result:
+            if (type(element) not in self.curr_context) or (element not in self.cells):
+                continue
+            contexts_set = self.curr_context[type(element)]
+            for context in contexts_set:
+                if context not in self.cells[element]:
                     continue
-                if expand_result:
-                    assert len(element_result) <= 1, 'Cannot expand result if several elements'
-                    element_result = element_result.pop()
-                if get_as_strings:
-                    element_result = str(element_result)
-                result.append(element_result)
+                element_result.add(self.cells[element][context])
+            result.append(element_result)
         return result
 
 

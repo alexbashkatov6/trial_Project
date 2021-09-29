@@ -28,6 +28,10 @@ class BoundedStringSet(metaclass=ABCMeta):
     def __hash__(self):
         return hash(id(self))
 
+    # def __instancecheck__(self, instance):
+    #     print('poos str = ', self.possible_strings)
+    #     return isinstance(instance, super) or ((type(instance) == str) and (instance in self.possible_strings))
+
     @property
     def eq_strings(self) -> list[str]:
         return self._eq_strings
@@ -119,46 +123,46 @@ def bounded_string_set(type_name: str, eq_value_groups: Iterable[Iterable[str]],
 #         self._value = str_val
 
 
-class BoundedStringDict:
-
-    def __init__(self, keys: Optional[Iterable[str]] = None) -> None:
-        self._storage_dict = {}
-        self._possible_keys = set()
-        if keys:
-            self.register_keys(keys)
-
-    def __repr__(self):
-        return "{}({})".format(self.__class__.__name__, self._storage_dict)
-
-    def __getitem__(self, item: str):
-        self.check_possibility(item)
-        return self._storage_dict[item]
-
-    def __setitem__(self, key: str, value: Any):
-        self.check_possibility(key)
-        self._storage_dict[key] = value
-
-    def __contains__(self, item):
-        return item in self._storage_dict
-
-    def check_possibility(self, item: str):
-        assert item in self.possible_keys, 'Key {} not in possible set {}'.format(item, self.possible_keys)
-
-    @property
-    def possible_keys(self):
-        return self._possible_keys
-
-    def register_key(self, key: str):
-        self._possible_keys.add(key)
-        self._storage_dict[key] = None
-
-    def register_keys(self, keys: Iterable[str]):
-        for key in keys:
-            self.register_key(key)
-
-    @property
-    def storage_dict(self):
-        return self._storage_dict
+# class BoundedStringDict:
+#
+#     def __init__(self, keys: Optional[Iterable[str]] = None) -> None:
+#         self._storage_dict = {}
+#         self._possible_keys = set()
+#         if keys:
+#             self.register_keys(keys)
+#
+#     def __repr__(self):
+#         return "{}({})".format(self.__class__.__name__, self._storage_dict)
+#
+#     def __getitem__(self, item: str):
+#         self.check_possibility(item)
+#         return self._storage_dict[item]
+#
+#     def __setitem__(self, key: str, value: Any):
+#         self.check_possibility(key)
+#         self._storage_dict[key] = value
+#
+#     def __contains__(self, item):
+#         return item in self._storage_dict
+#
+#     def check_possibility(self, item: str):
+#         assert item in self.possible_keys, 'Key {} not in possible set {}'.format(item, self.possible_keys)
+#
+#     @property
+#     def possible_keys(self):
+#         return self._possible_keys
+#
+#     def register_key(self, key: str):
+#         self._possible_keys.add(key)
+#         self._storage_dict[key] = None
+#
+#     def register_keys(self, keys: Iterable[str]):
+#         for key in keys:
+#             self.register_key(key)
+#
+#     @property
+#     def storage_dict(self):
+#         return self._storage_dict
 
 
 if __name__ == '__main__':
@@ -234,3 +238,4 @@ if __name__ == '__main__':
     # print(cc.__dict__)
     # print(cc.value, cc.eq_strings)
     bss = BoundedStringSet()
+    print(isinstance('nd', End))

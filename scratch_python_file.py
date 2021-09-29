@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from collections import namedtuple
-from functools import partial
-
+from nv_typing import *
 from nv_names_control import names_control
 from nv_string_set_class import bounded_string_set, BoundedStringSet
 from nv_polar_graph import (BasePolarGraph,
@@ -12,11 +10,7 @@ from nv_polar_graph import (BasePolarGraph,
                             End,
                             PGRoute)  #
 from nv_attribute_format import BSSAttributeType, AttributeFormat
-from nv_typing import *
-
-# !! Переписать name через дескриптор класса, а не декоратор
-
-NameType = namedtuple('NameType', ['name', 'type'])
+from nv_associations import AttribNodeAssociation, AttribMoveAssociation
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
@@ -85,8 +79,9 @@ class GraphTemplatesDescriptor:
         if instance is None:
             return self
         g_t = BasePolarGraph()
-        g_t.am.register_association_types(PolarNode, {'attr_tuple': "NameType"})
-        g_t.am.register_association_types(PGMove, {'splitter_value': 'str'})
+        a_m = g_t.am
+        a_m.node_assoc_class = AttribNodeAssociation
+        a_m.move_assoc_class = AttribMoveAssociation
 
         splitter_preferences = None
 
@@ -95,25 +90,25 @@ class GraphTemplatesDescriptor:
 
         if owner == CoordSystem:
             node_rel_cs, _, _ = g_t.insert_node_single_link()
-            node_rel_cs.associations['attr_tuple'] = NameType('cs_relative_to', CoordSystem)
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', 'CoordSystem')
             node_check_dependence, _, _ = g_t.insert_node_single_link(node_rel_cs.ni_nd)
-            node_check_dependence.associations['attr_tuple'] = NameType('dependence', BSSDependency)
+            a_m.create_cell(node_check_dependence, 'dependence', 'BSSDependency')
             node_x, link_up_x, _ = g_t.insert_node_single_link(node_check_dependence.ni_nd)
-            node_x.associations['attr_tuple'] = NameType('x', int)
+            a_m.create_cell(node_x, 'x', 'int')
             move_to_x = node_check_dependence.ni_nd.get_move(link_up_x)
-            move_to_x.associations['splitter_value'] = 'dependent'
+            a_m.create_cell(move_to_x, 'dependent', 'str')
             node_y, _, _ = g_t.insert_node_single_link(node_x.ni_nd)
-            node_y.associations['attr_tuple'] = NameType('y', int)
+            a_m.create_cell(node_y, 'y', 'int')
             node_alpha, link_up_alpha, _ = g_t.insert_node_single_link(node_check_dependence.ni_nd)
-            node_alpha.associations['attr_tuple'] = NameType('alpha', int)
+            a_m.create_cell(node_alpha, 'alpha', 'int')
             move_to_alpha = node_check_dependence.ni_nd.get_move(link_up_alpha)
-            move_to_alpha.associations['splitter_value'] = 'independent'
+            a_m.create_cell(move_to_alpha, 'independent', 'str')
             node_connect_polarity, _, _ = g_t.insert_node_single_link(node_alpha.ni_nd)
-            node_connect_polarity.associations['attr_tuple'] = NameType('connection_polarity', End)
+            a_m.create_cell(node_connect_polarity, 'connection_polarity', 'End')
             node_co_x = g_t.insert_node_neck(g_t.inf_node_nd.ni_pu)
-            node_co_x.associations['attr_tuple'] = NameType('co_x', BSSBool)
+            a_m.create_cell(node_co_x, 'co_x', 'BSSBool')
             node_co_y = g_t.insert_node_neck(g_t.inf_node_nd.ni_pu)
-            node_co_y.associations['attr_tuple'] = NameType('co_y', BSSBool)
+            a_m.create_cell(node_co_y, 'co_y', 'BSSBool')
 
             splitter_preferences = {'dependence': 'independent',
                                     'connection_polarity': 'negative_down',
