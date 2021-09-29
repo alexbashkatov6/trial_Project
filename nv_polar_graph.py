@@ -410,6 +410,16 @@ class PolarGraph:
     def nodes(self) -> set[PolarNode]:
         return copy(self._nodes)
 
+    @property
+    @strictly_typed
+    def inf_nodes(self) -> set[PolarNode]:
+        return {self.base_polar_graph.inf_node_pu, self.base_polar_graph.inf_node_nd}
+
+    @property
+    @strictly_typed
+    def not_inf_nodes(self) -> set[PolarNode]:
+        return self.nodes - {self.base_polar_graph.inf_node_pu, self.base_polar_graph.inf_node_nd}
+
     @nodes.setter
     @strictly_typed
     def nodes(self, value: Iterable[PolarNode]) -> None:
@@ -1022,29 +1032,12 @@ class AssociationsManager:
                                        Optional[Type[Union[NodeAssociation, LinkAssociation, MoveAssociation]]]]:
         return {PolarNode: self.node_assoc_class, PGLink: self.link_assoc_class, PGMove: self.move_assoc_class}
 
-    # @strictly_typed
-    # def get_all_elm_cells(self, element: Union[PolarNode, PGLink, PGMove]) -> Optional[set[TypedCell]]:
-    #     if element not in self.cells:
-    #         return
-    #     cells = set()
-    #     for _, val in self.cells[element].values():
-    #         cells.add(val)
-    #     return cells
-
     @strictly_typed
     def get_elm_cell_by_context(self, element: Union[PolarNode, PGLink, PGMove], context: str) \
             -> Optional[TypedCell]:
         if element not in self.cells:
             return
         return self.cells[element][context]
-
-    # @strictly_typed
-    # def get_all_elms_by_cell_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
-    #                                  key_function: Callable,
-    #                                  context: str,
-    #                                  given_elements: Optional[Iterable[Union[PolarNode, PGLink, PGMove]]] = None) -> \
-    #         Union[PolarNode, PGLink, PGMove]:
-    #     pass
 
     @strictly_typed
     def get_single_elm_by_cell_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
@@ -1086,33 +1079,6 @@ class AssociationsManager:
                 continue
             cell = self.cells[element][context]
             self.access_function(cell, value)
-    #
-    # @strictly_typed
-    # def extract_sbg_content(self, extract_keys: dict[Type[Union[PolarNode, PGLink, PGMove]], Union[str, set[str]]],
-    #                         subgraph: PolarGraph, ignore_empties: bool = True, expand_result: bool = True,
-    #                         get_as_strings: bool = True) -> set[Any]:
-    #     result = set()
-    #     types_storages = {PolarNode: subgraph.nodes, PGLink: subgraph.links, PGMove: subgraph.moves}
-    #     for type_ in types_storages:
-    #         if type_ in extract_keys:
-    #             for element in types_storages[type_]:
-    #                 element_result = set()
-    #                 keys_for_extraction = extract_keys[type_]
-    #                 if type(keys_for_extraction) == str:
-    #                     keys_for_extraction = {keys_for_extraction}
-    #                 for key in keys_for_extraction:
-    #                     if not (element.associations[key] is None):
-    #                         element_result.add(element.associations[key])
-    #                 if ignore_empties and not element_result:
-    #                     continue
-    #                 if expand_result:
-    #                     assert len(element_result) <= 1, 'Cannot expand result if several elements'
-    #                     element_result = element_result.pop()
-    #                 if get_as_strings:
-    #                     element_result = str(element_result)
-    #                 result.add(element_result)
-    #     return result
-    #
 
     @strictly_typed
     def extract_route_content(self, route: PGRoute) -> list[set[TypedCell]]:
@@ -1215,10 +1181,10 @@ if __name__ == '__main__':
         def create_graph_6():
             pg_0 = BasePolarGraph()
             assoc = pg_0.am
-            assoc.register_association_types(PolarNode, {'node_assoc': 'int'})
-            assoc.register_association_types(PolarNode, {'string': 'str'})
-            assoc.register_association_types(PGLink, {'link_assoc': 'float'})
-            assoc.register_association_types(PGMove, {'move_assoc': 'str'})
+            # assoc.register_association_types(PolarNode, {'node_assoc': 'int'})
+            # assoc.register_association_types(PolarNode, {'string': 'str'})
+            # assoc.register_association_types(PGLink, {'link_assoc': 'float'})
+            # assoc.register_association_types(PGMove, {'move_assoc': 'str'})
             nodes = ['zero_element']
             pn_1, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pg_0.inf_node_nd.ni_pu)
             pn_2, _, _ = pg_0.insert_node_single_link(pg_0.inf_node_pu.ni_nd, pn_1.ni_pu)
@@ -1231,12 +1197,12 @@ if __name__ == '__main__':
 
         pg_00, nodes_00 = create_graph_6()
 
-        subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
-        print(pg_00.links)
-        pg_00.am.apply_sbg_content(PGLink, 'link_assoc', 0., subgraph_)
-        pg_00.am.apply_sbg_content(PolarNode, 'node_assoc', 100, subgraph_)
-        print(pg_00.am.extract_sbg_content({PGLink: 'link_assoc', PolarNode: 'node_assoc'},
-                                           subgraph_))
+        # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
+        # print(pg_00.links)
+        # pg_00.am.apply_sbg_content(PGLink, 'link_assoc', 0., subgraph_)
+        # pg_00.am.apply_sbg_content(PolarNode, 'node_assoc', 100, subgraph_)
+        # print(pg_00.am.extract_sbg_content({PGLink: 'link_assoc', PolarNode: 'node_assoc'},
+        #                                    subgraph_))
 
         # route_: PGRoute = pg_00.free_roll(pg_00.inf_node_pu.ni_nd)
         # print(route_)

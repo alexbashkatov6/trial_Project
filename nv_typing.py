@@ -6,7 +6,26 @@ import inspect
 import sys
 import os
 
-__all__ = ['strictly_typed', 'Any', 'Optional', 'Union', 'Type', 'type_verification', 'Iterable', 'Callable']
+__all__ = ['get_class_by_str', 'strictly_typed', 'Any', 'Optional', 'Union', 'Type', 'type_verification', 'Iterable', 'Callable']
+
+
+def get_class_by_str(str_name):
+    try:
+        cls = eval(str_name)
+    except NameError:
+        pass
+    else:
+        return cls
+    cwd = os.getcwd()
+    for module in sys.modules.values():
+        if hasattr(module, '__file__') and cwd in module.__file__:  #
+            try:
+                cls = getattr(module, str_name)
+            except AttributeError:
+                continue
+            else:
+                return cls
+    return False
 
 
 def type_verification(string_requirement, value, mode='instance_check', first_enter=False):
@@ -36,29 +55,11 @@ def type_verification(string_requirement, value, mode='instance_check', first_en
             in_square = sr[sr.find('[')+1:sr.rfind(']')]
             return out_bracket_split(in_square)
 
-    def get_class(str_name):
-        try:
-            cls = eval(str_name)
-        except NameError:
-            pass
-        else:
-            return cls
-        cwd = os.getcwd()
-        for module in sys.modules.values():
-            if hasattr(module, '__file__') and cwd in module.__file__:  #
-                try:
-                    cls = getattr(module, str_name)
-                except AttributeError:
-                    continue
-                else:
-                    return cls
-        return False
-
     def class_check(str_name, val, mode_):
         # print('in class check, get str: ', str_name, ', get val: ', val)
         if (str_name == 'None') and (val is None):
             return True
-        cls = get_class(str_name)
+        cls = get_class_by_str(str_name)
         assert cls, 'Name {} is unknown'.format(str_name)
         if mode_ == 'instance_check':
             return isinstance(val, cls)

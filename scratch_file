@@ -167,3 +167,47 @@
 #
 #         self._last_node = prop_node
 
+# --------------------  Assoc manager --------------
+    # @strictly_typed
+    # def get_all_elm_cells(self, element: Union[PolarNode, PGLink, PGMove]) -> Optional[set[TypedCell]]:
+    #     if element not in self.cells:
+    #         return
+    #     cells = set()
+    #     for _, val in self.cells[element].values():
+    #         cells.add(val)
+    #     return cells
+
+    # @strictly_typed
+    # def get_all_elms_by_cell_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
+    #                                  key_function: Callable,
+    #                                  context: str,
+    #                                  given_elements: Optional[Iterable[Union[PolarNode, PGLink, PGMove]]] = None) -> \
+    #         Union[PolarNode, PGLink, PGMove]:
+    #     pass
+   #
+    # @strictly_typed
+    # def extract_sbg_content(self, extract_keys: dict[Type[Union[PolarNode, PGLink, PGMove]], Union[str, set[str]]],
+    #                         subgraph: PolarGraph, ignore_empties: bool = True, expand_result: bool = True,
+    #                         get_as_strings: bool = True) -> set[Any]:
+    #     result = set()
+    #     types_storages = {PolarNode: subgraph.nodes, PGLink: subgraph.links, PGMove: subgraph.moves}
+    #     for type_ in types_storages:
+    #         if type_ in extract_keys:
+    #             for element in types_storages[type_]:
+    #                 element_result = set()
+    #                 keys_for_extraction = extract_keys[type_]
+    #                 if type(keys_for_extraction) == str:
+    #                     keys_for_extraction = {keys_for_extraction}
+    #                 for key in keys_for_extraction:
+    #                     if not (element.associations[key] is None):
+    #                         element_result.add(element.associations[key])
+    #                 if ignore_empties and not element_result:
+    #                     continue
+    #                 if expand_result:
+    #                     assert len(element_result) <= 1, 'Cannot expand result if several elements'
+    #                     element_result = element_result.pop()
+    #                 if get_as_strings:
+    #                     element_result = str(element_result)
+    #                 result.add(element_result)
+    #     return result
+    #

@@ -38,3 +38,5 @@ rc = assoc.extract_route_content(route)
 print(rc)
 for cell in rc:
     print(cell.pop().name)
+
+a = 3
