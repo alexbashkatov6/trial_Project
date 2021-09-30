@@ -9,7 +9,7 @@ import os
 __all__ = ['get_class_by_str', 'strictly_typed', 'Any', 'Optional', 'Union', 'Type', 'type_verification', 'Iterable', 'Callable']
 
 
-def get_class_by_str(str_name):
+def get_class_by_str(str_name, assertion=False):
     try:
         cls = eval(str_name)
     except NameError:
@@ -25,6 +25,8 @@ def get_class_by_str(str_name):
                 continue
             else:
                 return cls
+    if assertion:
+        raise AssertionError('Class not found')
     return False
 
 

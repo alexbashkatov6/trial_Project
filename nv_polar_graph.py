@@ -5,7 +5,7 @@ from nv_typing import *
 from nv_names_control import names_control
 from nv_string_set_class import bounded_string_set  # , BoundedStringDict
 from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
-from nv_typed_cell import TypedCell
+from nv_typed_cell import NamedCell, TypedCell
 
 
 # class TypedBSD(BoundedStringDict):
@@ -918,13 +918,13 @@ class AssociationsManager:
 
     @property
     @strictly_typed
-    def cells(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, TypedCell]]:
+    def cells(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, NamedCell]]:
         return copy(self._cells)
 
     @strictly_typed
     def create_cell(self, element: Union[PolarNode, PGLink, PGMove],
-                    cell_name: str, cell_req_type: str, cell_candidate_value: Optional[Any] = None,
-                    context: Optional[str] = None) -> TypedCell:
+                    name: str, req_type: Optional[str] = None, candidate_value: Optional[Any] = None,
+                    context: Optional[str] = None) -> NamedCell:
         # assert not (cell_name in self._cell_names), 'Cell name {} already exists'.format(cell_name)
         if not (context is None):
             assert context in self.dict_assoc_class[type(element)].possible_strings, \
@@ -938,9 +938,12 @@ class AssociationsManager:
         if not (element in self.cells):
             self._cells[element] = {}
         assert not (context in self.cells[element]), 'Context {} for element {} already exists'.format(context, element)
-        typed_cell = TypedCell(cell_name, cell_req_type, cell_candidate_value)
-        self.cells[element][context] = typed_cell
-        return typed_cell
+        if not(req_type is None):
+            cell = TypedCell(name, req_type, candidate_value)
+        else:
+            cell = NamedCell(name, candidate_value)
+        self.cells[element][context] = cell
+        return cell
 
     @property
     @strictly_typed
@@ -1033,10 +1036,13 @@ class AssociationsManager:
         return {PolarNode: self.node_assoc_class, PGLink: self.link_assoc_class, PGMove: self.move_assoc_class}
 
     @strictly_typed
-    def get_elm_cell_by_context(self, element: Union[PolarNode, PGLink, PGMove], context: str) \
-            -> Optional[TypedCell]:
+    def get_elm_cell_by_context(self, element: Union[PolarNode, PGLink, PGMove], context: Optional[str] = None) \
+            -> Optional[NamedCell]:
         if element not in self.cells:
             return
+        if context is None:
+            assert len(self.cells[element]) == 1, 'Context of element {} should be specified'.format(element)
+            return set(self.cells[element].values()).pop()
         return self.cells[element][context]
 
     @strictly_typed
@@ -1081,7 +1087,7 @@ class AssociationsManager:
             self.access_function(cell, value)
 
     @strictly_typed
-    def extract_route_content(self, route: PGRoute) -> list[set[TypedCell]]:
+    def extract_route_content(self, route: PGRoute) -> list[set[NamedCell]]:
         result = []
         for element in route.sequence:
             element_result = set()

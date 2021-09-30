@@ -4,23 +4,35 @@ from nv_typing import *
 from nv_string_set_class import bounded_string_set
 
 
+class NamedCell:
+
+    @strictly_typed
+    def __init__(self, cell_name: str, value: Optional[Any] = None) -> None:
+        self._name = cell_name
+        self._value = value
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def value(self):
+        return self._value
+
+
 TypedCellState = bounded_string_set('TypedCellStates', [['empty'],
                                                         ['not_checked'],
                                                         ['checked']])
 
 
-class TypedCell:
+class TypedCell(NamedCell):
 
     @strictly_typed
     def __init__(self, cell_name: str, required_type: str, candidate_value: Optional[Any] = None) -> None:
+        super().__init__(cell_name)
         self._name = cell_name
         self._required_type = required_type
         self.candidate_value = candidate_value
-        self._value = None
-
-    @property
-    def name(self):
-        return self._name
 
     @property
     def required_type(self):
@@ -29,10 +41,6 @@ class TypedCell:
     @property
     def state(self):
         return self._state
-
-    @property
-    def value(self):
-        return self._value
 
     @property
     def candidate_value(self):
