@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nv_string_set_class import bounded_string_set
+from nv_bounded_string_set_class import bounded_string_set
 
 
 class Association:

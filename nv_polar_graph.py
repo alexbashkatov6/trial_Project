@@ -3,7 +3,7 @@ from copy import copy  # , deepcopy
 
 from nv_typing import *
 from nv_names_control import names_control
-from nv_string_set_class import bounded_string_set  # , BoundedStringDict
+from nv_bounded_string_set_class import bounded_string_set  # , BoundedStringDict
 from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
 from nv_typed_cell import NamedCell, TypedCell
 
@@ -939,6 +939,8 @@ class AssociationsManager:
             self._cells[element] = {}
         assert not (context in self.cells[element]), 'Context {} for element {} already exists'.format(context, element)
         if not(req_type is None):
+            if candidate_value is None:
+                candidate_value = ''
             cell = TypedCell(name, req_type, candidate_value)
         else:
             cell = NamedCell(name, candidate_value)

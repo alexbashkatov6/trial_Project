@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any, Optional, Union, Type
 from collections.abc import Iterable, Callable
+from collections import OrderedDict
 from functools import wraps
 import inspect
 import sys
@@ -131,6 +132,15 @@ def type_verification(string_requirement, value, mode='instance_check', first_en
                 return True
             if string_requirement.startswith('dict'):
                 assert type(value) == dict, 'Should be dict: {}'.format(value)
+                assert len(sq_br_res) == 2, 'Only double type {} supported for dict'.format(value)
+                for d_key, d_val in value.items():
+                    assert type_verification(sq_br_res[0], d_key, mode), \
+                        'Class check {} failed for key {} in dict'.format(string_requirement, d_key)
+                    assert type_verification(sq_br_res[1], d_val, mode), \
+                        'Class check {} failed for value {} in dict'.format(string_requirement, d_val)
+                return True
+            if string_requirement.startswith('OrderedDict'):
+                assert type(value) == OrderedDict, 'Should be OrderedDict: {}'.format(value)
                 assert len(sq_br_res) == 2, 'Only double type {} supported for dict'.format(value)
                 for d_key, d_val in value.items():
                     assert type_verification(sq_br_res[0], d_key, mode), \

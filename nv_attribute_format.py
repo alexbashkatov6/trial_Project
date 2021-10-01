@@ -1,5 +1,5 @@
 from __future__ import annotations
-from nv_string_set_class import bounded_string_set
+from nv_bounded_string_set_class import bounded_string_set
 from nv_typing import *
 
 
@@ -10,7 +10,7 @@ BSSAttributeType = bounded_string_set('BSSAttributeType',
 class AttributeFormat:
     @strictly_typed
     def __init__(self, attr_type: BSSAttributeType, attr_name: str,
-                 attr_value: Optional[str] = None, possible_values: Optional[Iterable[str]] = None) -> None:
+                 attr_value: str = '', possible_values: Optional[Iterable[str]] = None) -> None:
         self._attr_type = attr_type
         self._attr_name = attr_name
         self._attr_value = attr_value

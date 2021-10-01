@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from nv_typing import *
-from nv_string_set_class import bounded_string_set
+from nv_bounded_string_set_class import bounded_string_set
+import nv_gdm
 
 
 class NamedCell:
@@ -20,27 +21,28 @@ class NamedCell:
         return self._value
 
 
-TypedCellState = bounded_string_set('TypedCellStates', [['empty'],
-                                                        ['not_checked'],
-                                                        ['checked']])
+TypedCellState = bounded_string_set('TypedCellStates', [['not_checked'],
+                                                        ['check_fail'],
+                                                        ['check_success']])
 
 
 class TypedCell(NamedCell):
 
     @strictly_typed
-    def __init__(self, cell_name: str, required_type: str, candidate_value: Optional[Any] = None) -> None:
+    def __init__(self, cell_name: str, required_type: str, candidate_value: str = '') -> None:
         super().__init__(cell_name)
         self._name = cell_name
         self._required_type = required_type
         self.candidate_value = candidate_value
+        self.evaluate()
 
     @property
     def required_type(self):
         return self._required_type
 
     @property
-    def state(self):
-        return self._state
+    def check_status(self) -> bool:
+        return self._check_status
 
     @property
     def candidate_value(self):
@@ -48,20 +50,11 @@ class TypedCell(NamedCell):
 
     @candidate_value.setter
     def candidate_value(self, val):
-        if val is None:
-            self._state = TypedCellState('empty')
-        else:
-            self._state = TypedCellState('not_checked')
+        self._check_status = False
         self._candidate_value = val
 
-    def check_candidate_value(self):
-        return type_verification(self.required_type, self.candidate_value)
-
     def evaluate(self):
-        check_result = self.check_candidate_value()
-        assert check_result, 'Type check was failed'
-        self._value = self.candidate_value
-        self._state = TypedCellState('checked')
+        self._value, self._check_status = nv_gdm.str_to_obj(self.candidate_value, self.required_type)
 
 
 if __name__ == '__main__':

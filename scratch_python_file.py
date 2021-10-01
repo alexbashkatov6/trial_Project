@@ -1,8 +1,8 @@
 from __future__ import annotations
+from collections import OrderedDict
 
 from nv_typing import *
-from nv_names_control import names_control
-from nv_string_set_class import bounded_string_set, BoundedStringSet
+from nv_bounded_string_set_class import bounded_string_set, BoundedStringSet
 from nv_polar_graph import (BasePolarGraph,
                             PolarNode,
                             PGLink,
@@ -12,88 +12,10 @@ from nv_polar_graph import (BasePolarGraph,
 from nv_attribute_format import BSSAttributeType, AttributeFormat
 from nv_associations import AttribNodeAssociation, AttribMoveAssociation
 from nv_typed_cell import NamedCell, TypedCell
-from copy import copy, deepcopy
-import re
+import nv_gdm
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
-
-
-class GlobalNameObjectMapping:
-    def __init__(self):
-        self._name_to_obj: dict[str, Any] = {}
-        self._obj_to_name: dict[Any, str] = {}
-
-    def register_obj_name(self, obj, name):
-        assert name not in self.name_to_obj, 'Name repeating'
-        assert obj not in self.obj_to_name, 'Obj repeating'
-        self._name_to_obj[name] = obj
-        self._obj_to_name[obj] = name
-
-    def remove_obj_name(self, obj_or_name):
-        obj, name = (self.name_to_obj[obj_or_name], obj_or_name) if type(obj_or_name) == str \
-            else (obj_or_name, self.obj_to_name[obj_or_name])
-        self.name_to_obj.pop(name)
-        self.obj_to_name.pop(obj)
-
-    def check_name(self, name):
-        return not(name in self.name_to_obj)
-
-    @property
-    def name_to_obj(self) -> dict[str, Any]:
-        return copy(self._name_to_obj)
-
-    @property
-    def obj_to_name(self) -> dict[Any, str]:
-        return copy(self._obj_to_name)
-
-
-GNOM = GlobalNameObjectMapping()
-
-
-class NameDescriptor:
-
-    def __init__(self, start_index=1):
-        assert type(start_index) == int, 'Start index must be int'
-        self.start_index = start_index
-
-    def __get__(self, instance, owner=None):
-
-        if not (instance is None) and not hasattr(instance, '_name'):
-            instance._name = None
-
-        if instance is None:
-            return owner.__name__
-        else:
-            if not (instance._name is None):
-                return instance._name
-            else:
-                i = self.start_index
-                while True:
-                    if i < 1:
-                        name_candidate = '{}_{}'.format(owner.__name__, '0'*(1-i))
-                    else:
-                        name_candidate = '{}_{}'.format(owner.__name__, i)
-                    if GNOM.check_name(name_candidate):
-                        instance._name = name_candidate
-                        GNOM.register_obj_name(instance, name_candidate)
-                        return name_candidate
-                    else:
-                        i += 1
-
-    def __set__(self, instance, name_candidate):
-        prefix = instance.__class__.__name__ + '_'
-        assert type(name_candidate) == str, 'Name need be str'
-        assert bool(re.fullmatch(r'\w+', name_candidate)), 'Name have to consists of alphas, nums and _'
-        assert name_candidate.startswith(prefix), 'Name have to begin from className_'
-        assert name_candidate != prefix, 'name cannot be == prefix; add specification to end'
-        assert not name_candidate[
-                   len(prefix):].isdigit(), 'Not auto-name cannot be (prefix + int); choose other name'
-        assert GNOM.check_name(name_candidate), 'Name {} already exists'.format(name_candidate)
-        if hasattr(instance, '_name'):
-            GNOM.remove_obj_name(instance)
-        instance._name = name_candidate
-        GNOM.register_obj_name(instance, name_candidate)
 
 
 def check_all_nodes_associated(graph_template_: BasePolarGraph):
@@ -164,15 +86,15 @@ class AttribGraphTemplatesDescriptor:
             node_co_y = g_t.insert_node_neck(g_t.inf_node_nd.ni_pu)
 
             a_m.create_cell(node_rel_cs, 'cs_relative_to', 'CoordSystem')
-            a_m.create_cell(node_check_dependence, 'dependence', 'BSSDependency', BSSDependency('dependent'))
+            a_m.create_cell(node_check_dependence, 'dependence', 'BSSDependency', 'dependent')
             a_m.create_cell(node_x, 'x', 'int')
             a_m.create_cell(move_to_x, 'dependent')
             a_m.create_cell(node_y, 'y', 'int')
             a_m.create_cell(node_alpha, 'alpha', 'int')
             a_m.create_cell(move_to_alpha, 'independent')
-            a_m.create_cell(node_connect_polarity, 'connection_polarity', 'End', End('negative_down'))
-            a_m.create_cell(node_co_x, 'co_x', 'BSSBool', BSSBool('True'))
-            a_m.create_cell(node_co_y, 'co_y', 'BSSBool', BSSBool('True'))
+            a_m.create_cell(node_connect_polarity, 'connection_polarity', 'End', 'negative_down')
+            a_m.create_cell(node_co_x, 'co_x', 'BSSBool', 'True')
+            a_m.create_cell(node_co_y, 'co_y', 'BSSBool', 'True')
 
         check_all_nodes_associated(g_t)
         expand_splitters(g_t)
@@ -201,8 +123,8 @@ class AttribDescriptor:
             cell = set_cells.pop()
             if cell not in splitter_cells_set:
                 if issubclass(type(cell), TypedCell):
-                    # print('here for ',cell.name)
-                    af = AttributeFormat(BSSAttributeType('value'), cell.name, cell.candidate_value)
+                    af = AttributeFormat(BSSAttributeType('value'), cell.name,
+                                         nv_gdm.obj_to_str(cell.value))
                 else:
                     af = AttributeFormat(BSSAttributeType('title'), cell.name)
             else:
@@ -210,10 +132,7 @@ class AttribDescriptor:
                 cls = get_class_by_str(cell.required_type)
                 af = AttributeFormat(BSSAttributeType('splitter'), cell.name, str_value, cls.unique_values)
             if issubclass(type(cell), TypedCell):
-                if cell.candidate_value is None:
-                    af.check_success = True
-                else:
-                    af.check_success = cell.check_candidate_value()
+                af.check_success = cell.check_status
             formatted_result.append(af)
         return formatted_result
 
@@ -221,35 +140,66 @@ class AttribDescriptor:
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
 
 
+class CellsDescriptor:
+
+    def __get__(self, instance, owner=None) -> Union[list[NamedCell], CellsDescriptor]:
+        if instance is None:
+            return self
+        g_t = instance.graph_template
+        route_from_to_: PGRoute = g_t.free_roll(g_t.inf_node_pu.ni_nd)
+        route_result_ = g_t.am.extract_route_content(route_from_to_)
+        return [set_cell.pop() for set_cell in route_result_]
+
+    def __set__(self, instance, value):
+        raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
+
+
+class SplitterValuesDescriptor:
+
+    def __get__(self, instance, owner=None) -> Union[OrderedDict[str, str], SplitterValuesDescriptor]:
+        if instance is None:
+            return self
+        g_t = instance.graph_template
+        all_splitter_cells = {node_cell[1] for node_cell in get_splitter_nodes_cells(g_t)}
+        od = OrderedDict()
+        for cell in instance.cells_route:
+            if cell in all_splitter_cells:
+                od[cell.name] = str(cell.value)
+        return od
+
+    def __set__(self, instance, value):
+        raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
+
+
 class DynamicAttributeControl:
     graph_template = AttribGraphTemplatesDescriptor()
+    cells_route = CellsDescriptor()
     graph_attr = AttribDescriptor()
-    name = NameDescriptor()
+    splitter_values = SplitterValuesDescriptor()
+    name = nv_gdm.NameDescriptor()
 
     def __init__(self):
-        pass
+        self.name = 'auto_name'
+
+    def __repr__(self):
+        return self.name
 
     def change_value(self, af: AttributeFormat):
-        # print('change val for ', af)
         am = self.graph_template.am
         node = am.get_single_elm_by_cell_content(PolarNode, af.attr_name)
         cell: TypedCell = am.get_elm_cell_by_context(node)
         if str(af.attr_type) in {'splitter', 'value'}:
-            # print('chv', af)
-            cls = get_class_by_str(cell.required_type, True)
             if af.attr_type == 'splitter':
                 move = am.get_single_elm_by_cell_content(PGMove, af.attr_value, node.ni_nd.moves)
                 node.ni_nd.choice_move_activate(move)
-                cell.candidate_value = cls(af.attr_value)
-            if af.attr_type == 'value':
-                # print('set cand val for ', af.attr_value)
-                cell.candidate_value = af.attr_value
-
-    def check_values_types(self):
-        pass
+            cell.candidate_value = af.attr_value
+            cell.evaluate()
 
     def create_object(self):
-        pass
+        if not all([cell.check_status for cell in self.cells_route if isinstance(cell, TypedCell)]):
+            return
+        for cell in self.cells_route:
+            setattr(self, cell.name, cell.value)
 
 
 class CoordSystem(DynamicAttributeControl):
@@ -270,10 +220,13 @@ if __name__ == '__main__':
         pass
     GCS = CoordSystem()
     GCS_2 = CoordSystem()
+    print(GCS.name)
+    print(GCS_2.name)
     ln_1 = Line()
     ln_2 = Line()
     ln_2.name = 'Line_2d'
     ln_3 = Line()
+
     # print(GCS.graph_template)
     # free_route = GCS.graph_template.free_roll(GCS.graph_template.inf_node_pu.ni_nd)
     # cont_s = GCS.graph_template.am.extract_route_content(free_route)
@@ -281,31 +234,47 @@ if __name__ == '__main__':
     #     print(cont.pop().name)
     # print(GCS.graph_template is GCS_2.graph_template)
 
-    # print(GCS.graph_attr)
-    # for attr in GCS.graph_attr:
-    #     print(attr)
-    # attr_cs = GCS.graph_attr[0]
-    # attr_cs.attr_value = GCS_2
-    # attr_form_dep = GCS.graph_attr[1]
-    # attr_form_dep.attr_value = 'independent'
-    # attr_form_cox = GCS.graph_attr[5]
-    # attr_form_cox.attr_value = 'False'
+    print(GCS.graph_attr)
+    for attr in GCS.graph_attr:
+        print(attr)
+    attr_cs = GCS.graph_attr[0]
+    attr_cs.attr_value = 'CoordSystem_2'  # CoordSystem_2
+    attr_form_dep = GCS.graph_attr[1]
+    attr_form_dep.attr_value = 'independent'  # independent
+    attr_form_cox = GCS.graph_attr[5]
+    attr_form_cox.attr_value = 'False'  # False
 
-    # GCS.change_value(attr_cs)
-    # GCS.change_value(attr_form_dep)
-    # GCS.change_value(attr_form_cox)
-    # print()
-    # for attr in GCS.graph_attr:
-    #     print(attr)
+    GCS.create_object()
+    print('coy = ', GCS.co_y)
 
+    GCS.change_value(attr_cs)
+    GCS.change_value(attr_form_dep)
+    GCS.change_value(attr_form_cox)
+    print()
+    for attr in GCS.graph_attr:
+        print(attr)
+
+    GCS.create_object()
+    print('coy = ', GCS.co_y)
+
+    print(GCS.cells_route)
+    print(str(GCS))
+    print(GCS.splitter_values)
     # GNOM.register_obj_name(123, 'Cyfer')
     # GNOM.register_obj_name(1234, 'Cyfe')
     # print(GNOM.name_to_obj)
     # print(GNOM.obj_to_name)
 
-    print(GCS.name)
-    print(CoordSystem.name)
+    # print(GCS.name)
+    # print(CoordSystem.name)
+    #
+    # print(ln_1.name)
+    # print(ln_2.name)
+    # print(ln_3.name)
 
-    print(ln_1.name)
-    print(ln_2.name)
-    print(ln_3.name)
+    # print('eval = ', eval('nv_gdm.GDM.name_to_obj["CoordSystem_1"]'))
+
+    # print(nv_gdm.str_to_obj('    ', 'set[Union[CoordSystem, Line]]'))
+    # print(nv_gdm.obj_to_str(CoordSystem))
+
+    # print(CoordSystem.mro())
