@@ -24,5 +24,3 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     d = Director()
     sys.exit(app.exec_())
-
-

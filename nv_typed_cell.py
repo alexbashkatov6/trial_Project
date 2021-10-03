@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set
-import nv_gdm
 
 
 class NamedCell:
@@ -23,7 +22,7 @@ class NamedCell:
 
 TypedCellState = bounded_string_set('TypedCellStates', [['not_checked'],
                                                         ['check_fail'],
-                                                        ['check_success']])
+                                                        ['check_status']])
 
 
 class TypedCell(NamedCell):
@@ -34,7 +33,6 @@ class TypedCell(NamedCell):
         self._name = cell_name
         self._required_type = required_type
         self.candidate_value = candidate_value
-        self.evaluate()
 
     @property
     def required_type(self):
@@ -53,31 +51,11 @@ class TypedCell(NamedCell):
         self._check_status = False
         self._candidate_value = val
 
-    def evaluate(self):
-        self._value, self._check_status = nv_gdm.str_to_obj(self.candidate_value, self.required_type)
+    def evaluate(self, eval_function):
+        self._value, self._check_status = eval_function(self.candidate_value, self.required_type)
 
 
 if __name__ == '__main__':
-    @strictly_typed
-    def f(asd: Callable) -> None:
-        pass
-
-    def g():
-        pass
-
-    # print(type(f))
-    # print(type(TypedCell('asd', str).meth))
-    # print(isinstance(f, Callable))
-    # print(isinstance(TypedCell, Callable))
-    # print(isinstance(TypedCell('asd', str).meth, Callable))
-    # f(g)
 
     tc = TypedCell('tc', 'str', '13')
     print(tc.__dict__)
-    print(tc.state)
-    print(tc.check_candidate_value())
-    print(tc.evaluate())
-    print(tc.__dict__)
-    print(tc.state)
-    tc.candidate_value = 123
-    print(tc.state)

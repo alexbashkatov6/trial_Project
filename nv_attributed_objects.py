@@ -5,14 +5,12 @@ from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set, BoundedStringSet
 from nv_polar_graph import (BasePolarGraph,
                             PolarNode,
-                            PGLink,
                             PGMove,
-                            End,
                             PGRoute)  #
 from nv_attribute_format import BSSAttributeType, AttributeFormat
 from nv_associations import AttribNodeAssociation, AttribMoveAssociation
 from nv_typed_cell import NamedCell, TypedCell
-import nv_gdm
+import nv_global_names
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
@@ -51,10 +49,17 @@ def expand_splitters(graph_template_: BasePolarGraph):
             graph_template_.am.create_cell(move_, unique_values.pop())
 
 
+def init_cell_evaluation(graph_template_: BasePolarGraph):
+    for node in graph_template_.not_inf_nodes:
+        cell = graph_template_.am.cells[node]['attrib_node']
+        if issubclass(type(cell), TypedCell):
+            cell: TypedCell
+            cell.evaluate(nv_global_names.str_to_obj)
+
+
 def init_switch_splitters(graph_template_: BasePolarGraph):
     for node, cell in get_splitter_nodes_cells(graph_template_):
         if not (cell.candidate_value is None):
-            cell.evaluate()
             found_move = graph_template_.am.get_single_elm_by_cell_content(PGMove, cell.value, node.ni_nd.moves)
             node.ni_nd.choice_move_activate(found_move)
 
@@ -73,7 +78,7 @@ class AttribGraphTemplatesDescriptor:
         a_m.move_assoc_class = AttribMoveAssociation
         a_m.auto_set_curr_context()
 
-        if owner == CoordSystem:
+        if owner == CoordinateSystem:
             node_rel_cs, _, _ = g_t.insert_node_single_link()
             node_check_dependence, _, _ = g_t.insert_node_single_link(node_rel_cs.ni_nd)
             node_x, link_up_x, _ = g_t.insert_node_single_link(node_check_dependence.ni_nd)
@@ -85,7 +90,7 @@ class AttribGraphTemplatesDescriptor:
             node_co_x = g_t.insert_node_neck(g_t.inf_node_nd.ni_pu)
             node_co_y = g_t.insert_node_neck(g_t.inf_node_nd.ni_pu)
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', 'CoordSystem')
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', 'CoordinateSystem')
             a_m.create_cell(node_check_dependence, 'dependence', 'BSSDependency', 'dependent')
             a_m.create_cell(node_x, 'x', 'int')
             a_m.create_cell(move_to_x, 'dependent')
@@ -98,6 +103,7 @@ class AttribGraphTemplatesDescriptor:
 
         check_all_nodes_associated(g_t)
         expand_splitters(g_t)
+        init_cell_evaluation(g_t)
         init_switch_splitters(g_t)
 
         instance._graph_template = g_t
@@ -124,7 +130,7 @@ class AttribDescriptor:
             if cell not in splitter_cells_set:
                 if issubclass(type(cell), TypedCell):
                     af = AttributeFormat(BSSAttributeType('value'), cell.name,
-                                         nv_gdm.obj_to_str(cell.value))
+                                         nv_global_names.obj_to_str(cell.value))
                 else:
                     af = AttributeFormat(BSSAttributeType('title'), cell.name)
             else:
@@ -132,7 +138,7 @@ class AttribDescriptor:
                 cls = get_class_by_str(cell.required_type)
                 af = AttributeFormat(BSSAttributeType('splitter'), cell.name, str_value, cls.unique_values)
             if issubclass(type(cell), TypedCell):
-                af.check_success = cell.check_status
+                af.check_status = cell.check_status
             formatted_result.append(af)
         return formatted_result
 
@@ -172,11 +178,11 @@ class SplitterValuesDescriptor:
 
 
 class DynamicAttributeControl:
+    name = nv_global_names.NameDescriptor()
     graph_template = AttribGraphTemplatesDescriptor()
     cells_route = CellsDescriptor()
     graph_attr = AttribDescriptor()
     splitter_values = SplitterValuesDescriptor()
-    name = nv_gdm.NameDescriptor()
 
     def __init__(self):
         self.name = 'auto_name'
@@ -193,7 +199,7 @@ class DynamicAttributeControl:
                 move = am.get_single_elm_by_cell_content(PGMove, af.attr_value, node.ni_nd.moves)
                 node.ni_nd.choice_move_activate(move)
             cell.candidate_value = af.attr_value
-            cell.evaluate()
+            cell.evaluate(nv_global_names.str_to_obj)
 
     def create_object(self):
         if not all([cell.check_status for cell in self.cells_route if isinstance(cell, TypedCell)]):
@@ -202,15 +208,20 @@ class DynamicAttributeControl:
             setattr(self, cell.name, cell.value)
 
 
-class CoordSystem(DynamicAttributeControl):
+class CoordinateSystem(DynamicAttributeControl):
+    pass
+
+
+class Point(DynamicAttributeControl):
     pass
 
 
 class Line(DynamicAttributeControl):
     pass
 
-    # def __init__(self):
-    #     super().__init__()
+
+class GroundLine(DynamicAttributeControl):
+    pass
 
 
 if __name__ == '__main__':
@@ -218,8 +229,8 @@ if __name__ == '__main__':
     test = 'test_1'
     if test == 'test_1':
         pass
-    GCS = CoordSystem()
-    GCS_2 = CoordSystem()
+    GCS = CoordinateSystem()
+    GCS_2 = CoordinateSystem()
     print(GCS.name)
     print(GCS_2.name)
     ln_1 = Line()
@@ -266,15 +277,17 @@ if __name__ == '__main__':
     # print(GNOM.obj_to_name)
 
     # print(GCS.name)
-    # print(CoordSystem.name)
+    # print(CoordinateSystem.name)
     #
     # print(ln_1.name)
     # print(ln_2.name)
     # print(ln_3.name)
 
-    # print('eval = ', eval('nv_gdm.GDM.name_to_obj["CoordSystem_1"]'))
+    # print('eval = ', eval('nv_gdm.GNM.name_to_obj["CoordSystem_1"]'))
 
-    # print(nv_gdm.str_to_obj('    ', 'set[Union[CoordSystem, Line]]'))
-    # print(nv_gdm.obj_to_str(CoordSystem))
+    # print(nv_gdm.str_to_obj('    ', 'set[Union[CoordinateSystem, Line]]'))
+    # print(nv_gdm.obj_to_str(CoordinateSystem))
 
-    # print(CoordSystem.mro())
+    # print(CoordinateSystem.mro())
+
+    print(CoordinateSystem.mro())

@@ -15,11 +15,11 @@ class AttributeFormat:
         self._attr_name = attr_name
         self._attr_value = attr_value
         self._possible_values = possible_values
-        self._check_success = True
+        self._check_status = ''
 
     def __repr__(self):
         return '{}({}, {}, {}, {})'.format(self.__class__.__name__, self.attr_type, self.attr_name,
-                                           self.attr_value, self.check_success)
+                                           self.attr_value, self.check_status)
 
     @property
     def attr_type(self):
@@ -42,9 +42,9 @@ class AttributeFormat:
         return self._possible_values
 
     @property
-    def check_success(self):
-        return self._check_success
+    def check_status(self):
+        return self._check_status
 
-    @check_success.setter
-    def check_success(self, val: bool):
-        self._check_success = val
+    @check_status.setter
+    def check_status(self, val: str):
+        self._check_status = val

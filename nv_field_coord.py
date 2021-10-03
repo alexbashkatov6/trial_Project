@@ -2,7 +2,7 @@ from __future__ import annotations
 from numbers import Number
 import re
 
-from nv_names_control import names_control
+from nv_attributed_objects import CoordinateSystem
 from nv_typing import *
 
 
@@ -41,22 +41,6 @@ class FieldCoord:
             assert self.cs == other.cs, \
                 'Should be the same cs in sub Field coords {}, {}'.format(self, other)
             return self.value-other.value
-
-
-# class BuildDescriptor:
-#
-#     def __get__(self, instance, owner=None):
-#         if instance is None:
-#             return self
-#         if owner == CoordinateSystem:
-#             print('owner CoordinateSystem')
-#         return None
-
-
-@names_control
-class CoordinateSystem:
-    pass
-    # build_method = BuildDescriptor()
 
 
 if __name__ == '__main__':
