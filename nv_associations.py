@@ -2,6 +2,18 @@ from __future__ import annotations
 
 from nv_bounded_string_set_class import bounded_string_set
 
+__all__ = ['Association',
+           'NodeAssociation',
+           'LinkAssociation',
+           'MoveAssociation',
+           'AttribNodeAssociation',
+           'AttribMoveAssociation',
+           'TreeNodeAssociation',
+           'DependenceNodeAssociation',
+           'FieldNodeAssociation',
+           'FieldLinkAssociation',
+           'FieldMoveAssociation']
+
 
 class Association:
     pass
@@ -37,6 +49,7 @@ FieldLinkAssociation = bounded_string_set('FieldLinkAssociation', [['isolation_z
                                                                    ['station_zone_link'],
                                                                    ['velocity_zone_link']], LinkAssociation)
 FieldMoveAssociation = bounded_string_set('FieldMoveAssociation', [['railway_point_position_move']], MoveAssociation)
+
 
 if __name__ == '__main__':
     print(AttribNodeAssociation.__bases__)

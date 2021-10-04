@@ -1,6 +1,5 @@
 from __future__ import annotations
 from copy import copy, deepcopy
-from itertools import chain
 
 from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set  #
@@ -822,26 +821,32 @@ class BasePolarGraph(PolarGraph):
 
     @strictly_typed
     def aggregate(self, insert_pg: BasePolarGraph,
-                  ni_pairs_connect: Optional[set[tuple[PGNodeInterface, PGNodeInterface]]] = None) -> None:
+                  ni_for_pu_connect: PGNodeInterface = None, ni_for_nd_connect: PGNodeInterface = None) -> None:
         insert_pg = deepcopy(insert_pg)
-        if not ni_pairs_connect:
+        if (ni_for_pu_connect is None) and (ni_for_nd_connect is None):
             new_node = self.insert_node_neck(self.inf_node_nd.ni_pu)
-            ni_pairs_connect = {(new_node.ni_nd, insert_pg.inf_node_pu.ni_pu),
-                                (self.inf_node_nd.ni_pu, insert_pg.inf_node_nd.ni_nd)}
-        assert all({(ni_tuple[0].base_polar_graph is self) for ni_tuple in ni_pairs_connect}), \
-            'All first ni_s should be of base graph'
-        assert all({(ni_tuple[1].base_polar_graph is insert_pg.base_polar_graph) for ni_tuple in ni_pairs_connect}), \
-            'All second ni_s should be of inserting graph'
-        assert {ni.pn.opposite_ni(ni) for ni in insert_pg.border_ni_s} < set(chain(*ni_pairs_connect)), \
-            'Border ni_s of inserted graph should be connected to current graph'
-        assert len(ni_pairs_connect) == 2, 'Count of ni connected should be == 2'
-        self.nodes |= insert_pg.nodes
+            ni_for_pu_connect = new_node.ni_nd
+            ni_for_nd_connect = self.inf_node_nd.ni_pu
+        assert len(ni_for_pu_connect.links) <= 1, 'Count of links in old ni should be <=1: {}'.format(ni_for_pu_connect)
+        assert len(ni_for_nd_connect.links) <= 1, 'Count of links in old ni should be <=1: {}'.format(ni_for_nd_connect)
+        if len(ni_for_pu_connect.links) == 1:
+            link = ni_for_pu_connect.links.pop()
+            assert {ni_for_pu_connect, ni_for_nd_connect} == set(link.ni_s), 'Old ni_s should be connected between'
+        old_links_pu_connection = insert_pg.inf_node_pu.ni_nd.links
+        ni_s_for_pu_connection = {link.opposite_ni(insert_pg.inf_node_pu.ni_nd) for link in old_links_pu_connection}
+        old_links_nd_connection = insert_pg.inf_node_nd.ni_pu.links
+        ni_s_for_nd_connection = {link.opposite_ni(insert_pg.inf_node_nd.ni_pu) for link in old_links_nd_connection}
+        self._disconnect_nodes(ni_for_pu_connect, ni_for_nd_connect)
+        for link in old_links_pu_connection | old_links_nd_connection:
+            insert_pg._disconnect_nodes(*link.ni_s)
+        self.nodes |= insert_pg.not_inf_nodes
+        for ni in ni_s_for_pu_connection:
+            self.connect_nodes(ni, ni_for_pu_connect)
+        for ni in ni_s_for_nd_connection:
+            self.connect_nodes(ni, ni_for_nd_connect)
         self.links |= insert_pg.links
         self.link_groups |= insert_pg.link_groups
         self.moves |= insert_pg.moves
-        self._disconnect_nodes(*{pair[0] for pair in ni_pairs_connect})
-        for pair in ni_pairs_connect:
-            self.connect_nodes(*pair)
 
     def _refresh_link_groups_links_moves(self):
         self._links.clear()
@@ -1185,6 +1190,7 @@ if __name__ == '__main__':
         pg_10l = pg_10.layered_representation(pg_10.inf_node_pu.ni_nd)
         print(pg_00l)
         print(pg_10l)
+        print(len(pg_00.links))
 
         # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
         # print(pg_00.links)

@@ -2,13 +2,13 @@ from __future__ import annotations
 from collections import OrderedDict
 
 from nv_typing import *
+from nv_associations import *
 from nv_bounded_string_set_class import bounded_string_set, BoundedStringSet
 from nv_polar_graph import (BasePolarGraph,
                             PolarNode,
                             PGMove,
-                            PGRoute)  #
+                            PGRoute)
 from nv_attribute_format import BSSAttributeType, AttributeFormat
-from nv_associations import AttribNodeAssociation, AttribMoveAssociation
 from nv_typed_cell import NamedCell, TypedCell
 import nv_global_names
 
@@ -224,70 +224,148 @@ class GroundLine(DynamicAttributeControl):
     pass
 
 
+class GlobalDataManager:
+
+    def __init__(self):
+        self._tree_graph = BasePolarGraph()
+        self._dependence_graph = BasePolarGraph()
+        self._field_graph = BasePolarGraph()
+
+        self.init_tree_graph()
+        self.init_dependence_graph()
+        self.init_field_graph()
+
+        self._class_instances: dict[str, set[DynamicAttributeControl]] = {}
+        self._current_edit_object = None
+
+    @property
+    def tree_graph(self):
+        return self._tree_graph
+
+    @property
+    def dependence_graph(self):
+        return self._dependence_graph
+
+    @property
+    def field_graph(self):
+        return self._field_graph
+
+    def init_tree_graph(self):
+        a_m = self.tree_graph.am
+        a_m.node_assoc_class = TreeNodeAssociation
+        a_m.auto_set_curr_context()
+
+    def init_dependence_graph(self):
+        a_m = self.dependence_graph.am
+        a_m.node_assoc_class = DependenceNodeAssociation
+        a_m.auto_set_curr_context()
+
+    def init_field_graph(self):
+        a_m = self.field_graph.am
+        a_m.node_assoc_class = FieldNodeAssociation
+        a_m.link_assoc_class = FieldLinkAssociation
+        a_m.move_assoc_class = FieldMoveAssociation
+        a_m.auto_set_curr_context()
+
+    def add_to_tree_graph(self, obj: DynamicAttributeControl):
+        tg = self.tree_graph
+        a_m = tg.am
+        node_class = a_m.get_single_elm_by_cell_content(PolarNode, obj.__class__.__name__)
+        if node_class is None:
+            node_class, _, _ = tg.insert_node_single_link()
+            a_m.create_cell(node_class, obj.__class__.__name__)
+        node_obj, _, _ = tg.insert_node_single_link(node_class.ni_nd)
+        a_m.create_cell(node_obj, obj.name)
+
+
+GDM = GlobalDataManager()
+
 if __name__ == '__main__':
 
-    test = 'test_1'
+    test = 'test_2'
     if test == 'test_1':
         pass
-    GCS = CoordinateSystem()
-    GCS_2 = CoordinateSystem()
-    print(GCS.name)
-    print(GCS_2.name)
-    ln_1 = Line()
-    ln_2 = Line()
-    ln_2.name = 'Line_2d'
-    ln_3 = Line()
+        GCS = CoordinateSystem()
+        GCS_2 = CoordinateSystem()
+        print(GCS.name)
+        print(GCS_2.name)
+        ln_1 = Line()
+        ln_2 = Line()
+        ln_2.name = 'Line_2d'
+        ln_3 = Line()
 
-    # print(GCS.graph_template)
-    # free_route = GCS.graph_template.free_roll(GCS.graph_template.inf_node_pu.ni_nd)
-    # cont_s = GCS.graph_template.am.extract_route_content(free_route)
-    # for cont in cont_s:
-    #     print(cont.pop().name)
-    # print(GCS.graph_template is GCS_2.graph_template)
+        # print(GCS.graph_template)
+        # free_route = GCS.graph_template.free_roll(GCS.graph_template.inf_node_pu.ni_nd)
+        # cont_s = GCS.graph_template.am.extract_route_content(free_route)
+        # for cont in cont_s:
+        #     print(cont.pop().name)
+        # print(GCS.graph_template is GCS_2.graph_template)
 
-    print(GCS.graph_attr)
-    for attr in GCS.graph_attr:
-        print(attr)
-    attr_cs = GCS.graph_attr[0]
-    attr_cs.attr_value = 'CoordSystem_2'  # CoordSystem_2
-    attr_form_dep = GCS.graph_attr[1]
-    attr_form_dep.attr_value = 'independent'  # independent
-    attr_form_cox = GCS.graph_attr[5]
-    attr_form_cox.attr_value = 'False'  # False
+        print(GCS.graph_attr)
+        for attr in GCS.graph_attr:
+            print(attr)
+        attr_cs = GCS.graph_attr[0]
+        attr_cs.attr_value = 'CoordSystem_2'  # CoordSystem_2
+        attr_form_dep = GCS.graph_attr[1]
+        attr_form_dep.attr_value = 'independent'  # independent
+        attr_form_cox = GCS.graph_attr[5]
+        attr_form_cox.attr_value = 'False'  # False
 
-    GCS.create_object()
-    print('coy = ', GCS.co_y)
+        GCS.create_object()
+        print('coy = ', GCS.co_y)
 
-    GCS.change_value(attr_cs)
-    GCS.change_value(attr_form_dep)
-    GCS.change_value(attr_form_cox)
-    print()
-    for attr in GCS.graph_attr:
-        print(attr)
+        GCS.change_value(attr_cs)
+        GCS.change_value(attr_form_dep)
+        GCS.change_value(attr_form_cox)
+        print()
+        for attr in GCS.graph_attr:
+            print(attr)
 
-    GCS.create_object()
-    print('coy = ', GCS.co_y)
+        GCS.create_object()
+        print('coy = ', GCS.co_y)
 
-    print(GCS.cells_route)
-    print(str(GCS))
-    print(GCS.splitter_values)
-    # GNOM.register_obj_name(123, 'Cyfer')
-    # GNOM.register_obj_name(1234, 'Cyfe')
-    # print(GNOM.name_to_obj)
-    # print(GNOM.obj_to_name)
+        print(GCS.cells_route)
+        print(str(GCS))
+        print(GCS.splitter_values)
+        # GNOM.register_obj_name(123, 'Cyfer')
+        # GNOM.register_obj_name(1234, 'Cyfe')
+        # print(GNOM.name_to_obj)
+        # print(GNOM.obj_to_name)
 
-    # print(GCS.name)
-    # print(CoordinateSystem.name)
-    #
-    # print(ln_1.name)
-    # print(ln_2.name)
-    # print(ln_3.name)
+        # print(GCS.name)
+        # print(CoordinateSystem.name)
+        #
+        # print(ln_1.name)
+        # print(ln_2.name)
+        # print(ln_3.name)
 
-    # print('eval = ', eval('nv_gdm.GNM.name_to_obj["CoordSystem_1"]'))
+        # print('eval = ', eval('nv_gdm.GNM.name_to_obj["CoordSystem_1"]'))
 
-    # print(nv_gdm.str_to_obj('    ', 'set[Union[CoordinateSystem, Line]]'))
-    # print(nv_gdm.obj_to_str(CoordinateSystem))
+        # print(nv_gdm.str_to_obj('    ', 'set[Union[CoordinateSystem, Line]]'))
+        # print(nv_gdm.obj_to_str(CoordinateSystem))
 
-    # print(CoordinateSystem.mro())
+        # print(CoordinateSystem.mro())
 
-    print(CoordinateSystem.mro())
+        print(CoordinateSystem.mro())
+
+    if test == 'test_2':
+        pass
+        cs_1 = CoordinateSystem()
+        cs_2 = CoordinateSystem()
+        ln_1 = Line()
+        ln_2 = Line()
+        GDM.add_to_tree_graph(cs_1)
+        GDM.add_to_tree_graph(cs_2)
+        GDM.add_to_tree_graph(ln_1)
+        GDM.add_to_tree_graph(ln_2)
+
+        start_ni = GDM.tree_graph.inf_node_pu.ni_nd
+        print(GDM.tree_graph.layered_representation(start_ni))
+        print(GDM.field_graph.am.curr_context)
+        print(GDM.field_graph)
+
+        # print(GDM.tree_graph.am.curr_context)
+        # print(GDM.tree_graph.am.get_single_elm_by_cell_content(PolarNode, 'CoordSystem_1'))
+
+    if test == 'test_3':
+        pass
