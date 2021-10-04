@@ -6,6 +6,22 @@ from nv_typing import *
 from nv_bounded_string_set_class import BoundedStringSet
 
 
+class CellError(Exception):
+    pass
+
+
+class TypeCellError(CellError):
+    pass
+
+
+class SyntaxCellError(CellError):
+    pass
+
+
+class SemanticCellError(CellError):
+    pass
+
+
 class GlobalNamesManager:
     def __init__(self):
         self._name_to_obj: dict[str, Any] = {}
@@ -20,7 +36,7 @@ class GlobalNamesManager:
 
     def remove_obj_name(self, obj_or_name):
         obj, name = (self.name_to_obj[obj_or_name], obj_or_name) if type(obj_or_name) == str \
-            else (obj_or_name, obj_or_name.name)
+            else (obj_or_name, self.obj_to_name[obj_or_name])
         self._name_to_obj.pop(name)
         self._obj_to_name.pop(obj)
 
@@ -37,6 +53,40 @@ class GlobalNamesManager:
 
 
 GNM = GlobalNamesManager()
+
+
+def default_syntax_checker(value: str) -> Any:
+    value_got = value
+    found_identifier_candidates = re.findall(r'\w+', value)
+    for fic in found_identifier_candidates:
+        if fic in GNM.name_to_obj:
+            value = value.replace(fic, 'GNM.name_to_obj["{}"]'.format(fic))
+    try:
+        result = eval(value)
+    except NameError:
+        raise SyntaxCellError('Syntax error when parsing '+value_got)
+    else:
+        return result
+
+
+def name_syntax_checker(value: str, cls: type) -> str:
+    prefix = cls.__name__ + '_'
+    if not re.fullmatch(r'\w+', value):
+        raise SyntaxCellError('Name have to consists of alphas, nums and _')
+    if not value.startswith(prefix):
+        raise SyntaxCellError('Name have to begin from ClassName_')
+    if value == prefix:
+        raise SyntaxCellError('Name cannot be == prefix; add specification to end')
+    if value[len(prefix):].isdigit():
+        raise SyntaxCellError('Not auto-name cannot be (prefix + int); choose other name')
+    if not GNM.check_name(value):
+        raise SyntaxCellError('Name {} already exists'.format(value))
+    return value
+
+
+def default_type_checker(value: Any, req_cls_str: str) -> Any:
+    if not type_verification(req_cls_str, value):
+        raise TypeCellError('Given value type is not equal to required type')
 
 
 class NameDescriptor:
@@ -128,3 +178,23 @@ def obj_to_str(obj) -> str:
         return obj.__name__
 
     return str(obj)
+
+
+class CellChecker:
+    def __init__(self, f_check_syntax=None, f_check_type=None, f_check_semantic=None):
+        self.f_check_syntax = f_check_syntax
+        self.f_check_type = f_check_type
+        self.f_check_semantic = f_check_semantic
+
+    def check_value(self, value: str):
+        if self.f_check_syntax:
+            self.f_check_syntax(value)
+        if self.f_check_type:
+            self.f_check_type(value)
+        if self.f_check_semantic:
+            self.f_check_semantic(value)
+
+
+# ! format need additional data
+NAME_CHECKER = CellChecker(name_syntax_checker)
+DEFAULT_CHECKER = CellChecker(default_syntax_checker, default_type_checker)

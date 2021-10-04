@@ -5,7 +5,7 @@ from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set  #
 from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
 from nv_typed_cell import NamedCell, TypedCell
-import nv_global_names
+import nv_string_checkers
 
 
 End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
@@ -14,8 +14,7 @@ End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']]
 class PGNodeInterface:
 
     @strictly_typed
-    def __init__(self, bpg: BasePolarGraph, pn: PolarNode, end: End) -> None:
-        self._base_polar_graph = bpg
+    def __init__(self, pn: PolarNode, end: End) -> None:
         self._pn = pn
         self._end = end
         self._move_by_link: dict[PGLink, PGMove] = dict()
@@ -26,7 +25,7 @@ class PGNodeInterface:
     @property
     @strictly_typed
     def base_polar_graph(self) -> BasePolarGraph:
-        return self._base_polar_graph
+        return self.pn.base_polar_graph
 
     @property
     @strictly_typed
@@ -55,7 +54,7 @@ class PGNodeInterface:
     @strictly_typed
     def add_link(self, link: PGLink) -> None:
         assert not (link in self._move_by_link), 'Link already connected'
-        self._move_by_link[link] = PGMove(self.base_polar_graph, self, link)
+        self._move_by_link[link] = PGMove(self, link)
         self._random_move_activate()
 
     @strictly_typed
@@ -103,8 +102,7 @@ class PGNodeInterface:
 class PGMove:
 
     @strictly_typed
-    def __init__(self, bpg: BasePolarGraph, ni: PGNodeInterface, link: PGLink) -> None:
-        self._base_polar_graph = bpg
+    def __init__(self, ni: PGNodeInterface, link: PGLink) -> None:
         self._link = link
         self._ni = ni
         self._active = False
@@ -115,7 +113,7 @@ class PGMove:
     @property
     @strictly_typed
     def base_polar_graph(self) -> BasePolarGraph:
-        return self._base_polar_graph
+        return self.ni.base_polar_graph
 
     @property
     @strictly_typed
@@ -141,9 +139,8 @@ class PGMove:
 class PGLinkGroup:
 
     @strictly_typed
-    def __init__(self, bpg: BasePolarGraph, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
+    def __init__(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
                  first_link_is_stable: bool = False) -> None:
-        self._base_polar_graph = bpg
         self.ni_s = (ni_1, ni_2)
         self._links = set()
         self.init_link(first_link_is_stable)
@@ -154,7 +151,7 @@ class PGLinkGroup:
     @property
     @strictly_typed
     def base_polar_graph(self) -> BasePolarGraph:
-        return self._base_polar_graph
+        return self.ni_s[0].base_polar_graph
 
     @property
     @strictly_typed
@@ -209,7 +206,7 @@ class PGLinkGroup:
     @strictly_typed
     def init_link(self, init_stable: bool = False) -> PGLink:
         assert not (self.stable_link and init_stable), 'Only 1 stable link may be between same nodes'
-        new_link = PGLink(self.base_polar_graph, *self.ni_s, init_stable)
+        new_link = PGLink(*self.ni_s, init_stable)
         self._links.add(new_link)
         return new_link
 
@@ -231,11 +228,10 @@ class PGLinkGroup:
 class PGLink:
 
     @strictly_typed
-    def __init__(self, bpg: BasePolarGraph, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
+    def __init__(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
                  is_stable: bool = False) -> None:
-        self._base_polar_graph = bpg
-        self.stable = is_stable
         self.ni_s = (ni_1, ni_2)
+        self.stable = is_stable
 
     def __repr__(self):
         stable_str = 'stable' if self.stable else ''
@@ -244,7 +240,7 @@ class PGLink:
     @property
     @strictly_typed
     def base_polar_graph(self) -> BasePolarGraph:
-        return self._base_polar_graph
+        return self.ni_s[0].base_polar_graph
 
     @property
     @strictly_typed
@@ -274,15 +270,15 @@ class PGLink:
 
 
 class PolarNode:
-    name = nv_global_names.NameDescriptor(-1)
+    name = nv_string_checkers.NameDescriptor(-1)
 
     @strictly_typed
     def __init__(self, bpg: BasePolarGraph) -> None:
         self.name = 'auto_name'
         self._base_polar_graph = bpg
         self._ni_negative_down, self._ni_positive_up = \
-            PGNodeInterface(self.base_polar_graph, self, End('nd')), \
-            PGNodeInterface(self.base_polar_graph, self, End('pu'))
+            PGNodeInterface(self, End('nd')), \
+            PGNodeInterface(self, End('pu'))
 
     def __repr__(self):
         return self.name
@@ -291,6 +287,11 @@ class PolarNode:
     @strictly_typed
     def base_polar_graph(self) -> BasePolarGraph:
         return self._base_polar_graph
+
+    @base_polar_graph.setter
+    @strictly_typed
+    def base_polar_graph(self, val: BasePolarGraph) -> None:
+        self._base_polar_graph = val
 
     @property
     @strictly_typed
@@ -312,31 +313,8 @@ class PolarNode:
         return ({self.ni_nd, self.ni_pu} - {given_ni}).pop()
 
 
-class PGGraphMovesState:
-
-    @strictly_typed
-    def __init__(self, pg: BasePolarGraph) -> None:
-        self._moves: list[PGMove] = []
-        self.save_state(pg)
-
-    @strictly_typed
-    def save_state(self, pg: BasePolarGraph) -> None:
-        for pn in pg.nodes:
-            ni_nd, ni_pu = pn.ni_nd, pn.ni_pu
-            nd_active_move, pu_active_move = ni_nd.active_move, ni_pu.active_move
-            if nd_active_move:
-                self._moves.append(ni_nd.active_move)
-            if pu_active_move:
-                self._moves.append(ni_pu.active_move)
-
-    @strictly_typed
-    def reset_state(self) -> None:
-        for move in self._moves:
-            move.ni.choice_move_activate(move)
-
-
 class PolarGraph:
-    name = nv_global_names.NameDescriptor()
+    name = nv_string_checkers.NameDescriptor()
 
     def __init__(self, bpg: Optional[BasePolarGraph] = None):
         self.name = 'auto_name'
@@ -698,7 +676,7 @@ class PGRoute(PolarGraph):
 
 
 class BasePolarGraph(PolarGraph):
-    name = nv_global_names.NameDescriptor()
+    name = nv_string_checkers.NameDescriptor()
 
     def __init__(self):
         super().__init__()
@@ -822,7 +800,7 @@ class BasePolarGraph(PolarGraph):
     @strictly_typed
     def aggregate(self, insert_pg: BasePolarGraph,
                   ni_for_pu_connect: PGNodeInterface = None, ni_for_nd_connect: PGNodeInterface = None) -> None:
-        insert_pg = deepcopy(insert_pg)
+        # insert_pg = deepcopy(insert_pg)
         if (ni_for_pu_connect is None) and (ni_for_nd_connect is None):
             new_node = self.insert_node_neck(self.inf_node_nd.ni_pu)
             ni_for_pu_connect = new_node.ni_nd
@@ -839,6 +817,8 @@ class BasePolarGraph(PolarGraph):
         self._disconnect_nodes(ni_for_pu_connect, ni_for_nd_connect)
         for link in old_links_pu_connection | old_links_nd_connection:
             insert_pg._disconnect_nodes(*link.ni_s)
+        for node in insert_pg.not_inf_nodes:
+            node.base_polar_graph = self
         self.nodes |= insert_pg.not_inf_nodes
         for ni in ni_s_for_pu_connection:
             self.connect_nodes(ni, ni_for_pu_connect)
@@ -877,7 +857,7 @@ class BasePolarGraph(PolarGraph):
     def _init_new_link_group(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
                              first_link_is_stable: bool = False) -> PGLinkGroup:
         assert self._check_new_link_group_existing_possibility(ni_1, ni_2), 'Link_group already exists'
-        new_link_group = PGLinkGroup(self, ni_1, ni_2, first_link_is_stable)
+        new_link_group = PGLinkGroup(ni_1, ni_2, first_link_is_stable)
         self._link_groups.add(new_link_group)
         return new_link_group
 

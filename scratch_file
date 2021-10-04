@@ -211,3 +211,26 @@
     #                 result.add(element_result)
     #     return result
     #
+    # ------------------------------
+
+#    class PGGraphMovesState:
+#
+#     @strictly_typed
+#     def __init__(self, pg: BasePolarGraph) -> None:
+#         self._moves: list[PGMove] = []
+#         self.save_state(pg)
+#
+#     @strictly_typed
+#     def save_state(self, pg: BasePolarGraph) -> None:
+#         for pn in pg.nodes:
+#             ni_nd, ni_pu = pn.ni_nd, pn.ni_pu
+#             nd_active_move, pu_active_move = ni_nd.active_move, ni_pu.active_move
+#             if nd_active_move:
+#                 self._moves.append(ni_nd.active_move)
+#             if pu_active_move:
+#                 self._moves.append(ni_pu.active_move)
+#
+#     @strictly_typed
+#     def reset_state(self) -> None:
+#         for move in self._moves:
+#             move.ni.choice_move_activate(move)
