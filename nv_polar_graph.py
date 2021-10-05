@@ -4,8 +4,8 @@ from copy import copy, deepcopy
 from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set  #
 from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
-from nv_typed_cell import NamedCell, TypedCell
-import nv_string_checkers
+from nv_cell import Cell, CellChecker, AutoValueSetter  # , TypedCell
+import nv_cell
 
 
 End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
@@ -270,7 +270,7 @@ class PGLink:
 
 
 class PolarNode:
-    name = nv_string_checkers.NameDescriptor(-1)
+    name = nv_cell.NameDescriptor(-1)
 
     @strictly_typed
     def __init__(self, bpg: BasePolarGraph) -> None:
@@ -314,7 +314,7 @@ class PolarNode:
 
 
 class PolarGraph:
-    name = nv_string_checkers.NameDescriptor()
+    name = nv_cell.NameDescriptor()
 
     def __init__(self, bpg: Optional[BasePolarGraph] = None):
         self.name = 'auto_name'
@@ -545,8 +545,10 @@ class PolarGraph:
         return routes_throw_checkpoints.pop()
 
     @strictly_typed
-    def free_roll(self, start_ni_of_node: PGNodeInterface, stop_nodes: Iterable[PolarNode] = None,
+    def free_roll(self, start_ni_of_node: PGNodeInterface = None, stop_nodes: Iterable[PolarNode] = None,
                   not_found_assertion: bool = True) -> PGRoute:
+        if start_ni_of_node is None:
+            start_ni_of_node = self.base_polar_graph.inf_node_pu.ni_nd
         if not stop_nodes:
             stop_nodes = self.border_nodes
         elif not not_found_assertion:
@@ -676,7 +678,7 @@ class PGRoute(PolarGraph):
 
 
 class BasePolarGraph(PolarGraph):
-    name = nv_string_checkers.NameDescriptor()
+    name = nv_cell.NameDescriptor()
 
     def __init__(self):
         super().__init__()
@@ -762,6 +764,7 @@ class BasePolarGraph(PolarGraph):
         ni_2.remove_link(link)
         link_group.remove_link(link)
         self._refresh_link_groups_links_moves()
+        # self.am.refresh_associations()
 
     @strictly_typed
     def insert_node_single_link(self, ni_of_positive_up_node: PGNodeInterface = None,
@@ -877,8 +880,8 @@ class AssociationsManager:
         self._dict_storage_attribute = {PolarNode: 'nodes', PGLink: 'links', PGMove: 'moves'}
         self._dict_assoc_class = None
 
-        self._find_function = self.default_find_function
-        self._access_function = self.default_access_function
+        self._find_function = self.default_find_function  # getter
+        self._access_function = self.default_access_function  # setter
         self._curr_context = {}
 
     @property
@@ -892,17 +895,31 @@ class AssociationsManager:
 
     @staticmethod
     def default_access_function(x, val):
-        x.candidate_value = val
+        x.str_value = val
 
     @property
     @strictly_typed
-    def cells(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, NamedCell]]:
+    def cells(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, Cell]]:
         return copy(self._cells)
+
+    # @cells.setter
+    # @strictly_typed
+    # def cells(self, val: dict[Union[PolarNode, PGLink, PGMove], dict[str, Cell]]) ->  None:
+    #     return copy(self._cells)
+
+    @strictly_typed
+    def refresh_associations(self):
+        for element_type in self.dict_storage_attribute:
+            storage = getattr(self.base_polar_graph, self.dict_storage_attribute[element_type])
+            for element in storage:
+                if element not in self.cells:
+                    self._cells.pop(element)
 
     @strictly_typed
     def create_cell(self, element: Union[PolarNode, PGLink, PGMove],
-                    name: str, req_type: Optional[str] = None, candidate_value: Optional[Any] = None,
-                    context: Optional[str] = None) -> NamedCell:
+                    name: str, checker: Optional[CellChecker] = None, str_value: str = '',
+                    auto_setter: Optional[AutoValueSetter] = None,
+                    context: Optional[str] = None) -> Cell:
         if not (context is None):
             assert context in self.dict_assoc_class[type(element)].possible_strings, \
                 'Context {} not found'.format(context)
@@ -914,12 +931,7 @@ class AssociationsManager:
         if not (element in self.cells):
             self._cells[element] = {}
         assert not (context in self.cells[element]), 'Context {} for element {} already exists'.format(context, element)
-        if not(req_type is None):
-            if candidate_value is None:
-                candidate_value = ''
-            cell = TypedCell(name, req_type, candidate_value)
-        else:
-            cell = NamedCell(name, candidate_value)
+        cell = Cell(name, str_value, checker, auto_setter)
         self.cells[element][context] = cell
         return cell
 
@@ -1015,7 +1027,7 @@ class AssociationsManager:
 
     @strictly_typed
     def get_elm_cell_by_context(self, element: Union[PolarNode, PGLink, PGMove], context: Optional[str] = None) \
-            -> Optional[NamedCell]:
+            -> Optional[Cell]:
         if element not in self.cells:
             return
         if context is None:
@@ -1070,7 +1082,7 @@ class AssociationsManager:
             self.access_function(cell, value)
 
     @strictly_typed
-    def extract_route_content(self, route: PGRoute) -> list[set[NamedCell]]:
+    def extract_route_content(self, route: PGRoute) -> list[set[Cell]]:
         result = []
         for element in route.sequence:
             element_result = set()

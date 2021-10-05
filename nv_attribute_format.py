@@ -15,11 +15,12 @@ class AttributeFormat:
         self._attr_name = attr_name
         self._attr_value = attr_value
         self._possible_values = possible_values
-        self._check_status = ''
+        self._status_check = ''
+        self._is_suggested = False
 
     def __repr__(self):
         return '{}({}, {}, {}, {})'.format(self.__class__.__name__, self.attr_type, self.attr_name,
-                                           self.attr_value, self.check_status)
+                                           self.attr_value, self.status_check)
 
     @property
     def attr_type(self):
@@ -42,9 +43,17 @@ class AttributeFormat:
         return self._possible_values
 
     @property
-    def check_status(self):
-        return self._check_status
+    def status_check(self):
+        return self._status_check
 
-    @check_status.setter
-    def check_status(self, val: str):
-        self._check_status = val
+    @status_check.setter
+    def status_check(self, val: str):
+        self._status_check = val
+
+    @property
+    def is_suggested(self):
+        return self._is_suggested
+
+    @is_suggested.setter
+    def is_suggested(self, val: str):
+        self._is_suggested = val

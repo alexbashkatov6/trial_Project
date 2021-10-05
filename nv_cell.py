@@ -1,9 +1,10 @@
 from __future__ import annotations
 import re
 from copy import copy
+from functools import partial
 
 from nv_typing import *
-from nv_bounded_string_set_class import BoundedStringSet
+from nv_bounded_string_set_class import BoundedStringSet  # bounded_string_set,
 
 
 class CellError(Exception):
@@ -28,9 +29,11 @@ class GlobalNamesManager:
         self._obj_to_name: dict[Any, str] = {}  # for check obj repeating
 
     def register_obj_name(self, obj, name):
+        if type(obj) == str:
+            obj, name = name, obj
         assert name not in self.name_to_obj, 'Name repeating'
         assert obj not in self.obj_to_name, 'Obj repeating'
-        assert not(obj is None), 'None value cannot be registered'
+        assert not (obj is None), 'None value cannot be registered'
         self._name_to_obj[name] = obj
         self._obj_to_name[obj] = name
 
@@ -40,8 +43,8 @@ class GlobalNamesManager:
         self._name_to_obj.pop(name)
         self._obj_to_name.pop(obj)
 
-    def check_name(self, name):
-        return not(name in self.name_to_obj)
+    def check_new_name(self, name):
+        return not (name in self.name_to_obj)
 
     @property
     def name_to_obj(self) -> dict[str, Any]:
@@ -62,11 +65,11 @@ def default_syntax_checker(value: str) -> Any:
         if fic in GNM.name_to_obj:
             value = value.replace(fic, 'GNM.name_to_obj["{}"]'.format(fic))
     try:
-        result = eval(value)
+        eval_result = eval(value)
     except NameError:
-        raise SyntaxCellError('Syntax error when parsing '+value_got)
+        raise SyntaxCellError('Syntax error when parsing ' + value_got)
     else:
-        return result
+        return eval_result
 
 
 def name_syntax_checker(value: str, cls: type) -> str:
@@ -77,9 +80,7 @@ def name_syntax_checker(value: str, cls: type) -> str:
         raise SyntaxCellError('Name have to begin from ClassName_')
     if value == prefix:
         raise SyntaxCellError('Name cannot be == prefix; add specification to end')
-    if value[len(prefix):].isdigit():
-        raise SyntaxCellError('Not auto-name cannot be (prefix + int); choose other name')
-    if not GNM.check_name(value):
+    if not GNM.check_new_name(value):
         raise SyntaxCellError('Name {} already exists'.format(value))
     return value
 
@@ -116,10 +117,10 @@ class NameDescriptor:
             i = self.start_index
             while True:
                 if i < 1:
-                    name_candidate = '{}{}'.format(prefix, '0'*(1-i))
+                    name_candidate = '{}{}'.format(prefix, '0' * (1 - i))
                 else:
                     name_candidate = '{}{}'.format(prefix, i)
-                if GNM.check_name(name_candidate):
+                if GNM.check_new_name(name_candidate):
                     break
                 else:
                     i += 1
@@ -130,7 +131,7 @@ class NameDescriptor:
             assert name_candidate != prefix, 'name cannot be == prefix; add specification to end'
             assert not name_candidate[
                        len(prefix):].isdigit(), 'Not auto-name cannot be (prefix + int); choose other name'
-            assert GNM.check_name(name_candidate), 'Name {} already exists'.format(name_candidate)
+            assert GNM.check_new_name(name_candidate), 'Name {} already exists'.format(name_candidate)
         instance._name = name_candidate
         GNM.register_obj_name(instance, name_candidate)
 
@@ -170,7 +171,6 @@ def str_to_obj(str_value: str, req_cls_str: str) -> tuple[Any, bool]:
 
 
 def obj_to_str(obj) -> str:
-
     if obj is None:
         return ''
 
@@ -187,14 +187,151 @@ class CellChecker:
         self.f_check_semantic = f_check_semantic
 
     def check_value(self, value: str):
+        result = None
         if self.f_check_syntax:
-            self.f_check_syntax(value)
+            result = self.f_check_syntax(value)
         if self.f_check_type:
-            self.f_check_type(value)
+            self.f_check_type(result)
         if self.f_check_semantic:
-            self.f_check_semantic(value)
+            self.f_check_semantic(result)
+        return result
 
 
-# ! format need additional data
-NAME_CHECKER = CellChecker(name_syntax_checker)
-DEFAULT_CHECKER = CellChecker(default_syntax_checker, default_type_checker)
+class NameCellChecker(CellChecker):
+    def __init__(self, cls: type):
+        super().__init__(partial(name_syntax_checker, cls=cls))
+
+
+class DefaultCellChecker(CellChecker):
+    def __init__(self, req_cls_str: str):
+        super().__init__(default_syntax_checker, partial(default_type_checker, req_cls_str=req_cls_str))
+
+
+def name_auto_setter(cls: Any, start_index: int = 1):
+    prefix = cls.__name__ + '_'
+    i = start_index
+    while True:
+        if i < 1:
+            auto_name = '{}{}'.format(prefix, '0' * (1 - i))
+        else:
+            auto_name = '{}{}'.format(prefix, i)
+        if GNM.check_new_name(auto_name):
+            break
+        else:
+            i += 1
+    return auto_name
+
+
+class AutoValueSetter:
+    def __init__(self, f_set_function=None):
+        self.f_set_function = f_set_function
+
+    def get_auto_value(self):  # , *args, **kwargs
+        return self.f_set_function()  # *args, **kwargs
+
+
+class NameAutoSetter(AutoValueSetter):
+    def __init__(self, cls: Any, start_index: int = 1):
+        super().__init__(partial(name_auto_setter, cls=cls, start_index=start_index))
+
+
+class Cell:
+
+    @strictly_typed
+    def __init__(self, name: str, str_value: str = '',
+                 checker: Optional[CellChecker] = None,
+                 auto_setter: Optional[AutoValueSetter] = None) -> None:
+        self._name = name
+        self._str_value = str_value
+        self._active = False
+        self._is_suggested_value = False
+
+        self._checker = checker
+        self._auto_setter = auto_setter
+
+        self._status_check = ''
+        self._value = None
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def str_value(self) -> str:
+        return self._str_value
+
+    @str_value.setter
+    def str_value(self, val: str):
+        self._is_suggested_value = False
+        self._str_value = val
+        if val == '':
+            self._status_check = ''
+
+    @property
+    def is_suggested_value(self) -> bool:
+        return self._is_suggested_value
+
+    @property
+    def active(self):
+        return self._active
+
+    def activate(self):
+        if self.value is None:
+            self.auto_set_value()
+            self._is_suggested_value = True
+        self._active = True
+
+    def deactivate(self):
+        self._active = False
+
+    @property
+    def checker(self):
+        return self._checker
+
+    @property
+    def auto_setter(self):
+        return self._auto_setter
+
+    @property
+    def status_check(self) -> str:
+        return self._status_check
+
+    @property
+    def value(self):
+        return self._value
+
+    def check_value(self):
+        if self.checker:
+            try:
+                result = self.checker.check_value(self.str_value)
+            except CellError as ce:
+                self._status_check = ce.args[0]
+                self._value = None
+            else:
+                self._status_check = ''
+                self._value = result
+
+    def auto_set_value(self):
+        if self.auto_setter:
+            self.str_value = self.auto_setter.get_auto_value()
+            self.check_value()
+
+
+if __name__ == '__main__':
+    class A:
+        pass
+
+
+    a = A()
+    # cc_1 = CellChecker(partial(name_syntax_checker, cls=A))
+    # cc_2 = CellChecker(default_syntax_checker, partial(default_type_checker, req_cls_str='str'))
+    cc_1 = NameCellChecker(A)
+    cc_2 = DefaultCellChecker('int')
+    print(cc_1.check_value("A_r"))
+    print(cc_2.check_value("13"))
+    nas = NameAutoSetter(A)
+    GNM.register_obj_name('A_1', a)
+    print(nas.get_auto_value())
+
+    # tc = TypedCell('tc', 'str', '13')
+    # print(tc.__dict__)
