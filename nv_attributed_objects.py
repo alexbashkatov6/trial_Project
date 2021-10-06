@@ -21,34 +21,42 @@ BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
 #         assert node in graph_template_.am.cells, 'Node {} is not associated'.format(node)
 #
 #
-# def get_splitter_nodes_cells(graph_template_: BasePolarGraph) -> set[tuple[PolarNode, Cell]]:
-#     values = set()
-#     for node in graph_template_.not_inf_nodes:
-#         cell = graph_template_.am.cells[node]['attrib_node']
-#         req_type = cell.required_type
-#         cls = get_class_by_str(req_type, True)
-#         if issubclass(cls, BoundedStringSet):
-#             values.add((node, cell))
-#     return values
-#
-#
-# def expand_splitters(graph_template_: BasePolarGraph):
-#     for node, cell in get_splitter_nodes_cells(graph_template_):
-#         cls = get_class_by_str(cell.required_type, True)
-#         unique_values: list = cls.unique_values
-#         need_count_of_links = len(unique_values)
-#         existing_count_of_links = len(node.ni_nd.links)
-#         if need_count_of_links == existing_count_of_links:
-#             continue
-#         assert existing_count_of_links == 1, 'Found situation not fully expanded splitter with <> 1 count links'
-#         link = node.ni_nd.links.pop()
-#         for _ in range(need_count_of_links - existing_count_of_links):
-#             graph_template_.connect_nodes(*link.ni_s)
-#         for link_ in node.ni_nd.links:
-#             move_ = node.ni_nd.get_move(link_)
-#             graph_template_.am.create_cell(move_, unique_values.pop())
-#
-#
+def get_splitter_nodes_cells(graph_template_: BasePolarGraph) -> set[tuple[PolarNode, Cell]]:
+    values = set()
+    for node in graph_template_.not_inf_nodes:
+        cell = graph_template_.am.cell_dicts[node]['attrib_node']
+        req_type = cell.req_class_str
+        if req_type is None:
+            continue
+        cls = get_class_by_str(req_type, True)
+        if issubclass(cls, BoundedStringSet):
+            values.add((node, cell))
+    return values
+
+
+def expand_splitters(graph_template_: BasePolarGraph):
+    for node, cell in get_splitter_nodes_cells(graph_template_):
+        # print('Splitter found !')
+        cls = get_class_by_str(cell.req_class_str, True)
+        unique_values: list = cls.unique_values
+        need_count_of_links = len(unique_values)
+        existing_count_of_links = len(node.ni_nd.links)
+        if need_count_of_links == existing_count_of_links:
+            continue
+        assert existing_count_of_links == 1, 'Found situation not fully expanded splitter with <> 1 count links'
+
+        link = node.ni_nd.links.pop()
+        for _ in range(need_count_of_links - existing_count_of_links):
+            # print('before connect', len(graph_template_.inf_node_nd.ni_pu.links))
+            graph_template_.connect_nodes(*link.ni_s)
+            # print('after connect', len(graph_template_.inf_node_nd.ni_pu.links))
+        for link_ in node.ni_nd.links:
+            move_ = node.ni_nd.get_move(link_)
+            unique_value = unique_values.pop()
+            # print('creating move cell value {}'.format(unique_value))
+            graph_template_.am.create_cell(move_, unique_value)
+
+
 # def init_cell_evaluation(graph_template_: BasePolarGraph):
 #     for node in graph_template_.not_inf_nodes:
 #         cell = graph_template_.am.cells[node]['attrib_node']
@@ -100,7 +108,9 @@ class AttribBuildGraphTemplDescr:
             a_m.create_cell(node_co_y, 'co_y', DefaultCellChecker('BSSBool'), 'True')
 
         # check_all_nodes_associated(g_b_t)
-        # expand_splitters(g_b_t)
+        # print('count links before = ', len(g_b_t.links))
+        expand_splitters(g_b_t)
+        # print('count links after = ', len(g_b_t.links))
         # init_cell_evaluation(g_b_t)
         # init_switch_splitters(g_b_t)
 
@@ -212,10 +222,11 @@ class CellsDescriptor:
 
 class DynamicAttributeControl:
     # name = nv_cell.NameDescriptor()
-    graph_build_template = AttribBuildGraphTemplDescr()
     # cells_route = CellsDescriptor()
     # graph_attr = AttribDescriptor()
     # splitter_values = SplitterValuesDescriptor()
+
+    graph_build_template = AttribBuildGraphTemplDescr()
     graph_template = AttribCommonGraphTemplDescr()
 
     # def __init__(self):
@@ -328,12 +339,29 @@ if __name__ == '__main__':
         # ln_2.name = 'Line_2d'
         ln_3 = Line()
 
-        g_t = GCS.graph_template
-        print(len(g_t.nodes))
-        a_m = g_t.am
-        route = g_t.free_roll()
+        g_t_1 = GCS.graph_template
+        print(len(g_t_1.nodes))
+        a_m_1 = g_t_1.am
+        route = g_t_1.free_roll()
         print(len(route.nodes))
-        print(a_m.extract_route_content(route))
+        print('cc = ', a_m_1.curr_context)
+        erc_1 = a_m_1.extract_route_content(route)
+        print(len(erc_1))
+        for rc in erc_1:
+            print(rc.pop().name)
+
+        # g_t_2 = GCS.graph_build_template
+        # a_m_2 = g_t_2.am
+        # route = g_t_2.free_roll()
+        # erc_2 = a_m_2.extract_route_content(route)
+        # for rc in erc_2:
+        #     print(rc.pop().name)
+        # print(len(g_t_2.inf_node_pu.ni_nd.links))
+        # print(len(g_t_2.inf_node_nd.ni_pu.links))
+
+        # print(a_m_1.cell_dicts)
+        # print(route.moves)
+
         # free_route = GCS.graph_template.free_roll(GCS.graph_template.inf_node_pu.ni_nd)
         # cont_s = GCS.graph_template.am.extract_route_content(free_route)
         # for cont in cont_s:

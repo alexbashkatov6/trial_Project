@@ -85,7 +85,7 @@ def name_syntax_checker(value: str, cls: type) -> str:
     return value
 
 
-def default_type_checker(value: Any, req_cls_str: str) -> Any:
+def default_type_checker(value: Any, req_cls_str: str) -> None:
     if not type_verification(req_cls_str, value):
         raise TypeCellError('Given value type is not equal to required type')
 
@@ -185,6 +185,7 @@ class CellChecker:
         self.f_check_syntax = f_check_syntax
         self.f_check_type = f_check_type
         self.f_check_semantic = f_check_semantic
+        self._req_class_str = None
 
     def check_value(self, value: str):
         result = None
@@ -196,6 +197,10 @@ class CellChecker:
             self.f_check_semantic(result)
         return result
 
+    @property
+    def req_class_str(self):
+        return self._req_class_str
+
 
 class NameCellChecker(CellChecker):
     def __init__(self, cls: type):
@@ -205,6 +210,7 @@ class NameCellChecker(CellChecker):
 class DefaultCellChecker(CellChecker):
     def __init__(self, req_cls_str: str):
         super().__init__(default_syntax_checker, partial(default_type_checker, req_cls_str=req_cls_str))
+        self._req_class_str = req_cls_str
 
 
 def name_auto_setter(cls: Any, start_index: int = 1):
@@ -315,6 +321,11 @@ class Cell:
         if self.auto_setter:
             self.str_value = self.auto_setter.get_auto_value()
             self.check_value()
+
+    @property
+    def req_class_str(self):
+        if self.checker:
+            return self.checker.req_class_str
 
 
 if __name__ == '__main__':

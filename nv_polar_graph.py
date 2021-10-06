@@ -1,12 +1,12 @@
 from __future__ import annotations
 from copy import copy, deepcopy
+from functools import partial
 
 from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set  #
 from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
 from nv_cell import Cell, CellChecker, AutoValueSetter  # , TypedCell
 import nv_cell
-
 
 End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
 
@@ -415,7 +415,7 @@ class PolarGraph:
     @strictly_typed
     def walk_to_borders(self, start_ni_of_node: PGNodeInterface,
                         additional_border_nodes: Optional[Iterable[PolarNode]] = None,
-                        cycles_assertion: bool = True, blind_nodes_assertion: bool = True)\
+                        cycles_assertion: bool = True, blind_nodes_assertion: bool = True) \
             -> tuple[set[PGRoute], list[set[PolarNode]]]:
         self.base_polar_graph.check_thin_link_groups()
         assert start_ni_of_node.pn in self.nodes, 'Begin node for find coverage not found'
@@ -753,18 +753,20 @@ class BasePolarGraph(PolarGraph):
         return new_link
 
     @strictly_typed
-    def _disconnect_nodes(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> None:
+    def _disconnect_nodes(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> \
+            Optional[tuple[PGLink, tuple[dict[PGNodeInterface, PGMove], dict[PGNodeInterface, PGMove]]]]:
         link_group = self._get_link_group_by_ends(ni_1, ni_2)
         unstable_links = link_group.unstable_links
         if not unstable_links:
             return
         else:
             link = unstable_links.pop()
+        move_ni_s = tuple({ni: ni.get_move(link)} for ni in {ni_1, ni_2})
         ni_1.remove_link(link)
         ni_2.remove_link(link)
         link_group.remove_link(link)
         self._refresh_link_groups_links_moves()
-        # self.am.refresh_associations()
+        return link, move_ni_s
 
     @strictly_typed
     def insert_node_single_link(self, ni_of_positive_up_node: PGNodeInterface = None,
@@ -777,33 +779,38 @@ class BasePolarGraph(PolarGraph):
             ni_of_negative_down_node = self.inf_node_nd.ni_pu
         insertion_node = self._init_node()
         existing_old_nodes_link_group = self._get_link_group_by_ends(ni_of_positive_up_node, ni_of_negative_down_node)
-        if existing_old_nodes_link_group:
-            self._disconnect_nodes(ni_of_positive_up_node, ni_of_negative_down_node)
         pu_link = self.connect_nodes(ni_of_positive_up_node, insertion_node.ni_pu, make_pu_stable)
         nd_link = self.connect_nodes(ni_of_negative_down_node, insertion_node.ni_nd, make_nd_stable)
+        if existing_old_nodes_link_group:
+            old_link, old_move_ni_s = self._disconnect_nodes(ni_of_positive_up_node, ni_of_negative_down_node)
+            self.am.replace_link(old_link, old_move_ni_s, (pu_link, nd_link))
         return insertion_node, pu_link, nd_link
 
     @strictly_typed
     def insert_node_neck(self, ni_necked: PGNodeInterface, make_between_stable: bool = False) -> PolarNode:
+        # ! Not implemented for link split associations !
         insertion_node: PolarNode = self._init_node()
         if ni_necked.end == 'nd':
             ni_instead_necked = insertion_node.ni_nd
         else:
             ni_instead_necked = insertion_node.ni_pu
         ni_s_for_reconnect: set[PGNodeInterface] = set()
+        link_nis_before = {}
+        old_move_ni_s = {}
         for link in ni_necked.links:
             assert not link.stable, 'Stable link was found when makes neck'
-            ni_s_for_reconnect.add(link.opposite_ni(ni_necked))
-            self._disconnect_nodes(*link.ni_s)
+            ni = link.opposite_ni(ni_necked)
+            ni_s_for_reconnect.add(ni)
+            link_nis_before[ni], old_move_ni_s[ni] = self._disconnect_nodes(*link.ni_s)
         for ni_for_reconnect in ni_s_for_reconnect:
-            self.connect_nodes(ni_instead_necked, ni_for_reconnect)
+            link_after = self.connect_nodes(ni_instead_necked, ni_for_reconnect)
+            self.am.replace_link(link_nis_before[ni_for_reconnect], old_move_ni_s[ni_for_reconnect], {link_after})
         self.connect_nodes(insertion_node.opposite_ni(ni_instead_necked), ni_necked, make_between_stable)
         return insertion_node
 
     @strictly_typed
     def aggregate(self, insert_pg: BasePolarGraph,
                   ni_for_pu_connect: PGNodeInterface = None, ni_for_nd_connect: PGNodeInterface = None) -> None:
-        # insert_pg = deepcopy(insert_pg)
         if (ni_for_pu_connect is None) and (ni_for_nd_connect is None):
             new_node = self.insert_node_neck(self.inf_node_nd.ni_pu)
             ni_for_pu_connect = new_node.ni_nd
@@ -814,22 +821,28 @@ class BasePolarGraph(PolarGraph):
             link = ni_for_pu_connect.links.pop()
             assert {ni_for_pu_connect, ni_for_nd_connect} == set(link.ni_s), 'Old ni_s should be connected between'
         old_links_pu_connection = insert_pg.inf_node_pu.ni_nd.links
-        ni_s_for_pu_connection = {link.opposite_ni(insert_pg.inf_node_pu.ni_nd) for link in old_links_pu_connection}
         old_links_nd_connection = insert_pg.inf_node_nd.ni_pu.links
-        ni_s_for_nd_connection = {link.opposite_ni(insert_pg.inf_node_nd.ni_pu) for link in old_links_nd_connection}
         self._disconnect_nodes(ni_for_pu_connect, ni_for_nd_connect)
-        for link in old_links_pu_connection | old_links_nd_connection:
-            insert_pg._disconnect_nodes(*link.ni_s)
         for node in insert_pg.not_inf_nodes:
             node.base_polar_graph = self
         self.nodes |= insert_pg.not_inf_nodes
-        for ni in ni_s_for_pu_connection:
-            self.connect_nodes(ni, ni_for_pu_connect)
-        for ni in ni_s_for_nd_connection:
-            self.connect_nodes(ni, ni_for_nd_connect)
+        for old_link in old_links_pu_connection:
+            _, move_ni_s = insert_pg._disconnect_nodes(*old_link.ni_s)
+            ni = old_link.opposite_ni(insert_pg.inf_node_pu.ni_nd)
+            new_link = self.connect_nodes(ni, ni_for_pu_connect)
+            self.am.replace_link(old_link, move_ni_s, {new_link})
+        for old_link in old_links_nd_connection:
+            _, move_ni_s = insert_pg._disconnect_nodes(*old_link.ni_s)
+            ni = old_link.opposite_ni(insert_pg.inf_node_nd.ni_pu)
+            new_link = self.connect_nodes(ni, ni_for_nd_connect)
+            self.am.replace_link(old_link, move_ni_s, {new_link})
         self.links |= insert_pg.links
         self.link_groups |= insert_pg.link_groups
         self.moves |= insert_pg.moves
+
+        self.am.aggregate_refresh_cells(insert_pg.am, insert_pg.not_inf_nodes)
+        self.am.aggregate_refresh_cells(insert_pg.am, insert_pg.links)
+        self.am.aggregate_refresh_cells(insert_pg.am, insert_pg.moves)
 
     def _refresh_link_groups_links_moves(self):
         self._links.clear()
@@ -871,7 +884,7 @@ class AssociationsManager:
     def __init__(self, bpg: BasePolarGraph) -> None:
         self._base_polar_graph = bpg
 
-        self._cells = {}
+        self._cell_dicts = {}
 
         self._node_assoc_class = None
         self._link_assoc_class = None
@@ -899,21 +912,76 @@ class AssociationsManager:
 
     @property
     @strictly_typed
-    def cells(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, Cell]]:
-        return copy(self._cells)
+    def cell_dicts(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, Cell]]:
+        return copy(self._cell_dicts)
 
-    # @cells.setter
+    # @cell_dicts.setter
     # @strictly_typed
-    # def cells(self, val: dict[Union[PolarNode, PGLink, PGMove], dict[str, Cell]]) ->  None:
-    #     return copy(self._cells)
+    # def cell_dicts(self, val: dict[Union[PolarNode, PGLink, PGMove], dict[str, Cell]]) -> None:
+    #     self._cell_dicts = val
+
+    # @strictly_typed
+    # def remove_link_get_assoc(self, link: PGLink) -> Optional[tuple[dict[str, Cell],
+    #                                                                 tuple[dict[PGNodeInterface, dict[str, Cell]],
+    #                                                                       dict[PGNodeInterface, dict[str, Cell]]]]]:
+    #     if link not in self.cell_dicts:
+    #         return None
+    #     link_dict = self.cell_dicts[link]
+    #     moves = (ni.get_move(link) for ni in link.ni_s)
+    #     ni_moves: tuple[dict[PGNodeInterface, PGMove], dict[PGNodeInterface, PGMove]] = \
+    #         tuple({ni: ni.get_move(link)} for ni in link.ni_s)
+    #     ni_moves_dicts: tuple[dict[PGNodeInterface, dict[str, Cell]], dict[PGNodeInterface, dict[str, Cell]]] = \
+    #         tuple(({ni: self.cell_dicts[move]} for ni, move in ni_move.items()) for ni_move in ni_moves)
+    #     self.cell_dicts.pop(link)
+    #     for move in moves:
+    #         self.cell_dicts.pop(move)
+    #     return link_dict, ni_moves_dicts
 
     @strictly_typed
-    def refresh_associations(self):
-        for element_type in self.dict_storage_attribute:
-            storage = getattr(self.base_polar_graph, self.dict_storage_attribute[element_type])
-            for element in storage:
-                if element not in self.cells:
-                    self._cells.pop(element)
+    def replace_link(self, link_before: PGLink,
+                     moves_before: tuple[dict[PGNodeInterface, PGMove], dict[PGNodeInterface, PGMove]],
+                     links_after: Iterable[PGLink]) -> None:
+        link_dict = None
+        # if self.cell_dicts is None:
+        #     return
+        if link_before in self.cell_dicts:
+            link_dict = self.cell_dicts[link_before]
+        ni_moves_dicts = []
+        for ni_move_dict in moves_before:
+            ni, move = set(ni_move_dict.items()).pop()
+            if move in self.cell_dicts:
+                ni_moves_dicts.append({ni: self.cell_dicts[move]})
+        ni_s_before = link_before.ni_s
+        ni_s_found = set()
+        # print('link_before', link_before)
+        for link_after in links_after:
+            # print('link_after', link_after)
+            assert link_after not in self.cell_dicts, 'Link after already in cells'
+            if not (link_dict is None):
+                self._cell_dicts[link_after] = link_dict
+            for ni in ni_s_before:
+                if ni in link_after.ni_s:
+                    ni_s_found.add(ni)
+                    move_after = ni.get_move(link_after)
+                    for ni_move_dict in ni_moves_dicts:
+                        if ni in ni_move_dict:
+                            self._cell_dicts[move_after] = ni_move_dict[ni]
+                            ni_moves_dicts.remove(ni_move_dict)
+        # print(ni_s_found, link_before.ni_s)
+        # assert ni_s_found == set(link_before.ni_s), 'Not all ni_s found'
+
+    @strictly_typed
+    def aggregate_refresh_cells(self, old_am: AssociationsManager,
+                                elements: Iterable[Union[PolarNode, PGLink, PGMove]]) -> None:
+        # print('cell dict', self.cell_dicts)
+        for element in elements:
+            assert element not in self.cell_dicts, 'Element already in current am'
+            if element not in old_am.cell_dicts:
+                continue
+            # if type(element) == PGMove:
+            #     print('refresh move 2')
+            self._cell_dicts[element] = old_am.cell_dicts[element]
+        # print('cellafter', self.cell_dicts)
 
     @strictly_typed
     def create_cell(self, element: Union[PolarNode, PGLink, PGMove],
@@ -928,11 +996,12 @@ class AssociationsManager:
             assert len(poss_str) == 1, \
                 'Context should be specified, more then 1 values: {}'.format(poss_str)
             context = set(poss_str).pop()
-        if not (element in self.cells):
-            self._cells[element] = {}
-        assert not (context in self.cells[element]), 'Context {} for element {} already exists'.format(context, element)
+        if not (element in self.cell_dicts):
+            self._cell_dicts[element] = {}
+        assert not (context in self.cell_dicts[element]), 'Context {} for element {} already exists'.format(context,
+                                                                                                            element)
         cell = Cell(name, str_value, checker, auto_setter)
-        self.cells[element][context] = cell
+        self.cell_dicts[element][context] = cell
         return cell
 
     @property
@@ -1028,12 +1097,12 @@ class AssociationsManager:
     @strictly_typed
     def get_elm_cell_by_context(self, element: Union[PolarNode, PGLink, PGMove], context: Optional[str] = None) \
             -> Optional[Cell]:
-        if element not in self.cells:
+        if element not in self.cell_dicts:
             return
         if context is None:
-            assert len(self.cells[element]) == 1, 'Context of element {} should be specified'.format(element)
-            return set(self.cells[element].values()).pop()
-        return self.cells[element][context]
+            assert len(self.cell_dicts[element]) == 1, 'Context of element {} should be specified'.format(element)
+            return set(self.cell_dicts[element].values()).pop()
+        return self.cell_dicts[element][context]
 
     @strictly_typed
     def get_single_elm_by_cell_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
@@ -1076,23 +1145,26 @@ class AssociationsManager:
         assert len(self.curr_context[element_type]) == 1, 'More then 1 value of context {}'.format(element_type)
         context = self.curr_context[element_type].pop()
         for element in storage:
-            if (element not in self.cells) or (context not in self.cells[element]):
+            if (element not in self.cell_dicts) or (context not in self.cell_dicts[element]):
                 continue
-            cell = self.cells[element][context]
+            cell = self.cell_dicts[element][context]
             self.access_function(cell, value)
 
     @strictly_typed
     def extract_route_content(self, route: PGRoute) -> list[set[Cell]]:
         result = []
+        # for i in self.cell_dicts:
+        #     print('cell_dict = ', i)
         for element in route.sequence:
             element_result = set()
-            if (type(element) not in self.curr_context) or (element not in self.cells):
+            # print('element = ', element)
+            if (type(element) not in self.curr_context) or (element not in self.cell_dicts):
                 continue
             contexts_set = self.curr_context[type(element)]
             for context in contexts_set:
-                if context not in self.cells[element]:
+                if context not in self.cell_dicts[element]:
                     continue
-                element_result.add(self.cells[element][context])
+                element_result.add(self.cell_dicts[element][context])
             result.append(element_result)
         return result
 
