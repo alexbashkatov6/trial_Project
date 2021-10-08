@@ -211,7 +211,7 @@
     #                 result.add(element_result)
     #     return result
     #
-    # ------------------------------
+    # ---------------------------- PGGraphMovesState -----------------------
 
 #    class PGGraphMovesState:
 #
@@ -234,3 +234,48 @@
 #     def reset_state(self) -> None:
 #         for move in self._moves:
 #             move.ni.choice_move_activate(move)
+
+# ---------------------------------- str to obj ------------------------
+
+# @strictly_typed
+# def str_to_obj(str_value: str, req_cls_str: str) -> tuple[Any, bool]:
+#     success = True
+#
+#     if not str_value or str_value.isspace():
+#         return None, success
+#
+#     req_cls = get_class_by_str(req_cls_str)
+#
+#     if req_cls == str:
+#         return str_value, success
+#
+#     if req_cls and issubclass(req_cls, BoundedStringSet):
+#         if str_value in req_cls.possible_strings:
+#             return req_cls(str_value), success
+#         else:
+#             return str_value, not success
+#
+#     str_with_replaced_id = str_value
+#     found_identifier_candidates = re.findall(r'\w+', str_value)
+#     for fic in found_identifier_candidates:
+#         if fic in GNM.name_to_obj:
+#             str_with_replaced_id = str_with_replaced_id.replace(fic, 'GNM.name_to_obj["{}"]'.format(fic))
+#     try:
+#         obj = eval(str_with_replaced_id)
+#     except NameError:
+#         return str_value, not success
+#     else:
+#         if type_verification(req_cls_str, obj):
+#             return obj, success
+#         else:
+#             return str_value, not success
+#
+#
+# def obj_to_str(obj) -> str:
+#     if obj is None:
+#         return ''
+#
+#     if type(obj) == type:
+#         return obj.__name__
+#
+#     return str(obj)

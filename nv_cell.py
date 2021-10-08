@@ -72,6 +72,18 @@ def default_syntax_checker(value: str) -> Any:
         return eval_result
 
 
+def splitter_syntax_checker(value: str, cls: type):
+    if value not in cls.possible_strings:
+        raise SyntaxCellError('Value of splitter not in possible values{}'.format(cls.possible_strings))
+    return value
+
+
+def bool_syntax_checker(value: str, cls: type):
+    if value not in cls.possible_strings:
+        raise SyntaxCellError('Value of splitter not in possible values {}'.format(cls.possible_strings))
+    return eval(value)
+
+
 def name_syntax_checker(value: str, cls: type) -> str:
     prefix = cls.__name__ + '_'
     if not re.fullmatch(r'\w+', value):
@@ -136,50 +148,6 @@ class NameDescriptor:
         GNM.register_obj_name(instance, name_candidate)
 
 
-@strictly_typed
-def str_to_obj(str_value: str, req_cls_str: str) -> tuple[Any, bool]:
-    success = True
-
-    if not str_value or str_value.isspace():
-        return None, success
-
-    req_cls = get_class_by_str(req_cls_str)
-
-    if req_cls == str:
-        return str_value, success
-
-    if req_cls and issubclass(req_cls, BoundedStringSet):
-        if str_value in req_cls.possible_strings:
-            return req_cls(str_value), success
-        else:
-            return str_value, not success
-
-    str_with_replaced_id = str_value
-    found_identifier_candidates = re.findall(r'\w+', str_value)
-    for fic in found_identifier_candidates:
-        if fic in GNM.name_to_obj:
-            str_with_replaced_id = str_with_replaced_id.replace(fic, 'GNM.name_to_obj["{}"]'.format(fic))
-    try:
-        obj = eval(str_with_replaced_id)
-    except NameError:
-        return str_value, not success
-    else:
-        if type_verification(req_cls_str, obj):
-            return obj, success
-        else:
-            return str_value, not success
-
-
-def obj_to_str(obj) -> str:
-    if obj is None:
-        return ''
-
-    if type(obj) == type:
-        return obj.__name__
-
-    return str(obj)
-
-
 class CellChecker:
     def __init__(self, f_check_syntax=None, f_check_type=None, f_check_semantic=None):
         self.f_check_syntax = f_check_syntax
@@ -205,6 +173,18 @@ class CellChecker:
 class NameCellChecker(CellChecker):
     def __init__(self, cls: type):
         super().__init__(partial(name_syntax_checker, cls=cls))
+
+
+class SplitterCellChecker(CellChecker):
+    def __init__(self, cls: type):
+        super().__init__(partial(splitter_syntax_checker, cls=cls))
+        self._req_class_str = cls.__name__
+
+
+class BoolCellChecker(CellChecker):
+    def __init__(self, cls: type):
+        super().__init__(partial(bool_syntax_checker, cls=cls))
+        self._req_class_str = cls.__name__
 
 
 class DefaultCellChecker(CellChecker):
@@ -284,7 +264,6 @@ class Cell:
     def activate(self):
         if self.value is None:
             self.auto_set_value()
-            self._is_suggested_value = True
         self._active = True
 
     def deactivate(self):
@@ -307,6 +286,10 @@ class Cell:
         return self._value
 
     def check_value(self):
+        if self.str_value == '':
+            self._status_check = ''
+            self._value = None
+            return
         if self.checker:
             try:
                 result = self.checker.check_value(self.str_value)
@@ -316,11 +299,15 @@ class Cell:
             else:
                 self._status_check = ''
                 self._value = result
+        else:
+            self._status_check = ''
+            self._value = self.str_value
 
     def auto_set_value(self):
         if self.auto_setter:
             self.str_value = self.auto_setter.get_auto_value()
             self.check_value()
+            self._is_suggested_value = True
 
     @property
     def req_class_str(self):

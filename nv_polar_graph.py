@@ -3,9 +3,9 @@ from copy import copy, deepcopy
 from functools import partial
 
 from nv_typing import *
-from nv_bounded_string_set_class import bounded_string_set  #
+from nv_bounded_string_set_class import bounded_string_set
 from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
-from nv_cell import Cell, CellChecker, AutoValueSetter  # , TypedCell
+from nv_cell import Cell, CellChecker, AutoValueSetter
 import nv_cell
 
 End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
@@ -270,18 +270,18 @@ class PGLink:
 
 
 class PolarNode:
-    name = nv_cell.NameDescriptor(-1)
+    # name = nv_cell.NameDescriptor(-1)
 
     @strictly_typed
     def __init__(self, bpg: BasePolarGraph) -> None:
-        self.name = 'auto_name'
+        # self.name = 'auto_name'
         self._base_polar_graph = bpg
         self._ni_negative_down, self._ni_positive_up = \
             PGNodeInterface(self, End('nd')), \
             PGNodeInterface(self, End('pu'))
 
-    def __repr__(self):
-        return self.name
+    # def __repr__(self):
+    #     return self.name
 
     @property
     @strictly_typed
@@ -314,10 +314,10 @@ class PolarNode:
 
 
 class PolarGraph:
-    name = nv_cell.NameDescriptor()
+    # name = nv_cell.NameDescriptor()
 
     def __init__(self, bpg: Optional[BasePolarGraph] = None):
-        self.name = 'auto_name'
+        # self.name = 'auto_name'
         if not bpg:
             assert self.__class__ == BasePolarGraph, 'Base graph should be specified'
             bpg = self
@@ -327,8 +327,8 @@ class PolarGraph:
         self._links = set()
         self._moves = set()
 
-    def __repr__(self):
-        return self.name
+    # def __repr__(self):
+    #     return self.name
 
     @property
     @strictly_typed
@@ -678,11 +678,11 @@ class PGRoute(PolarGraph):
 
 
 class BasePolarGraph(PolarGraph):
-    name = nv_cell.NameDescriptor()
+    # name = nv_cell.NameDescriptor()
 
     def __init__(self):
         super().__init__()
-        self.name = 'auto_name'
+        # self.name = 'auto_name'
 
         self._infinity_node_positive_up = self._init_node()
         self._infinity_node_negative_down = self._init_node()
@@ -693,8 +693,8 @@ class BasePolarGraph(PolarGraph):
         self.border_ni_s = {self.inf_node_pu.ni_nd, self.inf_node_nd.ni_pu}
         self.connect_nodes(*self.border_ni_s)
 
-    def __repr__(self):
-        return self.name
+    # def __repr__(self):
+    #     return self.name
 
     @strictly_typed
     def _init_node(self) -> PolarNode:
@@ -894,6 +894,7 @@ class AssociationsManager:
         self._dict_assoc_class = None
 
         self._find_function = self.default_find_function  # getter
+        self._filter_function = self.default_filter_function  # getter
         self._access_function = self.default_access_function  # setter
         self._curr_context = {}
 
@@ -907,6 +908,10 @@ class AssociationsManager:
         return x.name
 
     @staticmethod
+    def default_filter_function(x):
+        return x.active
+
+    @staticmethod
     def default_access_function(x, val):
         x.str_value = val
 
@@ -918,7 +923,7 @@ class AssociationsManager:
     @strictly_typed
     def get_old_link_change_associations(self, link_before: PGLink,
                                          moves_before: tuple[PGMove, PGMove],
-                                         old_am: Optional[AssociationsManager] = None)\
+                                         old_am: Optional[AssociationsManager] = None) \
             -> tuple[Optional[dict[str, Cell]], dict[PGMove, dict[str, Cell]]]:
         am = old_am if old_am else self
         link_dict = None
@@ -1033,6 +1038,16 @@ class AssociationsManager:
 
     @property
     @strictly_typed
+    def filter_function(self) -> Callable:
+        return self._filter_function
+
+    @filter_function.setter
+    @strictly_typed
+    def filter_function(self, value: Callable) -> None:
+        self._filter_function = value
+
+    @property
+    @strictly_typed
     def find_function(self) -> Callable:
         return self._find_function
 
@@ -1135,6 +1150,29 @@ class AssociationsManager:
                 return None
         assert len(found_elements) == 1, 'More then 1 element was found'
         return found_elements.pop()
+
+    @strictly_typed
+    def get_filter_all_cells(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
+                             given_elements: Optional[Iterable[Union[PolarNode, PGLink, PGMove]]] = None)\
+            -> set[Union[PolarNode, PGLink, PGMove]]:
+        if given_elements is None:
+            storage = getattr(self.base_polar_graph, self.dict_storage_attribute[element_type])
+        else:
+            assert all([issubclass(type(elt), element_type) for elt in given_elements]), 'Type <> type(elts)'
+            storage = given_elements
+        found_elements = set()
+        assert element_type in self.curr_context, 'Context not initialized for {}'.format(element_type)
+        context_set = self.curr_context[element_type]
+        assert len(context_set) == 1, 'More then 1 context in context set'
+        context = context_set.pop()
+        for element in storage:
+            context_result = self.get_elm_cell_by_context(element, context)
+            if context_result is None:
+                continue
+            func_value = self.filter_function(context_result)
+            if func_value:
+                found_elements.add(element)
+        return found_elements
 
     @strictly_typed
     def apply_sbg_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
