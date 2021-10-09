@@ -1,5 +1,4 @@
 from __future__ import annotations
-from collections import OrderedDict
 import re
 
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
@@ -13,8 +12,7 @@ from nv_polar_graph import (End,
                             PGMove,
                             PGRoute)
 from nv_attribute_format import BSSAttributeType, AttributeFormat
-from nv_cell import Cell, DefaultCellChecker, NameCellChecker, SplitterCellChecker, BoolCellChecker, NameAutoSetter
-import nv_cell
+from nv_cell import Cell, DefaultCellChecker, NameCellChecker, SplitterCellChecker, BoolCellChecker, NameAutoSetter, GNM
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
@@ -100,6 +98,21 @@ class AttribBuildGraphTemplDescr:
             a_m.create_cell(node_co_x, 'co_x', BoolCellChecker(BSSBool), 'True')
             a_m.create_cell(node_co_y, 'co_y', BoolCellChecker(BSSBool), 'True')
 
+        if owner == Point:
+            node_rel_cs, _, _ = g_b_t.insert_node_single_link()
+
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+
+        if owner == Line:
+            node_rel_cs, _, _ = g_b_t.insert_node_single_link()
+
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+
+        if owner == GroundLine:
+            node_rel_cs, _, _ = g_b_t.insert_node_single_link()
+
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+
         expand_splitters(g_b_t)
         init_splitter_move_activation(g_b_t)
         instance._graph_build_template = g_b_t
@@ -144,112 +157,10 @@ class AttribCommonGraphTemplDescr:
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
 
 
-# class AttribDescriptor:
-#
-#     def __get__(self, instance, owner=None) -> Union[list[AttributeFormat], AttribDescriptor]:
-#         if instance is None:
-#             return self
-#         g_t = instance.graph_template
-#
-#     def __set__(self, instance, value):
-#         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
-
-
-# class AttribDescriptor:
-#
-#     def __get__(self, instance, owner=None) -> Union[list[AttributeFormat], AttribDescriptor]:
-#         if instance is None:
-#             return self
-#         g_t = instance.graph_template
-#         route_from_to_: PGRoute = g_t.free_roll(g_t.inf_node_pu.ni_nd)
-#         route_result_ = g_t.am.extract_route_content(route_from_to_)
-#         formatted_result: list[AttributeFormat] = []
-#         # splitter_cells_set = {i[1] for i in get_splitter_nodes_cells(g_t)}
-#         # for i, set_cells in enumerate(route_result_):
-#         #     if not set_cells:
-#         #         continue
-#         #     cell = set_cells.pop()
-#         #     if cell not in splitter_cells_set:
-#         #         if cell.checker is None:
-#         #             af = AttributeFormat(BSSAttributeType('title'), cell.name)
-#         #         else:
-#         #             af = AttributeFormat(BSSAttributeType('value'), cell.name, cell.str_value)
-#         #     else:
-#         #         str_value = route_result_[i + 1].pop().name
-#         #         cls = get_class_by_str(cell.required_type)
-#         #         cell.str_value = str_value
-#         #         cell.check_value()
-#         #         af = AttributeFormat(BSSAttributeType('splitter'), cell.name, cell.str_value, cls.unique_values)
-#         #     af.status_check = cell.status_check
-#         #     formatted_result.append(af)
-#         return formatted_result
-#
-#     def __set__(self, instance, value):
-#         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
-
-
-# class CellsDescriptor:
-#
-#     def __get__(self, instance, owner=None) -> Union[list[Cell], CellsDescriptor]:
-#         if instance is None:
-#             return self
-#         g_t = instance.graph_build_template
-#         route_from_to_: PGRoute = g_t.free_roll(g_t.inf_node_pu.ni_nd)
-#         route_result_ = g_t.am.extract_route_content(route_from_to_)
-#         return [set_cell.pop() for set_cell in route_result_]
-#
-#     def __set__(self, instance, value):
-#         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
-
-
-# class SplitterValuesDescriptor:
-#
-#     def __get__(self, instance, owner=None) -> Union[OrderedDict[str, str], SplitterValuesDescriptor]:
-#         if instance is None:
-#             return self
-#         g_t = instance.graph_build_template
-#         all_splitter_cells = {node_cell[1] for node_cell in get_splitter_nodes_cells(g_t)}
-#         od = OrderedDict()
-#         for cell in instance.cells_route:
-#             if cell in all_splitter_cells:
-#                 od[cell.name] = str(cell.value)
-#         return od
-#
-#     def __set__(self, instance, value):
-#         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
-
-
 class AttrControlObject:
-    # name = nv_cell.NameDescriptor()
-    # cells_route = CellsDescriptor()
-    # splitter_values = SplitterValuesDescriptor()
 
     graph_build_template = AttribBuildGraphTemplDescr()
     graph_template = AttribCommonGraphTemplDescr()
-    # graph_attr = AttribDescriptor()
-
-    # def __init__(self):
-    #     self.name = 'auto_name'
-
-    # def __repr__(self):
-    #     return self.name
-
-    # def change_value(self, af: AttributeFormat):
-    #     am = self.graph_build_template.am
-    #     node = am.get_single_elm_by_cell_content(PolarNode, af.attr_name)
-    #     cell: Cell = am.get_elm_cell_by_context(node)
-    #     if str(af.attr_type) in {'splitter', 'value'}:
-    #         if af.attr_type == 'splitter':
-    #             move = am.get_single_elm_by_cell_content(PGMove, af.attr_value, node.ni_nd.moves)
-    #             node.ni_nd.choice_move_activate(move)
-    #         cell.candidate_value = af.attr_value
-    #         cell.evaluate(nv_cell.str_to_obj)
-    #
-    # def create_object(self):
-    #     if not all([cell.status_check == '' for cell in self.cells_route]):
-    #         return
-    #     for cell in self.cells_route:
-    #         setattr(self, cell.name, cell.value)
 
 
 class CoordinateSystem(AttrControlObject):
@@ -277,8 +188,12 @@ class CommonAttributeInterface(QObject):
     def __init__(self):
         super().__init__()
         self._current_object = None
-        self._is_new_object = True
+        self._is_new_object = False
         self._create_readiness = False
+
+    @property
+    def is_new_object(self) -> bool:
+        return self._is_new_object
 
     @property
     def current_object(self) -> Optional[AttrControlObject]:
@@ -289,7 +204,7 @@ class CommonAttributeInterface(QObject):
         self._current_object = value
 
     def form_attrib_list(self):
-        AFList: list[AttributeFormat] = []
+        af_list: list[AttributeFormat] = []
         curr_obj = self.current_object
         if curr_obj is None:
             self.send_attrib_list.emit(self.default_attrib_list)
@@ -321,15 +236,23 @@ class CommonAttributeInterface(QObject):
                 cell.activate()
             cell.check_value()
             af.status_check = cell.status_check
-            AFList.append(af)
+            af_list.append(af)
 
-        self.send_attrib_list.emit(AFList)
-        print(AFList)
+        self.send_attrib_list.emit(af_list)
+        print(af_list)
+
+    @pyqtSlot(str)
+    def change_current_object(self, obj_name: str):
+        self.current_object = GNM.name_to_obj(obj_name)
+        self._is_new_object = False
+        self.form_attrib_list()
 
     @pyqtSlot(str)
     def create_new_object(self, obj_type: str):
+        print('In create new object', obj_type)
         new_object = eval(obj_type)()
         self.current_object = new_object
+        self._is_new_object = True
         self.form_attrib_list()
 
     @pyqtSlot(str, str)
@@ -358,9 +281,7 @@ class CommonAttributeInterface(QObject):
         self.create_readiness.emit(self._create_readiness)
         return self._create_readiness
 
-    def create_obj_attributes(self, assertion_about_defined=True):
-        if assertion_about_defined:
-            assert self.check_all_values_defined, 'Not all values defined'
+    def create_obj_attributes(self):  # , assertion_about_defined=True
         curr_obj = self.current_object
         for active_cell in self.get_active_cells():
             assert re.fullmatch(r'\w+', active_cell.name), 'Name {} for attr is not possible'.format(active_cell.name)
@@ -368,7 +289,13 @@ class CommonAttributeInterface(QObject):
 
     @pyqtSlot()
     def apply_changes(self):
-        pass
+        if self.check_all_values_defined():
+            co = self.current_object
+            self.create_obj_attributes()
+            GDM.add_new_instance(co)
+            GDM.add_to_tree_graph(co)
+            GNM.register_obj_name(co, co.name)
+        self._is_new_object = False
 
 
 CAI = CommonAttributeInterface()
@@ -381,12 +308,18 @@ class GlobalDataManager:
         self._dependence_graph = BasePolarGraph()
         self._field_graph = BasePolarGraph()
 
+        self._class_instances: dict[str, set[AttrControlObject]] = {}
+
         self.init_tree_graph()
         self.init_dependence_graph()
-        self.init_field_graph()
 
-        self._class_instances: dict[str, set[AttrControlObject]] = {}
-        self._current_edit_object = None
+        self._gcs = None
+        self.init_field_graph()
+        self.init_global_coordinate_system()
+
+    @property
+    def class_instances(self):
+        return self._class_instances
 
     @property
     def tree_graph(self):
@@ -416,6 +349,22 @@ class GlobalDataManager:
         a_m.link_assoc_class = FieldLinkAssociation
         a_m.move_assoc_class = FieldMoveAssociation
         a_m.auto_set_curr_context()
+
+    def init_global_coordinate_system(self):
+        self._gcs = CoordinateSystem()
+        self._gcs.name = 'CoordinateSystem_Global'
+        GNM.register_obj_name(self._gcs, 'CoordinateSystem_Global')
+        self.add_new_instance(self._gcs)
+
+    @property
+    def gcs(self) -> CoordinateSystem:
+        return self._gcs
+
+    def add_new_instance(self, obj: AttrControlObject):
+        cls_name = obj.__class__.__name__
+        if cls_name not in self._class_instances:
+            self._class_instances[cls_name] = set()
+        self._class_instances[cls_name].add(obj)
 
     def add_to_tree_graph(self, obj: AttrControlObject):
         tg = self.tree_graph
@@ -461,15 +410,26 @@ if __name__ == '__main__':
 
         # print(nv_cell.GNM.name_to_obj)
 
-        CAI.current_object = GCS
-        CAI.form_attrib_list()
+        # CAI.current_object = GCS
+        # CAI.form_attrib_list()
         # print(GCS.graph_template.am.get_filter_all_cells(PolarNode))
-        CAI.create_obj_attributes(False)
-        print(GCS.__dict__)
+        # CAI.create_obj_attributes(False)
+        # print(GCS.__dict__)
 
-        # CAI.slot_change_value('dependence', 'dependent')
-        # CAI.slot_change_value('cs_relative_to', 'BasePolarGraph_2')
-        # CAI.slot_change_value('x', '2')
+        CAI.create_new_object('Line')
+
+        CAI.create_new_object('CoordinateSystem')
+        CAI.slot_change_value('dependence', 'dependent')
+        CAI.slot_change_value('name', 'CoordinateSystem_5')
+        CAI.slot_change_value('x', '2')
+        CAI.slot_change_value('y', '6')
+        CAI.slot_change_value('cs_relative_to', 'CoordinateSystem_Global')
+
+        print(CAI.check_all_values_defined())
+        CAI.apply_changes()
+        print(GNM.name_to_obj)
+        print(GDM.class_instances)
+        print(GDM.tree_graph.nodes)
 
         # g_t_2 = GCS.graph_build_template
         # a_m_2 = g_t_2.am
