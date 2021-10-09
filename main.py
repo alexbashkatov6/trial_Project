@@ -14,14 +14,8 @@ class Director(QObject):
         self.mm = MessagesManager(self.mw)
         self.cai = CommonAttributeInterface()
 
-        self.set_connections()
-
-    def set_connections(self):
-        self.mw.ttb.sendClassName.connect(self.mw.ce.setClassName)
-        self.mw.ce.sendClassNameStr.connect(self.mw.rtb.setClassName)
-        self.mw.ce.sendAttribsStructure.connect(self.mw.rtb.setAttrStruct)
-        # print(self.cai)
         self.mw.ttb.sendClassName.connect(self.cai.create_new_object)
+        self.cai.send_attrib_list.connect(self.mw.rtb.set_attr_struct)
 
 
 if __name__ == '__main__':

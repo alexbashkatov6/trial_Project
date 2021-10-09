@@ -1,6 +1,3 @@
-import current_edit as ce
-from sm_attrib_cell import ComplexAttrib, AttribGroup, CompetitorAttribGroup
-
 import os
 import re
 
@@ -21,7 +18,6 @@ class ToolBarOfClasses(QToolBar):
         self.qb_list = []
 
     def extract_pictures(self, classes_names):
-        # pictures for tool icons extracting
         pic_names = {}
         nums_of_pict = []
         root_path = os.getcwd()
@@ -58,107 +54,34 @@ class ToolBarOfClasses(QToolBar):
         self.sendClassName.emit(long_name[long_name.index('_') + 1:])
 
 
-class AttribRow(QHBoxLayout):
-    def __init__(self, class_mode=True):
-        super().__init__()
-        self.attrName = ''
-        self.attrValue = ''
-        self.labelWidget = QLabel(self.attrName)
-        self.textEditWidget = QLineEdit(self.attrValue)
-        self.addWidget(self.labelWidget)
-        self.addWidget(self.textEditWidget)
-        self.widgetsList = [self.labelWidget, self.textEditWidget]
-
-        assert type(class_mode) == bool, 'Bool is expected'
-        if class_mode:
-            self.textEditWidget.setReadOnly(True)
-            self.textEditWidget.setStyleSheet("background-color: grey")
-
-    def set_name_text(self, val):
-        assert type(val) == str, 'Str is expected'
-        self.labelWidget.setText(val)
-
-    def set_value_text(self, val):
-        assert type(val) == str, 'Str is expected'
-        self.textEditWidget.setText(val)
-
-
-class ComboRow(QHBoxLayout):
-    def __init__(self, class_mode=True):
-        super().__init__()
-        self.comboName = ''
-        self.labelWidget = QLabel(self.comboName)
-        self.comboWidget = QComboBox()
-        self.addWidget(self.labelWidget)
-        self.addWidget(self.comboWidget)
-        self.widgetsList = [self.labelWidget, self.comboWidget]
-
-        assert type(class_mode) == bool, 'Bool is expected'
-        if class_mode:
-            self.comboWidget.setDisabled(True)
-
-    def set_combo_name(self, val):
-        assert type(val) == str, 'Str is expected'
-        self.labelWidget.setText(val + ':')
-
-    def add_combo_value(self, val):
-        assert type(val) == str, 'Str is expected'
-        self.comboWidget.addItem(val)
-
-
-class CreationButtonLayout(QHBoxLayout):
-    def __init__(self, class_mode=True):
-        super().__init__()
-        self.buttonWidget = QPushButton('Create/Apply')
-        self.addWidget(self.buttonWidget)
-        self.widgetsList = [self.buttonWidget]
-
-        assert type(class_mode) == bool, 'Bool is expected'
-        if class_mode:
-            self.buttonWidget.setDisabled(True)
-
-
 class AttribColumn(QVBoxLayout):
-    def __init__(self):
-        super().__init__()
-        self.layoutList = []
-
-    def addLayout(self, layout, stretch=0):
-        self.layoutList.append(layout)
-        super().addLayout(layout, stretch)
-
-    def removeItem(self, a0):
-        if type(a0) in [AttribRow, ComboRow, CreationButtonLayout]:
-            for wgt in a0.widgetsList:
-                wgt.hide()
-        super().removeItem(a0)
-
-    def initFromContainer(self, containerList, initEnter=True, classMode=True):
-        assert type(containerList) == list, 'List is expected'
-        assert all(map(lambda i: type(i) in [ComplexAttrib, CompetitorAttribGroup], containerList)), \
-            'Expected attrib types'
-        if initEnter:
-            self.clean()
-        for item in containerList:
-            if type(item) == ComplexAttrib:
-                new_row = AttribRow(classMode)
-                self.addLayout(new_row)
-                new_row.set_name_text(item.name)
-            if type(item) == CompetitorAttribGroup:
-                new_row = ComboRow(classMode)
-                self.addLayout(new_row)
-                new_row.set_combo_name(item.name)
-                group = item.attribGroups[0]
-                new_row.add_combo_value(group.name)
-                self.initFromContainer(group.complexAttribs, False)
-        if initEnter:
-            crButL = CreationButtonLayout(classMode)
-            self.addLayout(crButL)
 
     def clean(self):
-        for layout in self.layoutList:
-            self.removeItem(layout)
-        self.layoutList.clear()
+        for layout in self.children():
+            index = layout.count()
+            while index > 0:
+                my_widget = layout.itemAt(index-1).widget()
+                my_widget.setParent(None)
+                index -= 1
+
+    def init_from_container(self, af_list):
+        self.clean()
+        for af in af_list:
+            attr_layout = QHBoxLayout()
+            if af.attr_type == 'title':
+                attr_layout.addWidget(QLabel(af.attr_name))
+            if af.attr_type == 'splitter':
+                attr_layout.addWidget(QLabel(af.attr_name))
+                cb = QComboBox()
+                cb.addItems(af.possible_values)
+                cb.setCurrentText(af.attr_value)
+                attr_layout.addWidget(cb)
+            if af.attr_type == 'value':
+                attr_layout.addWidget(QLabel(af.attr_name))
+                attr_layout.addWidget(QLineEdit(af.attr_value))
+            self.addLayout(attr_layout)
+
+# QPushButton('Create/Apply')
 
 
 class ToolBarOfAttribs(QToolBar):
@@ -185,6 +108,10 @@ class ToolBarOfAttribs(QToolBar):
     @pyqtSlot(list)
     def setAttrStruct(self, val):
         self.attribsColumn.initFromContainer(val)
+
+    @pyqtSlot(list)
+    def set_attr_struct(self, af_list):
+        self.attribsColumn.init_from_container(af_list)
 
 
 class ToolBarOfObjects(QToolBar):
@@ -222,11 +149,12 @@ class MW(QMainWindow):
         # self.qp.end()
 
         # ce
-        self.ce = ce.CurrentEdit()
+        # self.ce = ce.CurrentEdit()
 
         # Top tool bar format
         self.ttb = ToolBarOfClasses()
-        self.ttb.extract_pictures(self.ce.extractedClasses)
+        # self.ttb.extract_pictures(self.ce.extractedClasses)
+        self.ttb.extract_pictures(['CoordinateSystem', 'Point', 'Line', 'GroundLine'])
         self.ttb.construct_widget(top_toolbar_min_height_width)
 
         # Right tool bar format
