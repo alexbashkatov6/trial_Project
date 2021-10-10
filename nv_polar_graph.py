@@ -1,6 +1,7 @@
 from __future__ import annotations
 from copy import copy, deepcopy
 from functools import partial
+import time
 
 from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set
@@ -603,25 +604,6 @@ class PGRoute(PolarGraph):
     def sequence(self) -> list[Union[PolarNode, PGLink, PGMove]]:
         return self._sequence
 
-    @sequence.setter
-    @strictly_typed
-    def sequence(self, value: list[Union[PolarNode, PGLink, PGMove]]) -> None:
-        if value:
-            self.check_sequence(value)
-        self._sequence = value
-
-    @staticmethod
-    @strictly_typed
-    def check_sequence(seq: list) -> None:
-        assert len(seq) % 4 == 1, 'Len of list is not (4n+1)'
-        for index, element in enumerate(seq):
-            if index % 4 == 0:
-                assert isinstance(element, PolarNode)
-            elif index % 4 == 2:
-                assert isinstance(element, PGLink)
-            else:
-                assert isinstance(element, PGMove)
-
     @strictly_typed
     def compose(self, nodes: list[PolarNode], links: list[PGLink], moves: list[PGMove]) -> None:
         nodes_r = list(reversed(nodes))
@@ -635,21 +617,8 @@ class PGRoute(PolarGraph):
                 self._sequence.append(links_r.pop())
             else:
                 self._sequence.append(moves_r.pop())
-        self._nodes, self._links, self._moves = [set(i) for i in self.decompose()]
-        self._ordered_nodes, _, _ = [list(i) for i in self.decompose()]
-
-    @strictly_typed
-    def decompose(self) -> tuple[list[PolarNode], list[PGLink], list[PGMove]]:
-        nodes, links, moves = [], [], []
-        seq_r = list(reversed(self._sequence))
-        for index in range(len(self._sequence)):
-            if index % 4 == 0:
-                nodes.append(seq_r.pop())
-            elif index % 4 == 2:
-                links.append(seq_r.pop())
-            else:
-                moves.append(seq_r.pop())
-        return nodes, links, moves
+        self._nodes, self._links, self._moves = set(nodes), set(links), set(moves)
+        self._ordered_nodes = nodes
 
     @property
     @strictly_typed
@@ -811,6 +780,7 @@ class BasePolarGraph(PolarGraph):
     @strictly_typed
     def aggregate(self, insert_pg: BasePolarGraph,
                   ni_for_pu_connect: PGNodeInterface = None, ni_for_nd_connect: PGNodeInterface = None) -> None:
+        # start_time = time.time()
         if (ni_for_pu_connect is None) and (ni_for_nd_connect is None):
             new_node = self.insert_node_neck(self.inf_node_nd.ni_pu)
             ni_for_pu_connect = new_node.ni_nd
@@ -826,6 +796,7 @@ class BasePolarGraph(PolarGraph):
         for node in insert_pg.not_inf_nodes:
             node.base_polar_graph = self
         self.nodes |= insert_pg.not_inf_nodes
+        # print('before old_link in = ', time.time()-start_time)
         for old_link in old_links_pu_connection:
             _, move_ni_s = insert_pg._disconnect_nodes(*old_link.ni_s)
             ni = old_link.opposite_ni(insert_pg.inf_node_pu.ni_nd)
@@ -836,13 +807,16 @@ class BasePolarGraph(PolarGraph):
             ni = old_link.opposite_ni(insert_pg.inf_node_nd.ni_pu)
             new_link = self.connect_nodes(ni, ni_for_nd_connect)
             self.am.replace_link_after_node_change(old_link, move_ni_s, new_link, insert_pg.am)
+        # print('before links = ', time.time()-start_time)
         self.links |= insert_pg.links
         self.link_groups |= insert_pg.link_groups
         self.moves |= insert_pg.moves
 
-        self.am.aggregate_refresh_cells(insert_pg.am, insert_pg.not_inf_nodes)
-        self.am.aggregate_refresh_cells(insert_pg.am, insert_pg.links)
-        self.am.aggregate_refresh_cells(insert_pg.am, insert_pg.moves)
+        # print('before ins_am = ', time.time()-start_time)
+        ins_am = insert_pg.am
+        # print('before refresh_cells = ', time.time()-start_time)
+        self.am.aggregate_refresh_cells(ins_am, insert_pg.not_inf_nodes | insert_pg.not_inf_nodes | insert_pg.moves)
+        # print('end aggregate = ', time.time()-start_time)
 
     def _refresh_link_groups_links_moves(self):
         self._links.clear()
@@ -916,7 +890,7 @@ class AssociationsManager:
         x.str_value = val
 
     @property
-    @strictly_typed
+    # @strictly_typed
     def cell_dicts(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, Cell]]:
         return copy(self._cell_dicts)
 
@@ -983,11 +957,19 @@ class AssociationsManager:
     @strictly_typed
     def aggregate_refresh_cells(self, old_am: AssociationsManager,
                                 elements: Iterable[Union[PolarNode, PGLink, PGMove]]) -> None:
+        # start_time = time.time()
         for element in elements:
+            # print('before assert = ', time.time()-start_time)
             assert element not in self.cell_dicts, 'Element already in current am'
+            # print('before element not in = ', time.time()-start_time)
             if element not in old_am.cell_dicts:
                 continue
-            self._cell_dicts[element] = old_am.cell_dicts[element]
+            # print('before get = ', time.time()-start_time)
+            ocs = old_am.cell_dicts[element]
+            # print('before set = ', time.time()-start_time)
+            self._cell_dicts[element] = ocs
+            # print('after set = ', time.time()-start_time)
+        # print('end refresh = ', time.time()-start_time)
 
     @strictly_typed
     def create_cell(self, element: Union[PolarNode, PGLink, PGMove],

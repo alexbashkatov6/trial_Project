@@ -1,5 +1,6 @@
 from __future__ import annotations
 import re
+import time
 
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 
@@ -114,7 +115,6 @@ class AttribBuildGraphTemplDescr:
             a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
 
         expand_splitters(g_b_t)
-        init_splitter_move_activation(g_b_t)
         instance._graph_build_template = g_b_t
         return g_b_t
 
@@ -125,32 +125,44 @@ class AttribBuildGraphTemplDescr:
 class AttribCommonGraphTemplDescr:
 
     def __get__(self, instance, owner=None):
+        start_time = time.time()
         if instance is None:
             return self
         if hasattr(instance, '_graph_template'):
             return instance._graph_template
 
+        # print('before g_t = ', time.time()-start_time)
         g_t = BasePolarGraph()
         a_m = g_t.am
         a_m.node_assoc_class = AttribNodeAssociation
         a_m.move_assoc_class = AttribMoveAssociation
         a_m.auto_set_curr_context()
 
+        # print('before node_ = ', time.time()-start_time)
         node_name_title, _, _ = g_t.insert_node_single_link()
         node_name, _, _ = g_t.insert_node_single_link(node_name_title.ni_nd)
         node_build_title, _, _ = g_t.insert_node_single_link(node_name.ni_nd)
         node_evaluate_title, _, _ = g_t.insert_node_single_link(node_build_title.ni_nd)
         node_view_title, _, _ = g_t.insert_node_single_link(node_evaluate_title.ni_nd)
 
+        # print('before a_m = ', time.time()-start_time)
         a_m.create_cell(node_name_title, 'Name options')
         a_m.create_cell(node_name, 'name', NameCellChecker(owner))
         a_m.create_cell(node_build_title, 'Build options')
         a_m.create_cell(node_evaluate_title, 'Evaluation options')
         a_m.create_cell(node_view_title, 'View options')
 
-        g_t.aggregate(instance.graph_build_template, node_build_title.ni_nd, node_evaluate_title.ni_pu)
+        # print('before gbt = ', time.time()-start_time)
+        gbt = instance.graph_build_template
+        # print('before aggregate = ', time.time()-start_time)
+        g_t.aggregate(gbt, node_build_title.ni_nd, node_evaluate_title.ni_pu)
+        # print('after aggregate = ', time.time()-start_time)
 
+        # print('before init_splitter_move_activation = ', time.time()-start_time)
+        init_splitter_move_activation(g_t)
+        # print('before _graph_template = ', time.time()-start_time)
         instance._graph_template = g_t
+        # print('before return = ', time.time()-start_time)
         return g_t
 
     def __set__(self, instance, value):
@@ -204,19 +216,28 @@ class CommonAttributeInterface(QObject):
         self._current_object = value
 
     def form_attrib_list(self):
+        start_time = time.time()
         af_list: list[AttributeFormat] = []
         curr_obj = self.current_object
         if curr_obj is None:
             self.send_attrib_list.emit(self.default_attrib_list)
             return
+        # print('before g dur = ', time.time()-start_time)
         g = curr_obj.graph_template
+        # print('before am dur = ', time.time()-start_time)
         am = g.am
+        # print('before node cycle dur = ', time.time()-start_time)
         for node in g.not_inf_nodes:
             cells = am.cell_dicts[node].values()
             for cell in cells:
                 cell.deactivate()
-        cells_set_list = am.extract_route_content(g.free_roll())
+        # print('before fr dur = ', time.time()-start_time)
+        fr = g.free_roll()
+        # print('before cells_set_list dur = ', time.time()-start_time)
+        cells_set_list = am.extract_route_content(fr)
+        # print('before splitter_cells_set dur = ', time.time()-start_time)
         splitter_cells_set = [i[1] for i in get_splitter_nodes_cells(g)]
+        # print('before i, set_cells dur = ', time.time()-start_time)
         for i, set_cells in enumerate(cells_set_list):
             if not set_cells:
                 continue
@@ -239,6 +260,7 @@ class CommonAttributeInterface(QObject):
             af_list.append(af)
 
         self.send_attrib_list.emit(af_list)
+        # print('sum dur = ', time.time()-start_time)
         print(af_list)
 
     @pyqtSlot(str)
