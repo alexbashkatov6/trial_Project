@@ -19,8 +19,12 @@ BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independen
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
 
 
-def default_attribute_name_translator(input_str: str):
+def name_translator_storage_to_interface(input_str: str):
     return input_str.replace('_', ' ').capitalize()
+
+
+def name_translator_interface_to_storage(input_str: str):
+    return input_str.replace(' ', '_').lower()
 
 
 def get_splitter_nodes_cells(graph_template_: BasePolarGraph) -> set[tuple[PolarNode, Cell]]:
@@ -194,6 +198,7 @@ class GroundLine(AttrControlObject):
 class CommonAttributeInterface(QObject):
 
     send_attrib_list = pyqtSignal(list)
+    send_class_str = pyqtSignal(str)
     create_readiness = pyqtSignal(bool)
     default_attrib_list = [AttributeFormat(BSSAttributeType('title'), '<pick object>')]
 
@@ -214,6 +219,7 @@ class CommonAttributeInterface(QObject):
     @current_object.setter
     def current_object(self, value: AttrControlObject) -> None:
         self._current_object = value
+        self.send_class_str.emit(value.__class__.__name__)
 
     def form_attrib_list(self):
         start_time = time.time()
@@ -242,7 +248,7 @@ class CommonAttributeInterface(QObject):
             if not set_cells:
                 continue
             cell = set_cells.pop()
-            out_name = default_attribute_name_translator(cell.name)
+            out_name = name_translator_storage_to_interface(cell.name)
             if cell not in splitter_cells_set:
                 if cell.checker is None:
                     af = AttributeFormat(BSSAttributeType('title'), out_name)
@@ -271,26 +277,29 @@ class CommonAttributeInterface(QObject):
 
     @pyqtSlot(str)
     def create_new_object(self, obj_type: str):
-        print('In create new object', obj_type)
         new_object = eval(obj_type)()
         self.current_object = new_object
         self._is_new_object = True
         self.form_attrib_list()
+        self.send_class_str.emit(new_object.__class__.__name__)
+        self.check_all_values_defined()
 
     @pyqtSlot(str, str)
     def slot_change_value(self, name: str, new_value: str):
+        name = name_translator_interface_to_storage(name)
         curr_obj = self.current_object
         g = curr_obj.graph_template
         node: PolarNode = g.am.get_single_elm_by_cell_content(PolarNode, name)
         assert node, 'Node not found'
+        node_cell: Cell = g.am.get_elm_cell_by_context(node)
+        assert node_cell, 'Node cell not found'
+        node_cell.str_value = new_value
         if node in [i[0] for i in get_splitter_nodes_cells(g)]:
             move = g.am.get_single_elm_by_cell_content(PGMove, new_value, node.ni_nd.moves)
             assert move, 'Node not found'
             node.ni_nd.choice_move_activate(move)
-        node_cell: Cell = g.am.get_elm_cell_by_context(node)
-        assert node_cell, 'Node cell not found'
-        node_cell.str_value = new_value
-        self.form_attrib_list()
+            self.form_attrib_list()
+        node_cell.check_value()
         self.check_all_values_defined()
 
     def get_active_cells(self) -> set[Cell]:

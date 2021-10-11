@@ -55,6 +55,11 @@ class ToolBarOfClasses(QToolBar):
 
 
 class AttribColumn(QVBoxLayout):
+    new_name_value_ac = pyqtSignal(str, str)
+
+    def __init__(self):
+        super().__init__()
+        self._widgets_dict: dict[QWidget, QWidget] = {}
 
     def clean(self):
         for layout in self.children():
@@ -64,6 +69,10 @@ class AttribColumn(QVBoxLayout):
                 my_widget.setParent(None)
                 index -= 1
 
+    @property
+    def widgets_dict(self) -> dict[QWidget, QWidget]:
+        return self._widgets_dict
+
     def init_from_container(self, af_list):
         self.clean()
         for af in af_list:
@@ -71,47 +80,70 @@ class AttribColumn(QVBoxLayout):
             if af.attr_type == 'title':
                 attr_layout.addWidget(QLabel(af.attr_name))
             if af.attr_type == 'splitter':
-                attr_layout.addWidget(QLabel(af.attr_name))
-                cb = QComboBox()
-                cb.addItems(af.possible_values)
-                cb.setCurrentText(af.attr_value)
-                attr_layout.addWidget(cb)
+                name_wgt = QLabel(af.attr_name)
+                attr_layout.addWidget(name_wgt)
+                value_wgt = QComboBox()
+                value_wgt.addItems(af.possible_values)
+                value_wgt.setCurrentText(af.attr_value)
+                value_wgt.currentTextChanged.connect(self.changed_value)
+                attr_layout.addWidget(value_wgt)
+                self._widgets_dict[value_wgt] = name_wgt
             if af.attr_type == 'value':
-                attr_layout.addWidget(QLabel(af.attr_name))
-                attr_layout.addWidget(QLineEdit(af.attr_value))
+                name_wgt = QLabel(af.attr_name)
+                attr_layout.addWidget(name_wgt)
+                value_wgt = QLineEdit(af.attr_value)
+                value_wgt.editingFinished.connect(self.edit_finished)
+                attr_layout.addWidget(value_wgt)
+                self._widgets_dict[value_wgt] = name_wgt
             self.addLayout(attr_layout)
 
-# QPushButton('Create/Apply')
+    @pyqtSlot()
+    def edit_finished(self):
+        print('in edit_finished')
+        sender = self.sender()
+        label: QLabel = self.widgets_dict[sender]
+        self.new_name_value_ac.emit(label.text(), sender.text())
+
+    @pyqtSlot(str)
+    def changed_value(self, new_val: str):
+        print('in changed_value')
+        label: QLabel = self.widgets_dict[self.sender()]
+        self.new_name_value_ac.emit(label.text(), new_val)
 
 
 class ToolBarOfAttribs(QToolBar):
+    new_name_value_tb = pyqtSignal(str, str)
 
     def __init__(self, min_size):
         super().__init__()
-        self.activeClassLabel = QLabel('< pick tool >')
-        self.activeClassLabel.setAlignment(Qt.AlignHCenter)
-        self.wgtVertical = QWidget()
         self.setMinimumSize(min_size, min_size)
+        self.active_class_label = QLabel('< pick tool >')
+        self.active_class_label.setAlignment(Qt.AlignHCenter)
+        self.wgt_vertical = QWidget()
         self.vbox = QVBoxLayout()
-        self.vbox.addWidget(self.activeClassLabel)
-        self.wgtGrid = QWidget()
-        self.attribsColumn = AttribColumn()
-        self.wgtGrid.setLayout(self.attribsColumn)
-        self.vbox.addWidget(self.wgtGrid)
-        self.wgtVertical.setLayout(self.vbox)
-        self.addWidget(self.wgtVertical)
-
-    @pyqtSlot(str)
-    def setClassName(self, val):
-        self.activeClassLabel.setText(val)
-
-    @pyqtSlot(list)
-    def setAttrStruct(self, val):
-        self.attribsColumn.initFromContainer(val)
+        self.vbox.addWidget(self.active_class_label)
+        self.wgt_grid = QWidget()
+        self.attribs_column = AttribColumn()
+        self.wgt_grid.setLayout(self.attribs_column)
+        self.vbox.addWidget(self.wgt_grid)
+        self.wgt_vertical.setLayout(self.vbox)
+        self.addWidget(self.wgt_vertical)
+        self.create_apply_button = QPushButton('Create/Apply')
+        self.create_apply_button.setEnabled(False)
+        self.addWidget(self.create_apply_button)
+        self.attribs_column.new_name_value_ac.connect(self.new_name_value_tb)
 
     @pyqtSlot(list)
     def set_attr_struct(self, af_list):
-        self.attribsColumn.init_from_container(af_list)
+        self.attribs_column.init_from_container(af_list)
+
+    @pyqtSlot(str)
+    def set_class_str(self, class_str):
+        self.active_class_label.setText(class_str)
+
+    @pyqtSlot(bool)
+    def set_active_apply(self, active_apply):
+        self.create_apply_button.setEnabled(active_apply)
 
 
 class ToolBarOfObjects(QToolBar):
@@ -126,11 +158,11 @@ class PaintingArea(QWidget):
         super().__init__()
         self.setMinimumSize(min_size, min_size)
 
+
 class MW(QMainWindow):
 
     def __init__(self):
         super().__init__()
-
 
         # widgets params
         top_toolbar_min_height_width = 50
@@ -167,11 +199,10 @@ class MW(QMainWindow):
         self.addToolBar(Qt.RightToolBarArea, self.rtb)
         self.addToolBar(Qt.LeftToolBarArea, self.ltb)
 
-
         self.statusBar()
 
         menubar = self.menuBar()
-        fileMenu = menubar.addMenu('&File')
+        menubar.addMenu('&File')  # fileMenu =
 
         self.setGeometry(50, 50, 550, 450)
         self.setWindowTitle('Main window')
@@ -189,5 +220,3 @@ class MW(QMainWindow):
         qp.drawLine(pnt_1, pnt_3)
         qp.drawEllipse(pnt_1, 100, 100)
         qp.end()
-        
-    # def cl
