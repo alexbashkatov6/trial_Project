@@ -55,5 +55,5 @@ class AttributeFormat:
         return self._is_suggested
 
     @is_suggested.setter
-    def is_suggested(self, val: str):
+    def is_suggested(self, val: bool):
         self._is_suggested = val

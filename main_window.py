@@ -6,10 +6,12 @@ from PyQt5.QtWidgets import QMainWindow, QTextEdit, QAction, QToolBar, QPushButt
 from PyQt5.QtGui import QIcon, QPainter, QPen
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint
 
+from nv_attribute_format import AttributeFormat
+
 
 class ToolBarOfClasses(QToolBar):
 
-    sendClassName = pyqtSignal(str)
+    send_class_name = pyqtSignal(str)
     picFolder = 'pictures'
 
     def __init__(self):
@@ -51,7 +53,7 @@ class ToolBarOfClasses(QToolBar):
     def act_triggered(self):
         sender = self.sender()
         long_name = self.pic_names_sorted_list[self.qb_list.index(sender)]
-        self.sendClassName.emit(long_name[long_name.index('_') + 1:])
+        self.send_class_name.emit(long_name[long_name.index('_') + 1:])
 
 
 class AttribColumn(QVBoxLayout):
@@ -92,6 +94,7 @@ class AttribColumn(QVBoxLayout):
                 name_wgt = QLabel(af.attr_name)
                 attr_layout.addWidget(name_wgt)
                 value_wgt = QLineEdit(af.attr_value)
+                self.set_bool_color(value_wgt, af)
                 value_wgt.editingFinished.connect(self.edit_finished)
                 attr_layout.addWidget(value_wgt)
                 self._widgets_dict[value_wgt] = name_wgt
@@ -99,19 +102,57 @@ class AttribColumn(QVBoxLayout):
 
     @pyqtSlot()
     def edit_finished(self):
-        print('in edit_finished')
         sender = self.sender()
         label: QLabel = self.widgets_dict[sender]
         self.new_name_value_ac.emit(label.text(), sender.text())
 
     @pyqtSlot(str)
     def changed_value(self, new_val: str):
-        print('in changed_value')
         label: QLabel = self.widgets_dict[self.sender()]
         self.new_name_value_ac.emit(label.text(), new_val)
 
+    def get_line_edit(self, str_name: str) -> QLineEdit:
+        # print('str_name ', str_name)
+        for line_edit_widget, label_widget in self.widgets_dict.items():
+            # print('label_widget.text ', label_widget.text())
+            if label_widget.text() == str_name:
+                return line_edit_widget
+        print('Not found')
+        assert False, 'Not found'
 
-class ToolBarOfAttribs(QToolBar):
+    # @pyqtSlot(AttributeFormat)
+    def replace_line_edit(self, af: AttributeFormat):
+        str_name = af.attr_name
+        old_le = self.get_line_edit(str_name)
+        new_le = QLineEdit(af.attr_value)
+        self.set_bool_color(new_le, af)
+        print('lalala')
+        # old_le.
+        lt: QWidget = old_le.parent()
+        print('lt', lt)
+        print('lalala2')
+        old_le.setParent(None)
+        print('lalala3')
+        # lt.
+        new_le.setParent(lt)
+        # lt.addWidget(new_le)
+        # lt.replaceWidget(old_le, new_le)
+        print('lalala4')
+        self.widgets_dict[new_le] = self.widgets_dict[old_le]
+        self.widgets_dict.pop(old_le)
+        print('replaced')
+
+    @staticmethod
+    def set_bool_color(le: QLineEdit, af: AttributeFormat):
+        if af.status_check:
+            le.setStyleSheet("background-color: red")
+        elif af.is_suggested:
+            le.setStyleSheet("background-color: green")
+        else:
+            le.setStyleSheet("background-color: white")
+
+
+class ToolBarOfAttributes(QToolBar):
     new_name_value_tb = pyqtSignal(str, str)
 
     def __init__(self, min_size):
@@ -123,19 +164,19 @@ class ToolBarOfAttribs(QToolBar):
         self.vbox = QVBoxLayout()
         self.vbox.addWidget(self.active_class_label)
         self.wgt_grid = QWidget()
-        self.attribs_column = AttribColumn()
-        self.wgt_grid.setLayout(self.attribs_column)
+        self.attributes_column = AttribColumn()
+        self.wgt_grid.setLayout(self.attributes_column)
         self.vbox.addWidget(self.wgt_grid)
         self.wgt_vertical.setLayout(self.vbox)
         self.addWidget(self.wgt_vertical)
         self.create_apply_button = QPushButton('Create/Apply')
         self.create_apply_button.setEnabled(False)
         self.addWidget(self.create_apply_button)
-        self.attribs_column.new_name_value_ac.connect(self.new_name_value_tb)
+        self.attributes_column.new_name_value_ac.connect(self.new_name_value_tb)
 
     @pyqtSlot(list)
     def set_attr_struct(self, af_list):
-        self.attribs_column.init_from_container(af_list)
+        self.attributes_column.init_from_container(af_list)
 
     @pyqtSlot(str)
     def set_class_str(self, class_str):
@@ -144,6 +185,10 @@ class ToolBarOfAttribs(QToolBar):
     @pyqtSlot(bool)
     def set_active_apply(self, active_apply):
         self.create_apply_button.setEnabled(active_apply)
+
+    @pyqtSlot(AttributeFormat)
+    def replace_line_edit(self, af: AttributeFormat):
+        self.attributes_column.replace_line_edit(af)
 
 
 class ToolBarOfObjects(QToolBar):
@@ -190,7 +235,7 @@ class MW(QMainWindow):
         self.ttb.construct_widget(top_toolbar_min_height_width)
 
         # Right tool bar format
-        self.rtb = ToolBarOfAttribs(right_toolbar_min_height_width)
+        self.rtb = ToolBarOfAttributes(right_toolbar_min_height_width)
 
         # Left tool bar format
         self.ltb = ToolBarOfObjects(left_toolbar_min_height_width)

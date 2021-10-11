@@ -4,7 +4,6 @@ from copy import copy
 from functools import partial
 
 from nv_typing import *
-from nv_bounded_string_set_class import BoundedStringSet  # bounded_string_set,
 
 
 class CellError(Exception):

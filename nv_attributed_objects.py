@@ -198,6 +198,7 @@ class GroundLine(AttrControlObject):
 class CommonAttributeInterface(QObject):
 
     send_attrib_list = pyqtSignal(list)
+    send_single_value = pyqtSignal(AttributeFormat)
     send_class_str = pyqtSignal(str)
     create_readiness = pyqtSignal(bool)
     default_attrib_list = [AttributeFormat(BSSAttributeType('title'), '<pick object>')]
@@ -222,28 +223,20 @@ class CommonAttributeInterface(QObject):
         self.send_class_str.emit(value.__class__.__name__)
 
     def form_attrib_list(self):
-        start_time = time.time()
         af_list: list[AttributeFormat] = []
         curr_obj = self.current_object
         if curr_obj is None:
             self.send_attrib_list.emit(self.default_attrib_list)
             return
-        # print('before g dur = ', time.time()-start_time)
         g = curr_obj.graph_template
-        # print('before am dur = ', time.time()-start_time)
         am = g.am
-        # print('before node cycle dur = ', time.time()-start_time)
         for node in g.not_inf_nodes:
             cells = am.cell_dicts[node].values()
             for cell in cells:
                 cell.deactivate()
-        # print('before fr dur = ', time.time()-start_time)
         fr = g.free_roll()
-        # print('before cells_set_list dur = ', time.time()-start_time)
         cells_set_list = am.extract_route_content(fr)
-        # print('before splitter_cells_set dur = ', time.time()-start_time)
         splitter_cells_set = [i[1] for i in get_splitter_nodes_cells(g)]
-        # print('before i, set_cells dur = ', time.time()-start_time)
         for i, set_cells in enumerate(cells_set_list):
             if not set_cells:
                 continue
@@ -266,8 +259,6 @@ class CommonAttributeInterface(QObject):
             af_list.append(af)
 
         self.send_attrib_list.emit(af_list)
-        # print('sum dur = ', time.time()-start_time)
-        print(af_list)
 
     @pyqtSlot(str)
     def change_current_object(self, obj_name: str):
@@ -285,8 +276,8 @@ class CommonAttributeInterface(QObject):
         self.check_all_values_defined()
 
     @pyqtSlot(str, str)
-    def slot_change_value(self, name: str, new_value: str):
-        name = name_translator_interface_to_storage(name)
+    def slot_change_value(self, name_interface: str, new_value: str):
+        name = name_translator_interface_to_storage(name_interface)
         curr_obj = self.current_object
         g = curr_obj.graph_template
         node: PolarNode = g.am.get_single_elm_by_cell_content(PolarNode, name)
@@ -295,12 +286,25 @@ class CommonAttributeInterface(QObject):
         assert node_cell, 'Node cell not found'
         node_cell.str_value = new_value
         if node in [i[0] for i in get_splitter_nodes_cells(g)]:
+            # splitter handling
             move = g.am.get_single_elm_by_cell_content(PGMove, new_value, node.ni_nd.moves)
             assert move, 'Node not found'
             node.ni_nd.choice_move_activate(move)
             self.form_attrib_list()
-        node_cell.check_value()
+        else:
+            node_cell.check_value()
+            print('here')
+            self.form_new_value(name_interface, new_value, node_cell.status_check, False)
+            print('here2')
         self.check_all_values_defined()
+
+    def form_new_value(self, attr_name: str, attr_value: str, status_check: str, is_suggested: bool) -> None:
+        af = AttributeFormat(BSSAttributeType('value'), attr_name, attr_value)
+        af.status_check = status_check
+        af.is_suggested = is_suggested
+        print('here3')
+        self.send_single_value.emit(af)
+        print('here4')
 
     def get_active_cells(self) -> set[Cell]:
         curr_obj = self.current_object
