@@ -3,10 +3,15 @@ import re
 
 from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
     QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox
-from PyQt5.QtGui import QIcon, QPainter, QPen
+from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint
 
 from nv_attribute_format import AttributeFormat
+
+
+class AlwaysTrueValidator(QValidator):
+    def validate(self, s: str = '', i: int = 0):
+        return QValidator.Acceptable
 
 
 class ToolBarOfClasses(QToolBar):
@@ -63,7 +68,7 @@ class AttribColumn(QWidget):
         super().__init__(parent)
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
-        self._widgets_dict: dict[QWidget, QWidget] = {}
+        self.widgets_dict: dict[QWidget, QWidget] = {}
 
     def clean(self):
         layout_stack = [self.main_layout]
@@ -82,83 +87,65 @@ class AttribColumn(QWidget):
                     assert False, 'Other variants'
             for wgt in wgts:
                 wgt.setParent(None)
-
-    @property
-    def widgets_dict(self) -> dict[QWidget, QWidget]:
-        return self._widgets_dict
+        self.widgets_dict = {}
 
     def init_from_container(self, af_list):
         self.clean()
         for af in af_list:
             attr_layout = QHBoxLayout()
             if af.attr_type == 'title':
-                attr_layout.addWidget(QLabel(af.attr_name))
-                self.main_layout.addLayout(attr_layout)
-                continue
+                attr_layout.addWidget(QLabel(af.attr_name, self))
             if af.attr_type == 'splitter':
-                name_wgt = QLabel(af.attr_name)
+                name_wgt = QLabel(af.attr_name, self)
                 attr_layout.addWidget(name_wgt)
-                value_wgt = QComboBox()
+                value_wgt = QComboBox(self)
                 value_wgt.addItems(af.possible_values)
                 value_wgt.setCurrentText(af.attr_value)
                 value_wgt.currentTextChanged.connect(self.changed_value)
                 attr_layout.addWidget(value_wgt)
-                self._widgets_dict[value_wgt] = name_wgt
-                self.main_layout.addLayout(attr_layout)
-                continue
+                self.widgets_dict[value_wgt] = name_wgt
             if af.attr_type == 'value':
-                name_wgt_0 = QLabel(af.attr_name)
+                name_wgt_0 = QLabel(af.attr_name, self)
                 attr_layout.addWidget(name_wgt_0)
-                value_wgt_0 = QLineEdit(af.attr_value)
+                value_wgt_0 = QLineEdit(af.attr_value, self)
                 self.set_bool_color(value_wgt_0, af)
+                # value_wgt_0.ed
+                # value_wgt_0.setValidator(AlwaysTrueValidator())
+                # print('valid', value_wgt_0.validator())
                 value_wgt_0.editingFinished.connect(self.edit_finished)
                 attr_layout.addWidget(value_wgt_0)
-                self._widgets_dict[value_wgt_0] = name_wgt_0
-                self.main_layout.addLayout(attr_layout)
-                continue
-            # self.main_layout.addLayout(attr_layout)
+                self.widgets_dict[value_wgt_0] = name_wgt_0
+            self.main_layout.addLayout(attr_layout)
 
     @pyqtSlot()
     def edit_finished(self):
         sender = self.sender()
+        print('in edit finished', sender.text())
         label: QLabel = self.widgets_dict[sender]
         self.new_name_value_ac.emit(label.text(), sender.text())
 
     @pyqtSlot(str)
     def changed_value(self, new_val: str):
-        label: QLabel = self.widgets_dict[self.sender()]
+        sender = self.sender()
+        label: QLabel = self.widgets_dict[sender]
         self.new_name_value_ac.emit(label.text(), new_val)
 
     def get_line_edit(self, str_name: str) -> QLineEdit:
-        # print('str_name ', str_name)
         for line_edit_widget, label_widget in self.widgets_dict.items():
-            # print('label_widget.text ', label_widget.text())
             if label_widget.text() == str_name:
                 return line_edit_widget
         print('Not found')
         assert False, 'Not found'
 
-    # @pyqtSlot(AttributeFormat)
     def replace_line_edit(self, af: AttributeFormat):
         str_name = af.attr_name
         old_le = self.get_line_edit(str_name)
         new_le = QLineEdit(af.attr_value)
         self.set_bool_color(new_le, af)
-        print('lalala')
-        # old_le.
-        lt: QWidget = old_le.parent()
-        print('lt', lt)
-        print('lalala2')
-        old_le.setParent(None)
-        print('lalala3')
-        # lt.
-        new_le.setParent(lt)
-        # lt.addWidget(new_le)
-        # lt.replaceWidget(old_le, new_le)
-        print('lalala4')
+        self.main_layout.replaceWidget(old_le, new_le)
         self.widgets_dict[new_le] = self.widgets_dict[old_le]
         self.widgets_dict.pop(old_le)
-        print('replaced')
+        old_le.setParent(None)
 
     @staticmethod
     def set_bool_color(le: QLineEdit, af: AttributeFormat):

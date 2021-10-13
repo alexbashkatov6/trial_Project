@@ -292,19 +292,20 @@ class CommonAttributeInterface(QObject):
             node.ni_nd.choice_move_activate(move)
             self.form_attrib_list()
         else:
+            print('value changed slot = ', name_interface, new_value)
             node_cell.check_value()
-            print('here')
+            # print('here')
             self.form_new_value(name_interface, new_value, node_cell.status_check, False)
-            print('here2')
+            # print('here2')
         self.check_all_values_defined()
 
     def form_new_value(self, attr_name: str, attr_value: str, status_check: str, is_suggested: bool) -> None:
         af = AttributeFormat(BSSAttributeType('value'), attr_name, attr_value)
         af.status_check = status_check
         af.is_suggested = is_suggested
-        print('here3')
+        # print('here3')
         self.send_single_value.emit(af)
-        print('here4')
+        # print('here4')
 
     def get_active_cells(self) -> set[Cell]:
         curr_obj = self.current_object
