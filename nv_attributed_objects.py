@@ -294,9 +294,8 @@ class CommonAttributeInterface(QObject):
         else:
             print('value changed slot = ', name_interface, new_value)
             node_cell.check_value()
-            # print('here')
-            self.form_new_value(name_interface, new_value, node_cell.status_check, False)
-            # print('here2')
+            # self.form_new_value(name_interface, new_value, node_cell.status_check, False)
+        self.form_attrib_list()
         self.check_all_values_defined()
 
     def form_new_value(self, attr_name: str, attr_value: str, status_check: str, is_suggested: bool) -> None:

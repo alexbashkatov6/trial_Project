@@ -9,11 +9,6 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint
 from nv_attribute_format import AttributeFormat
 
 
-class AlwaysTrueValidator(QValidator):
-    def validate(self, s: str = '', i: int = 0):
-        return QValidator.Acceptable
-
-
 class ToolBarOfClasses(QToolBar):
 
     send_class_name = pyqtSignal(str)
@@ -109,11 +104,8 @@ class AttribColumn(QWidget):
                 attr_layout.addWidget(name_wgt_0)
                 value_wgt_0 = QLineEdit(af.attr_value, self)
                 self.set_bool_color(value_wgt_0, af)
-                # value_wgt_0.ed
-                # value_wgt_0.setValidator(AlwaysTrueValidator())
-                # print('valid', value_wgt_0.validator())
                 value_wgt_0.returnPressed.connect(self.edit_finished)
-                value_wgt_0.editingFinished.connect(self.edit_finished)
+                value_wgt_0.textEdited.connect(self.color_reset)
                 attr_layout.addWidget(value_wgt_0)
                 self.widgets_dict[value_wgt_0] = name_wgt_0
             self.main_layout.addLayout(attr_layout)
@@ -121,9 +113,13 @@ class AttribColumn(QWidget):
     @pyqtSlot()
     def edit_finished(self):
         sender = self.sender()
-        print('in edit finished', sender.text())
         label: QLabel = self.widgets_dict[sender]
         self.new_name_value_ac.emit(label.text(), sender.text())
+
+    @pyqtSlot(str)
+    def color_reset(self, new_val: str):
+        sender = self.sender()
+        sender.setStyleSheet("background-color: white")
 
     @pyqtSlot(str)
     def changed_value(self, new_val: str):
@@ -141,7 +137,7 @@ class AttribColumn(QWidget):
     def replace_line_edit(self, af: AttributeFormat):
         str_name = af.attr_name
         old_le = self.get_line_edit(str_name)
-        new_le = QLineEdit(af.attr_value)
+        new_le = QLineEdit(af.attr_value, self)
         self.set_bool_color(new_le, af)
         self.main_layout.replaceWidget(old_le, new_le)
         self.widgets_dict[new_le] = self.widgets_dict[old_le]
@@ -150,12 +146,14 @@ class AttribColumn(QWidget):
 
     @staticmethod
     def set_bool_color(le: QLineEdit, af: AttributeFormat):
-        if af.status_check:
+        if af.status_check == 'empty':
+            le.setStyleSheet("background-color: white")
+        elif af.status_check:
             le.setStyleSheet("background-color: red")
         elif af.is_suggested:
-            le.setStyleSheet("background-color: green")
+            le.setStyleSheet("background-color: yellow")
         else:
-            le.setStyleSheet("background-color: white")
+            le.setStyleSheet("background-color: green")
 
 
 class ToolBarOfAttributes(QToolBar):

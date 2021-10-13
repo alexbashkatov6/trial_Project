@@ -2,7 +2,7 @@ from __future__ import annotations
 import re
 from copy import copy
 from functools import partial
-from keyword import kwlist
+# from keyword import kwlist
 
 from nv_typing import *
 
@@ -60,16 +60,16 @@ GNM = GlobalNamesManager()
 
 def default_syntax_checker(value: str) -> Any:
     value_got = value
-    if value_got in kwlist:
-        raise SyntaxCellError('Syntax error (python keyword) ' + value_got)
     found_identifier_candidates = re.findall(r'\w+', value)
     for fic in found_identifier_candidates:
         if fic in GNM.name_to_obj:
             value = value.replace(fic, 'GNM.name_to_obj["{}"]'.format(fic))
     try:
         eval_result = eval(value)
-    except NameError:
+    except SyntaxError:
         raise SyntaxCellError('Syntax error when parsing ' + value_got)
+    except NameError:
+        raise SyntaxCellError('Name error when parsing ' + value_got)
     else:
         return eval_result
 
@@ -253,7 +253,7 @@ class Cell:
         self._is_suggested_value = False
         self._str_value = val
         if val == '':
-            self._status_check = ''
+            self._status_check = 'empty'
 
     @property
     def is_suggested_value(self) -> bool:
@@ -289,7 +289,7 @@ class Cell:
 
     def check_value(self):
         if self.str_value == '':
-            self._status_check = ''
+            self._status_check = 'empty'
             self._value = None
             return
         if self.checker:

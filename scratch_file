@@ -279,3 +279,19 @@
 #         return obj.__name__
 #
 #     return str(obj)
+
+# ----------------------  edit focus ----------
+
+# value_wgt_0.ed
+# value_wgt_0.setValidator(AlwaysTrueValidator())
+# print('valid', value_wgt_0.validator())
+# value_wgt_0.focusOutEvent.connect(self.edit_finished)
+# value_wgt_0.editingFinished.connect(self.edit_finished)
+
+from PyQt5.QtGui import QValidator
+class AlwaysTrueValidator(QValidator):
+    def validate(self, s: str = '', i: int = 0):
+        return QValidator.Acceptable
+
+
+
