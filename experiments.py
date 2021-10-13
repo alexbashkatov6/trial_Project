@@ -1,1 +1,2 @@
-print('DFKSD'.lower())
+import keyword
+print(keyword.kwlist)

@@ -112,6 +112,7 @@ class AttribColumn(QWidget):
                 # value_wgt_0.ed
                 # value_wgt_0.setValidator(AlwaysTrueValidator())
                 # print('valid', value_wgt_0.validator())
+                value_wgt_0.returnPressed.connect(self.edit_finished)
                 value_wgt_0.editingFinished.connect(self.edit_finished)
                 attr_layout.addWidget(value_wgt_0)
                 self.widgets_dict[value_wgt_0] = name_wgt_0

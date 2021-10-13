@@ -2,6 +2,7 @@ from __future__ import annotations
 import re
 from copy import copy
 from functools import partial
+from keyword import kwlist
 
 from nv_typing import *
 
@@ -59,6 +60,8 @@ GNM = GlobalNamesManager()
 
 def default_syntax_checker(value: str) -> Any:
     value_got = value
+    if value_got in kwlist:
+        raise SyntaxCellError('Syntax error (python keyword) ' + value_got)
     found_identifier_candidates = re.findall(r'\w+', value)
     for fic in found_identifier_candidates:
         if fic in GNM.name_to_obj:
