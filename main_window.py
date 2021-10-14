@@ -203,29 +203,45 @@ class ToolBarOfAttributes(QToolBar):
     #     self.attributes_column.replace_line_edit(af)
 
 
-class ObjectsTree(QTreeView):
+class ObjectsTree(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setHeaderHidden(True)
-        self.tree_model = QStandardItemModel()
-        self.root_node = self.tree_model.invisibleRootItem()
+        self.vbox = QVBoxLayout()
+        self.setLayout(self.vbox)
+        self.clean()
 
     def clean(self):
+        self.class_nodes = set()
+        if hasattr(self, 'tree_view'):
+            self.tree_view.setParent(None)
+        self.tree_view = QTreeView(self)
+        self.tree_view.setHeaderHidden(True)
+        self.tree_view.setExpandsOnDoubleClick(False)
         self.tree_model = QStandardItemModel()
         self.root_node = self.tree_model.invisibleRootItem()
+        self.tree_view.setModel(self.tree_model)
+        self.vbox.addWidget(self.tree_view)
 
     def init_from_graph_tree(self, tree_dict):
         self.clean()
         for class_name in tree_dict:
             item_class = QStandardItem(class_name)
+            item_class.setEditable(False)
+            item_class.setSelectable(False)
             self.root_node.appendRow(item_class)
+            self.class_nodes.add(class_name)
             for obj_name in tree_dict[class_name]:
                 item_obj = QStandardItem(obj_name)
+                item_obj.setEditable(False)
                 item_class.appendRow(item_obj)
 
-        self.setModel(self.tree_model)
-        self.expandAll()
+        self.tree_view.expandAll()
+        self.tree_view.doubleClicked.connect(self.get_value)
+
+    def get_value(self, val):
+        if val.data() not in self.class_nodes:
+            print(val.data())
 
 
 class ToolBarOfObjects(QToolBar):
@@ -233,7 +249,7 @@ class ToolBarOfObjects(QToolBar):
     def __init__(self, min_size):
         super().__init__()
         self.setMinimumSize(min_size, min_size)
-        self.wgt_main = QWidget()
+        self.wgt_main = QWidget(self)
         self.addWidget(self.wgt_main)
 
         self.title_label = QLabel('Tree of objects', self)
