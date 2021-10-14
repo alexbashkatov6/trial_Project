@@ -318,13 +318,15 @@ class CommonAttributeInterface(QObject):
 
     @pyqtSlot()
     def apply_changes(self):
+        co = self.current_object
         if self.check_all_values_defined():
-            co = self.current_object
             self.create_obj_attributes()
             GDM.add_new_instance(co)
             GDM.add_to_tree_graph(co)
             GNM.register_obj_name(co, co.name)
-        self._is_new_object = False
+        # self._is_new_object = False
+        self.create_new_object(co.__class__.__name__)
+        print('Object {}({}) is registered'.format(co.name, co))
 
 
 CAI = CommonAttributeInterface()

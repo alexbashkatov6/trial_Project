@@ -112,11 +112,6 @@ class AttribColumn(QWidget):
                 self.widgets_dict[value_wgt_0] = name_wgt_0
             self.main_layout.addLayout(attr_layout)
 
-    @pyqtSlot(str)
-    def color_reset(self, new_val: str):
-        sender = self.sender()
-        sender.setStyleSheet("background-color: white")
-
     @pyqtSlot()
     def edit_finished(self):
         sender = self.sender()
@@ -146,6 +141,11 @@ class AttribColumn(QWidget):
     #     self.widgets_dict.pop(old_le)
     #     old_le.setParent(None)
 
+    @pyqtSlot(str)
+    def color_reset(self, new_val: str):
+        sender = self.sender()
+        sender.setStyleSheet("background-color: white")
+
     @staticmethod
     def set_bool_color(le: QLineEdit, af: AttributeFormat):
         if af.status_check == 'empty':
@@ -160,6 +160,7 @@ class AttribColumn(QWidget):
 
 class ToolBarOfAttributes(QToolBar):
     new_name_value_tb = pyqtSignal(str, str)
+    apply_clicked = pyqtSignal()
 
     def __init__(self, min_size):
         super().__init__()
@@ -172,16 +173,17 @@ class ToolBarOfAttributes(QToolBar):
 
         self.attributes_column = AttribColumn(self)
 
-        self.create_apply_button = QPushButton('Create/Apply', self)
-        self.create_apply_button.setEnabled(False)
+        self.apply_button = QPushButton('Create/Apply', self)
+        self.apply_button.setEnabled(False)
 
         self.vbox = QVBoxLayout()
         self.vbox.addWidget(self.active_class_label)
         self.vbox.addWidget(self.attributes_column)
-        self.vbox.addWidget(self.create_apply_button)
+        self.vbox.addWidget(self.apply_button)
         self.wgt_vertical.setLayout(self.vbox)
 
         self.attributes_column.new_name_value_ac.connect(self.new_name_value_tb)
+        self.apply_button.clicked.connect(self.apply_clicked)
 
     @pyqtSlot(list)
     def set_attr_struct(self, af_list):
@@ -193,7 +195,7 @@ class ToolBarOfAttributes(QToolBar):
 
     @pyqtSlot(bool)
     def set_active_apply(self, active_apply):
-        self.create_apply_button.setEnabled(active_apply)
+        self.apply_button.setEnabled(active_apply)
 
     # @pyqtSlot(AttributeFormat)
     # def replace_line_edit(self, af: AttributeFormat):
