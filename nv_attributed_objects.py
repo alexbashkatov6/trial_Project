@@ -288,25 +288,17 @@ class CommonAttributeInterface(QObject):
         assert node_cell, 'Node cell not found'
         node_cell.str_value = new_value
         if node in [i[0] for i in get_splitter_nodes_cells(g)]:
-            # splitter handling
             move = g.am.get_single_elm_by_cell_content(PGMove, new_value, node.ni_nd.moves)
             assert move, 'Node not found'
             node.ni_nd.choice_move_activate(move)
-            self.form_attrib_list()
-        # else:
-            # print('value changed slot = ', name_interface, new_value)
-            # node_cell.check_value()
-            # self.form_new_value(name_interface, new_value, node_cell.status_check, False)
         self.form_attrib_list()
         self.check_all_values_defined()
 
-    def form_new_value(self, attr_name: str, attr_value: str, status_check: str, is_suggested: bool) -> None:
-        af = AttributeFormat(BSSAttributeType('value'), attr_name, attr_value)
-        af.status_check = status_check
-        af.is_suggested = is_suggested
-        # print('here3')
-        self.send_single_value.emit(af)
-        # print('here4')
+    # def form_new_value(self, attr_name: str, attr_value: str, status_check: str, is_suggested: bool) -> None:
+    #     af = AttributeFormat(BSSAttributeType('value'), attr_name, attr_value)
+    #     af.status_check = status_check
+    #     af.is_suggested = is_suggested
+    #     self.send_single_value.emit(af)
 
     def get_active_cells(self) -> set[Cell]:
         curr_obj = self.current_object

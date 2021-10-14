@@ -112,6 +112,11 @@ class AttribColumn(QWidget):
                 self.widgets_dict[value_wgt_0] = name_wgt_0
             self.main_layout.addLayout(attr_layout)
 
+    @pyqtSlot(str)
+    def color_reset(self, new_val: str):
+        sender = self.sender()
+        sender.setStyleSheet("background-color: white")
+
     @pyqtSlot()
     def edit_finished(self):
         sender = self.sender()
@@ -119,32 +124,27 @@ class AttribColumn(QWidget):
         self.new_name_value_ac.emit(label.text(), sender.text())
 
     @pyqtSlot(str)
-    def color_reset(self, new_val: str):
-        sender = self.sender()
-        sender.setStyleSheet("background-color: white")
-
-    @pyqtSlot(str)
     def changed_value(self, new_val: str):
         sender = self.sender()
         label: QLabel = self.widgets_dict[sender]
         self.new_name_value_ac.emit(label.text(), new_val)
 
-    def get_line_edit(self, str_name: str) -> QLineEdit:
-        for line_edit_widget, label_widget in self.widgets_dict.items():
-            if label_widget.text() == str_name:
-                return line_edit_widget
-        print('Not found')
-        assert False, 'Not found'
-
-    def replace_line_edit(self, af: AttributeFormat):
-        str_name = af.attr_name
-        old_le = self.get_line_edit(str_name)
-        new_le = QLineEdit(af.attr_value, self)
-        self.set_bool_color(new_le, af)
-        self.main_layout.replaceWidget(old_le, new_le)
-        self.widgets_dict[new_le] = self.widgets_dict[old_le]
-        self.widgets_dict.pop(old_le)
-        old_le.setParent(None)
+    # def get_line_edit(self, str_name: str) -> QLineEdit:
+    #     for line_edit_widget, label_widget in self.widgets_dict.items():
+    #         if label_widget.text() == str_name:
+    #             return line_edit_widget
+    #     print('Not found')
+    #     assert False, 'Not found'
+    #
+    # def replace_line_edit(self, af: AttributeFormat):
+    #     str_name = af.attr_name
+    #     old_le = self.get_line_edit(str_name)
+    #     new_le = QLineEdit(af.attr_value, self)
+    #     self.set_bool_color(new_le, af)
+    #     self.main_layout.replaceWidget(old_le, new_le)
+    #     self.widgets_dict[new_le] = self.widgets_dict[old_le]
+    #     self.widgets_dict.pop(old_le)
+    #     old_le.setParent(None)
 
     @staticmethod
     def set_bool_color(le: QLineEdit, af: AttributeFormat):
@@ -172,10 +172,6 @@ class ToolBarOfAttributes(QToolBar):
 
         self.attributes_column = AttribColumn(self)
 
-        # self.wgt_attr_column = QWidget()
-        # self.attributes_column = AttribColumn()
-        # self.wgt_attr_column.setLayout(self.attributes_column)
-
         self.create_apply_button = QPushButton('Create/Apply', self)
         self.create_apply_button.setEnabled(False)
 
@@ -199,9 +195,9 @@ class ToolBarOfAttributes(QToolBar):
     def set_active_apply(self, active_apply):
         self.create_apply_button.setEnabled(active_apply)
 
-    @pyqtSlot(AttributeFormat)
-    def replace_line_edit(self, af: AttributeFormat):
-        self.attributes_column.replace_line_edit(af)
+    # @pyqtSlot(AttributeFormat)
+    # def replace_line_edit(self, af: AttributeFormat):
+    #     self.attributes_column.replace_line_edit(af)
 
 
 class ToolBarOfObjects(QToolBar):

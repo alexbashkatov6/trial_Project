@@ -31,7 +31,6 @@ class Director(QObject):
         self.cai.send_attrib_list.connect(self.mw.rtb.set_attr_struct)
         self.cai.send_class_str.connect(self.mw.rtb.set_class_str)
         self.cai.create_readiness.connect(self.mw.rtb.set_active_apply)
-        self.cai.send_single_value.connect(self.mw.rtb.replace_line_edit)
 
 
 if __name__ == '__main__':
