@@ -198,12 +198,20 @@ class ToolBarOfAttributes(QToolBar):
     def set_active_apply(self, active_apply):
         self.apply_button.setEnabled(active_apply)
 
+    @pyqtSlot(str)
+    def set_focus_widget_value(self, obj_name_str):
+        focus_widget = self.focusWidget()
+        if isinstance(focus_widget, QLineEdit):
+            focus_widget: QLineEdit
+            focus_widget.setText(obj_name_str)
+
     # @pyqtSlot(AttributeFormat)
     # def replace_line_edit(self, af: AttributeFormat):
     #     self.attributes_column.replace_line_edit(af)
 
 
 class ObjectsTree(QWidget):
+    send_data = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -237,14 +245,15 @@ class ObjectsTree(QWidget):
                 item_class.appendRow(item_obj)
 
         self.tree_view.expandAll()
-        self.tree_view.doubleClicked.connect(self.get_value)
+        self.tree_view.doubleClicked.connect(self.send_obj_name)
 
-    def get_value(self, val):
+    def send_obj_name(self, val):
         if val.data() not in self.class_nodes:
-            print(val.data())
+            self.send_data.emit(val.data())
 
 
 class ToolBarOfObjects(QToolBar):
+    signal_obj_name = pyqtSignal(str)
 
     def __init__(self, min_size):
         super().__init__()
@@ -262,9 +271,15 @@ class ToolBarOfObjects(QToolBar):
         self.vbox.addWidget(self.objects_tree)
         self.wgt_main.setLayout(self.vbox)
 
+        self.objects_tree.send_data.connect(self.slot_obj_name)
+
     @pyqtSlot(dict)
     def set_tree(self, tree_dict):
         self.objects_tree.init_from_graph_tree(tree_dict)
+
+    @pyqtSlot(str)
+    def slot_obj_name(self, obj_name):
+        self.signal_obj_name.emit(obj_name)
 
 
 class PaintingArea(QWidget):

@@ -34,6 +34,8 @@ class Director(QObject):
         self.cai.create_readiness.connect(self.mw.rtb.set_active_apply)
         self.cai.new_str_tree.connect(self.mw.ltb.set_tree)
 
+        self.mw.ltb.signal_obj_name.connect(self.mw.rtb.set_focus_widget_value)
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
