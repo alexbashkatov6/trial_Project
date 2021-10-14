@@ -202,6 +202,7 @@ class CommonAttributeInterface(QObject):
     send_class_str = pyqtSignal(str)
     create_readiness = pyqtSignal(bool)
     default_attrib_list = [AttributeFormat(BSSAttributeType('title'), '<pick object>')]
+    new_str_tree = pyqtSignal(dict)
 
     def __init__(self):
         super().__init__()
@@ -289,7 +290,7 @@ class CommonAttributeInterface(QObject):
         node_cell.str_value = new_value
         if node in [i[0] for i in get_splitter_nodes_cells(g)]:
             move = g.am.get_single_elm_by_cell_content(PGMove, new_value, node.ni_nd.moves)
-            assert move, 'Node not found'
+            assert move, 'Move not found'
             node.ni_nd.choice_move_activate(move)
         self.form_attrib_list()
         self.check_all_values_defined()
@@ -310,7 +311,7 @@ class CommonAttributeInterface(QObject):
         self.create_readiness.emit(self._create_readiness)
         return self._create_readiness
 
-    def create_obj_attributes(self):  # , assertion_about_defined=True
+    def create_obj_attributes(self):
         curr_obj = self.current_object
         for active_cell in self.get_active_cells():
             assert re.fullmatch(r'\w+', active_cell.name), 'Name {} for attr is not possible'.format(active_cell.name)
@@ -324,9 +325,10 @@ class CommonAttributeInterface(QObject):
             GDM.add_new_instance(co)
             GDM.add_to_tree_graph(co)
             GNM.register_obj_name(co, co.name)
-        # self._is_new_object = False
         self.create_new_object(co.__class__.__name__)
         print('Object {}({}) is registered'.format(co.name, co))
+        print('Tree: {}'.format(GDM.tree_graph_dict_string_repr))
+        self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
 
 
 CAI = CommonAttributeInterface()
@@ -406,6 +408,21 @@ class GlobalDataManager:
             a_m.create_cell(node_class, obj.__class__.__name__)
         node_obj, _, _ = tg.insert_node_single_link(node_class.ni_nd)
         a_m.create_cell(node_obj, obj.name)
+
+    @property
+    def tree_graph_dict_string_repr(self) -> dict[str, set[str]]:
+        tg = self.tree_graph
+        a_m = tg.am
+        node_lr = tg.layered_representation(tg.inf_node_pu.ni_nd)
+        result = {}
+        if len(node_lr) <= 2:
+            return result
+        for node in node_lr[1]:
+            cell = a_m.get_elm_cell_by_context(node)
+            child_pns = set(link.opposite_ni(node.ni_nd).pn for link in node.ni_nd.links)
+            child_names = set(a_m.get_elm_cell_by_context(child_pn).name for child_pn in child_pns)
+            result[cell.name] = child_names
+        return result
 
 
 GDM = GlobalDataManager()

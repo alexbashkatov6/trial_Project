@@ -2,9 +2,10 @@ import os
 import re
 
 from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
-    QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox
+    QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView
 from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint
+from PyQt5.Qt import QStandardItemModel, QStandardItem
 
 from nv_attribute_format import AttributeFormat
 
@@ -165,8 +166,8 @@ class ToolBarOfAttributes(QToolBar):
     def __init__(self, min_size):
         super().__init__()
         self.setMinimumSize(min_size, min_size)
-        self.wgt_vertical = QWidget()
-        self.addWidget(self.wgt_vertical)
+        self.wgt_main = QWidget()
+        self.addWidget(self.wgt_main)
 
         self.active_class_label = QLabel('< pick tool >', self)
         self.active_class_label.setAlignment(Qt.AlignHCenter)
@@ -180,7 +181,7 @@ class ToolBarOfAttributes(QToolBar):
         self.vbox.addWidget(self.active_class_label)
         self.vbox.addWidget(self.attributes_column)
         self.vbox.addWidget(self.apply_button)
-        self.wgt_vertical.setLayout(self.vbox)
+        self.wgt_main.setLayout(self.vbox)
 
         self.attributes_column.new_name_value_ac.connect(self.new_name_value_tb)
         self.apply_button.clicked.connect(self.apply_clicked)
@@ -202,11 +203,52 @@ class ToolBarOfAttributes(QToolBar):
     #     self.attributes_column.replace_line_edit(af)
 
 
+class ObjectsTree(QTreeView):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setHeaderHidden(True)
+        self.tree_model = QStandardItemModel()
+        self.root_node = self.tree_model.invisibleRootItem()
+
+    def clean(self):
+        self.tree_model = QStandardItemModel()
+        self.root_node = self.tree_model.invisibleRootItem()
+
+    def init_from_graph_tree(self, tree_dict):
+        self.clean()
+        for class_name in tree_dict:
+            item_class = QStandardItem(class_name)
+            self.root_node.appendRow(item_class)
+            for obj_name in tree_dict[class_name]:
+                item_obj = QStandardItem(obj_name)
+                item_class.appendRow(item_obj)
+
+        self.setModel(self.tree_model)
+        self.expandAll()
+
+
 class ToolBarOfObjects(QToolBar):
 
     def __init__(self, min_size):
         super().__init__()
         self.setMinimumSize(min_size, min_size)
+        self.wgt_main = QWidget()
+        self.addWidget(self.wgt_main)
+
+        self.title_label = QLabel('Tree of objects', self)
+        self.title_label.setAlignment(Qt.AlignHCenter)
+
+        self.objects_tree = ObjectsTree(self)
+
+        self.vbox = QVBoxLayout()
+        self.vbox.addWidget(self.title_label)
+        self.vbox.addWidget(self.objects_tree)
+        self.wgt_main.setLayout(self.vbox)
+
+    @pyqtSlot(dict)
+    def set_tree(self, tree_dict):
+        self.objects_tree.init_from_graph_tree(tree_dict)
 
 
 class PaintingArea(QWidget):
