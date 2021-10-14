@@ -256,6 +256,8 @@ class CommonAttributeInterface(QObject):
                 cell.activate()
             cell.check_value()
             af.status_check = cell.status_check
+            if cell.checker and hasattr(cell.checker, 'req_class_str'):
+                af.req_type_str = 'Required type: {}'.format(cell.checker.req_class_str)
             af_list.append(af)
 
         self.send_attrib_list.emit(af_list)
@@ -291,9 +293,9 @@ class CommonAttributeInterface(QObject):
             assert move, 'Node not found'
             node.ni_nd.choice_move_activate(move)
             self.form_attrib_list()
-        else:
-            print('value changed slot = ', name_interface, new_value)
-            node_cell.check_value()
+        # else:
+            # print('value changed slot = ', name_interface, new_value)
+            # node_cell.check_value()
             # self.form_new_value(name_interface, new_value, node_cell.status_check, False)
         self.form_attrib_list()
         self.check_all_values_defined()

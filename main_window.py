@@ -101,9 +101,11 @@ class AttribColumn(QWidget):
                 self.widgets_dict[value_wgt] = name_wgt
             if af.attr_type == 'value':
                 name_wgt_0 = QLabel(af.attr_name, self)
+                name_wgt_0.setToolTip(af.req_type_str)
                 attr_layout.addWidget(name_wgt_0)
                 value_wgt_0 = QLineEdit(af.attr_value, self)
                 self.set_bool_color(value_wgt_0, af)
+                value_wgt_0.setToolTip(af.status_check)
                 value_wgt_0.returnPressed.connect(self.edit_finished)
                 value_wgt_0.textEdited.connect(self.color_reset)
                 attr_layout.addWidget(value_wgt_0)

@@ -175,6 +175,7 @@ class CellChecker:
 class NameCellChecker(CellChecker):
     def __init__(self, cls: type):
         super().__init__(partial(name_syntax_checker, cls=cls))
+        self._req_class_str = 'str'  # .format(cls.__name__)
 
 
 class SplitterCellChecker(CellChecker):

@@ -1,10 +1,19 @@
 import sys
+import traceback
 
 from main_window import MW
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QObject
 from messages import MessagesManager
 from nv_attributed_objects import CommonAttributeInterface
+
+
+def excepthook(exc_type, exc_value, exc_tb):
+    tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    print("Oбнаружена ошибка !:", tb)
+
+
+sys.excepthook = excepthook
 
 
 class Director(QObject):

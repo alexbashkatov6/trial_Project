@@ -16,6 +16,7 @@ class AttributeFormat:
         self._attr_value = attr_value
         self._possible_values = possible_values
         self._status_check = ''
+        self._req_type_str = ''
         self._is_suggested = False
 
     def __repr__(self):
@@ -57,3 +58,11 @@ class AttributeFormat:
     @is_suggested.setter
     def is_suggested(self, val: bool):
         self._is_suggested = val
+
+    @property
+    def req_type_str(self):
+        return self._req_type_str
+
+    @req_type_str.setter
+    def req_type_str(self, val: str):
+        self._req_type_str = val
