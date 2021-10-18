@@ -1,5 +1,6 @@
 from __future__ import annotations
 from copy import copy, deepcopy
+from collections import OrderedDict
 from functools import partial
 import time
 
@@ -18,7 +19,7 @@ class PGNodeInterface:
     def __init__(self, pn: PolarNode, end: End) -> None:
         self._pn = pn
         self._end = end
-        self._move_by_link: dict[PGLink, PGMove] = dict()
+        self._move_by_link: OrderedDict[PGLink, PGMove] = OrderedDict()
 
     def __repr__(self):
         return "{}({}, {})".format(self.__class__.__name__, self.pn, self.end)
@@ -42,6 +43,11 @@ class PGNodeInterface:
     @strictly_typed
     def links(self) -> set[PGLink]:
         return set(self._move_by_link.keys())
+
+    @property
+    @strictly_typed
+    def ordered_moves(self) -> list[PGMove]:
+        return list(self._move_by_link.values())
 
     @property
     @strictly_typed
@@ -501,9 +507,9 @@ class PolarGraph:
         coverage_graph.border_ni_s = border_ni_s_cov
         return coverage_graph
 
-    @strictly_typed
-    def layered_representation(self, start_ni_of_node: PGNodeInterface) -> list[set[PolarNode]]:
-        return self.walk_to_borders(start_ni_of_node)[1]
+    # @strictly_typed
+    # def layered_representation(self, start_ni_of_node: PGNodeInterface) -> list[set[PolarNode]]:
+    #     return self.walk_to_borders(start_ni_of_node)[1]
 
     @strictly_typed
     def cut_subgraph(self, border_nodes: Iterable[PolarNode]) -> PolarGraph:

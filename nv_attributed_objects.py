@@ -129,7 +129,7 @@ class AttribBuildGraphTemplDescr:
 class AttribCommonGraphTemplDescr:
 
     def __get__(self, instance, owner=None):
-        start_time = time.time()
+        # start_time = time.time()
         if instance is None:
             return self
         if hasattr(instance, '_graph_template'):
@@ -341,7 +341,7 @@ class GlobalDataManager:
         self._dependence_graph = BasePolarGraph()
         self._field_graph = BasePolarGraph()
 
-        self._class_instances: dict[str, set[AttrControlObject]] = {}
+        self._class_instances: dict[str, list[AttrControlObject]] = {}
 
         self.init_tree_graph()
         self.init_dependence_graph()
@@ -396,8 +396,8 @@ class GlobalDataManager:
     def add_new_instance(self, obj: AttrControlObject):
         cls_name = obj.__class__.__name__
         if cls_name not in self._class_instances:
-            self._class_instances[cls_name] = set()
-        self._class_instances[cls_name].add(obj)
+            self._class_instances[cls_name] = list()
+        self._class_instances[cls_name].append(obj)
 
     def add_to_tree_graph(self, obj: AttrControlObject):
         tg = self.tree_graph
@@ -410,18 +410,18 @@ class GlobalDataManager:
         a_m.create_cell(node_obj, obj.name)
 
     @property
-    def tree_graph_dict_string_repr(self) -> dict[str, set[str]]:
+    def tree_graph_dict_string_repr(self) -> dict[str, list[str]]:
         tg = self.tree_graph
         a_m = tg.am
-        node_lr = tg.layered_representation(tg.inf_node_pu.ni_nd)
         result = {}
-        if len(node_lr) <= 2:
-            return result
-        for node in node_lr[1]:
-            cell = a_m.get_elm_cell_by_context(node)
-            child_pns = set(link.opposite_ni(node.ni_nd).pn for link in node.ni_nd.links)
-            child_names = set(a_m.get_elm_cell_by_context(child_pn).name for child_pn in child_pns)
-            result[cell.name] = child_names
+        first_ni = tg.inf_node_pu.ni_nd
+        for move in first_ni.ordered_moves:
+            node_of_class = move.link.opposite_ni(first_ni).pn
+            cell_class = a_m.get_elm_cell_by_context(node_of_class)
+            child_pns = list(move.link.opposite_ni(node_of_class.ni_nd).pn
+                             for move in node_of_class.ni_nd.ordered_moves)
+            child_names = list(a_m.get_elm_cell_by_context(child_pn).name for child_pn in child_pns)
+            result[cell_class.name] = child_names
         return result
 
 
