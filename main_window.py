@@ -48,7 +48,6 @@ class ToolBarOfClasses(QToolBar):
     def act_triggered(self):
         sender = self.sender()
         cls_name = self.pic_names_sorted_list[self.qb_list.index(sender)]
-        # self.send_class_name.emit(cls_name[cls_name.index('_') + 1:])
         self.send_class_name.emit(cls_name)
 
 
@@ -120,23 +119,6 @@ class AttribColumn(QWidget):
         label: QLabel = self.widgets_dict[sender]
         self.new_name_value_ac.emit(label.text(), new_val)
 
-    # def get_line_edit(self, str_name: str) -> QLineEdit:
-    #     for line_edit_widget, label_widget in self.widgets_dict.items():
-    #         if label_widget.text() == str_name:
-    #             return line_edit_widget
-    #     print('Not found')
-    #     assert False, 'Not found'
-    #
-    # def replace_line_edit(self, af: AttributeFormat):
-    #     str_name = af.attr_name
-    #     old_le = self.get_line_edit(str_name)
-    #     new_le = QLineEdit(af.attr_value, self)
-    #     self.set_bool_color(new_le, af)
-    #     self.main_layout.replaceWidget(old_le, new_le)
-    #     self.widgets_dict[new_le] = self.widgets_dict[old_le]
-    #     self.widgets_dict.pop(old_le)
-    #     old_le.setParent(None)
-
     @pyqtSlot(str)
     def color_reset(self, new_val: str):
         sender = self.sender()
@@ -199,10 +181,7 @@ class ToolBarOfAttributes(QToolBar):
         if isinstance(focus_widget, QLineEdit):
             focus_widget: QLineEdit
             focus_widget.setText(obj_name_str)
-
-    # @pyqtSlot(AttributeFormat)
-    # def replace_line_edit(self, af: AttributeFormat):
-    #     self.attributes_column.replace_line_edit(af)
+            focus_widget.returnPressed.emit()
 
 
 class ObjectsTree(QWidget):

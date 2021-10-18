@@ -293,5 +293,26 @@ class AlwaysTrueValidator(QValidator):
     def validate(self, s: str = '', i: int = 0):
         return QValidator.Acceptable
 
+# ----------------------  line_edit  ----------
 
+    # def get_line_edit(self, str_name: str) -> QLineEdit:
+    #     for line_edit_widget, label_widget in self.widgets_dict.items():
+    #         if label_widget.text() == str_name:
+    #             return line_edit_widget
+    #     print('Not found')
+    #     assert False, 'Not found'
+    #
+    # def replace_line_edit(self, af: AttributeFormat):
+    #     str_name = af.attr_name
+    #     old_le = self.get_line_edit(str_name)
+    #     new_le = QLineEdit(af.attr_value, self)
+    #     self.set_bool_color(new_le, af)
+    #     self.main_layout.replaceWidget(old_le, new_le)
+    #     self.widgets_dict[new_le] = self.widgets_dict[old_le]
+    #     self.widgets_dict.pop(old_le)
+    #     old_le.setParent(None)
+
+    # @pyqtSlot(AttributeFormat)
+    # def replace_line_edit(self, af: AttributeFormat):
+    #     self.attributes_column.replace_line_edit(af)
 

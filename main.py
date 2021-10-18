@@ -35,8 +35,11 @@ class Director(QObject):
         self.cai.create_readiness.connect(self.mw.rtb.set_active_apply)
         self.cai.new_str_tree.connect(self.mw.ltb.set_tree)
 
-        self.mw.ltb.get_tree_graph.emit()
+        # internal interface connections
         self.mw.ltb.signal_obj_name.connect(self.mw.rtb.set_focus_widget_value)
+
+        # initial emit
+        self.mw.ltb.get_tree_graph.emit()
 
 
 if __name__ == '__main__':
