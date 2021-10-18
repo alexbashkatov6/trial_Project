@@ -27,6 +27,7 @@ class Director(QObject):
         self.mw.ttb.send_class_name.connect(self.cai.create_new_object)
         self.mw.rtb.new_name_value_tb.connect(self.cai.slot_change_value)
         self.mw.rtb.apply_clicked.connect(self.cai.apply_changes)
+        self.mw.ltb.get_tree_graph.connect(self.cai.get_tree_graph)
 
         # storage to interface
         self.cai.send_attrib_list.connect(self.mw.rtb.set_attr_struct)
@@ -34,6 +35,7 @@ class Director(QObject):
         self.cai.create_readiness.connect(self.mw.rtb.set_active_apply)
         self.cai.new_str_tree.connect(self.mw.ltb.set_tree)
 
+        self.mw.ltb.get_tree_graph.emit()
         self.mw.ltb.signal_obj_name.connect(self.mw.rtb.set_focus_widget_value)
 
 

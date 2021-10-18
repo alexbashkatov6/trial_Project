@@ -1,12 +1,12 @@
 from __future__ import annotations
 from itertools import chain
 from copy import copy
-from abc import ABCMeta
+# from abc import ABCMeta
 
 from nv_typing import *
 
 
-class BoundedStringSet(metaclass=ABCMeta):
+class BoundedStringSet:  # metaclass=ABCMeta
     def __init__(self, str_val: str = None):
         if str_val:
             self.value = str_val

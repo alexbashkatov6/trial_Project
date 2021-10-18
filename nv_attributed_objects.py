@@ -14,6 +14,7 @@ from nv_polar_graph import (End,
                             PGRoute)
 from nv_attribute_format import BSSAttributeType, AttributeFormat
 from nv_cell import Cell, DefaultCellChecker, NameCellChecker, SplitterCellChecker, BoolCellChecker, NameAutoSetter, GNM
+from nv_config import CLASSES_SEQUENCE
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
@@ -179,6 +180,9 @@ class AttrControlObject:
     graph_template = AttribCommonGraphTemplDescr()
 
 
+# for cls_name in CLASSES_SEQUENCE:
+#     type(cls_name, (AttrControlObject,), {})
+
 class CoordinateSystem(AttrControlObject):
     pass
 
@@ -326,8 +330,12 @@ class CommonAttributeInterface(QObject):
             GDM.add_to_tree_graph(co)
             GNM.register_obj_name(co, co.name)
         self.create_new_object(co.__class__.__name__)
-        print('Object {}({}) is registered'.format(co.name, co))
-        print('Tree: {}'.format(GDM.tree_graph_dict_string_repr))
+        # print('Object {}({}) is registered'.format(co.name, co))
+        # print('Tree: {}'.format(GDM.tree_graph_dict_string_repr))
+        self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
+
+    @pyqtSlot()
+    def get_tree_graph(self):
         self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
 
 
@@ -370,6 +378,10 @@ class GlobalDataManager:
         a_m = self.tree_graph.am
         a_m.node_assoc_class = TreeNodeAssociation
         a_m.auto_set_curr_context()
+        for cls_name in CLASSES_SEQUENCE:
+            node_class, _, _ = self.tree_graph.insert_node_single_link()
+            a_m.create_cell(node_class, cls_name)
+        # print(a_m.)
 
     def init_dependence_graph(self):
         a_m = self.dependence_graph.am
@@ -388,6 +400,7 @@ class GlobalDataManager:
         self._gcs.name = 'CoordinateSystem_Global'
         GNM.register_obj_name(self._gcs, 'CoordinateSystem_Global')
         self.add_new_instance(self._gcs)
+        self.add_to_tree_graph(self._gcs)
 
     @property
     def gcs(self) -> CoordinateSystem:
@@ -403,9 +416,7 @@ class GlobalDataManager:
         tg = self.tree_graph
         a_m = tg.am
         node_class = a_m.get_single_elm_by_cell_content(PolarNode, obj.__class__.__name__)
-        if node_class is None:
-            node_class, _, _ = tg.insert_node_single_link()
-            a_m.create_cell(node_class, obj.__class__.__name__)
+        assert node_class, 'Node class not found'
         node_obj, _, _ = tg.insert_node_single_link(node_class.ni_nd)
         a_m.create_cell(node_obj, obj.name)
 
@@ -415,17 +426,23 @@ class GlobalDataManager:
         a_m = tg.am
         result = {}
         first_ni = tg.inf_node_pu.ni_nd
+        # print('len = ', len(first_ni.ordered_moves))
         for move in first_ni.ordered_moves:
             node_of_class = move.link.opposite_ni(first_ni).pn
             cell_class = a_m.get_elm_cell_by_context(node_of_class)
+            obj_moves = node_of_class.ni_nd.ordered_moves
             child_pns = list(move.link.opposite_ni(node_of_class.ni_nd).pn
-                             for move in node_of_class.ni_nd.ordered_moves)
+                             for move in obj_moves)
+            if tg.inf_node_nd in child_pns:
+                result[cell_class.name] = []
+                continue
             child_names = list(a_m.get_elm_cell_by_context(child_pn).name for child_pn in child_pns)
             result[cell_class.name] = child_names
         return result
 
 
 GDM = GlobalDataManager()
+# CAI.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
 
 if __name__ == '__main__':
 

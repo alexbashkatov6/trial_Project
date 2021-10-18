@@ -8,6 +8,7 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint
 from PyQt5.Qt import QStandardItemModel, QStandardItem
 
 from nv_attribute_format import AttributeFormat
+from nv_config import CLASSES_SEQUENCE
 
 
 class ToolBarOfClasses(QToolBar):
@@ -21,24 +22,17 @@ class ToolBarOfClasses(QToolBar):
         self.qb_list = []
 
     def extract_pictures(self, classes_names):
-        pic_names = {}
-        nums_of_pict = []
         root_path = os.getcwd()
         tree = os.walk(root_path + '\\' + self.picFolder)
+        self.pic_names_sorted_list = []
+        extracted_pict_names = []
         for d, dirs, files in tree:
             for file in files:
                 file_without_extent = file[:file.rfind('.')]
-                assert bool(re.fullmatch(r'\d{2}_\w+', file_without_extent)), \
-                    'File of picture should be in format (d)(d)_(className), given {}'.format(file_without_extent)
-                file_prefix = file_without_extent[:file_without_extent.find('_')]
-                file_postfix = file_without_extent[file_without_extent.find('_') + 1:]
-                int_prefix = int(file_prefix)
-                assert int_prefix not in nums_of_pict, 'Num of pic file {} is repeating'.format(int_prefix)
-                nums_of_pict.append(int_prefix)
-                assert file_postfix in classes_names, \
-                    'Class not found in file_postfix {}'.format(file_without_extent)
-                pic_names[int_prefix] = file_without_extent
-        self.pic_names_sorted_list = [pic_names[i] for i in sorted(pic_names)]
+                assert file_without_extent in classes_names, \
+                    'Picture name {} not found in classes names list'.format(file_without_extent)
+                extracted_pict_names.append(file_without_extent)
+        self.pic_names_sorted_list = [i for i in CLASSES_SEQUENCE if i in extracted_pict_names]
 
     def construct_widget(self, min_size):
         self.setMinimumSize(min_size, min_size)
@@ -53,8 +47,9 @@ class ToolBarOfClasses(QToolBar):
 
     def act_triggered(self):
         sender = self.sender()
-        long_name = self.pic_names_sorted_list[self.qb_list.index(sender)]
-        self.send_class_name.emit(long_name[long_name.index('_') + 1:])
+        cls_name = self.pic_names_sorted_list[self.qb_list.index(sender)]
+        # self.send_class_name.emit(cls_name[cls_name.index('_') + 1:])
+        self.send_class_name.emit(cls_name)
 
 
 class AttribColumn(QWidget):
@@ -254,6 +249,7 @@ class ObjectsTree(QWidget):
 
 class ToolBarOfObjects(QToolBar):
     signal_obj_name = pyqtSignal(str)
+    get_tree_graph = pyqtSignal()
 
     def __init__(self, min_size):
         super().__init__()
@@ -315,7 +311,7 @@ class MW(QMainWindow):
         # Top tool bar format
         self.ttb = ToolBarOfClasses()
         # self.ttb.extract_pictures(self.ce.extractedClasses)
-        self.ttb.extract_pictures(['CoordinateSystem', 'Point', 'Line', 'GroundLine'])
+        self.ttb.extract_pictures(CLASSES_SEQUENCE)
         self.ttb.construct_widget(top_toolbar_min_height_width)
 
         # Right tool bar format
