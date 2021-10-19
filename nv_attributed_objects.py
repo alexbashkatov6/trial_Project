@@ -152,7 +152,7 @@ class AttribCommonGraphTemplDescr:
 
         # print('before a_m = ', time.time()-start_time)
         a_m.create_cell(node_name_title, 'Name options')
-        a_m.create_cell(node_name, 'name', NameCellChecker(owner))
+        a_m.create_cell(node_name, 'name', NameCellChecker(owner), auto_setter=NameAutoSetter(owner))
         a_m.create_cell(node_build_title, 'Build options')
         a_m.create_cell(node_evaluate_title, 'Evaluation options')
         a_m.create_cell(node_view_title, 'View options')
@@ -179,9 +179,6 @@ class AttrControlObject:
     graph_build_template = AttribBuildGraphTemplDescr()
     graph_template = AttribCommonGraphTemplDescr()
 
-
-# for cls_name in CLASSES_SEQUENCE:
-#     type(cls_name, (AttrControlObject,), {})
 
 class CoordinateSystem(AttrControlObject):
     pass
@@ -251,8 +248,9 @@ class CommonAttributeInterface(QObject):
                 if cell.checker is None:
                     af = AttributeFormat(BSSAttributeType('title'), out_name)
                 else:
-                    af = AttributeFormat(BSSAttributeType('value'), out_name, cell.str_value)
                     cell.activate()
+                    af = AttributeFormat(BSSAttributeType('value'), out_name, cell.str_value)
+                    af.is_suggested = cell.is_suggested_value
             else:
                 str_value = cells_set_list[i + 1].pop().name
                 cls = get_class_by_str(cell.checker.req_class_str)
