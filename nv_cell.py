@@ -208,7 +208,7 @@ def name_auto_setter(cls: Any, start_index: int = 1):
             break
         else:
             i += 1
-    print('In auto_name', auto_name)
+    # print('In auto_name', auto_name)
     return auto_name
 
 

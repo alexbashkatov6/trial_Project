@@ -1,10 +1,11 @@
 import os
 import re
+import time
 
 from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
     QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView
-from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator
-from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint
+from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer
 from PyQt5.Qt import QStandardItemModel, QStandardItem
 
 from nv_attribute_format import AttributeFormat
@@ -184,12 +185,66 @@ class ToolBarOfAttributes(QToolBar):
             focus_widget.returnPressed.emit()
 
 
-class ObjectsTree(QWidget):
-    send_data = pyqtSignal(str)
+class CustomTW(QTreeView):
+    send_data_double_click = pyqtSignal(str)
+    send_data_right_click = pyqtSignal(str)
+    send_data_hover = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.vbox = QVBoxLayout()
+        self.setHeaderHidden(True)
+        self.setExpandsOnDoubleClick(False)
+        self.setMouseTracking(True)
+        self.timer = QTimer(self)
+        self.timer_first_notification = True
+        self.secs_of_notification: int = 2
+
+    def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
+        if a0.button() == Qt.RightButton:
+            data = self.indexAt(a0.localPos().toPoint()).data()
+            if not (data is None):
+                self.send_data_right_click.emit(data)
+
+    def mouseMoveEvent(self, a0: QEvent) -> None:
+        self.timer.stop()
+        self.timer.timeout.connect(self.timeout_handling)
+        self.timer.start(self.secs_of_notification*1000)
+        self.timer_first_notification = True
+        print('timer RESET')
+        if isinstance(a0, QMouseEvent):
+            data = self.indexAt(a0.localPos().toPoint()).data()
+            if not (data is None):
+                self.send_data_hover.emit(data)
+
+    def enterEvent(self, a0: QEvent) -> None:
+        self.timer = QTimer(self)
+
+    def leaveEvent(self, a0: QEvent) -> None:
+        self.timer.stop()
+
+    @pyqtSlot()
+    def timeout_handling(self):
+        if self.timer_first_notification:
+            print('TIMEOUT')
+            self.timer_first_notification = False
+
+    def finish_operations(self):
+        self.expandAll()
+        self.doubleClicked.connect(self.send_name_double_click)
+
+    def send_name_double_click(self, val):
+        if val.data() not in self.parent().class_nodes:
+            self.send_data_double_click.emit(val.data())
+
+
+class ObjectsTree(QWidget):
+    send_data_double_click = pyqtSignal(str)
+    send_data_right_click = pyqtSignal(str)
+    send_data_hover = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.vbox = QVBoxLayout(self)
         self.setLayout(self.vbox)
         self.clean()
 
@@ -197,13 +252,15 @@ class ObjectsTree(QWidget):
         self.class_nodes = set()
         if hasattr(self, 'tree_view'):
             self.tree_view.setParent(None)
-        self.tree_view = QTreeView(self)
-        self.tree_view.setHeaderHidden(True)
-        self.tree_view.setExpandsOnDoubleClick(False)
+        self.tree_view = CustomTW(self)  # QTreeView
         self.tree_model = QStandardItemModel()
         self.root_node = self.tree_model.invisibleRootItem()
         self.tree_view.setModel(self.tree_model)
         self.vbox.addWidget(self.tree_view)
+
+        self.tree_view.send_data_double_click.connect(self.send_data_double_click)
+        self.tree_view.send_data_right_click.connect(self.send_data_right_click)
+        self.tree_view.send_data_hover.connect(self.send_data_hover)
 
     def init_from_graph_tree(self, tree_dict):
         self.clean()
@@ -217,18 +274,13 @@ class ObjectsTree(QWidget):
                 item_obj = QStandardItem(obj_name)
                 item_obj.setEditable(False)
                 item_class.appendRow(item_obj)
-
-        self.tree_view.expandAll()
-        self.tree_view.doubleClicked.connect(self.send_obj_name)
-
-    def send_obj_name(self, val):
-        if val.data() not in self.class_nodes:
-            self.send_data.emit(val.data())
+        self.tree_view.finish_operations()
 
 
 class ToolBarOfObjects(QToolBar):
-    signal_obj_name = pyqtSignal(str)
-    get_tree_graph = pyqtSignal()
+    send_data_double_click = pyqtSignal(str)
+    send_data_right_click = pyqtSignal(str)
+    send_data_hover = pyqtSignal(str)
 
     def __init__(self, min_size):
         super().__init__()
@@ -241,20 +293,18 @@ class ToolBarOfObjects(QToolBar):
 
         self.objects_tree = ObjectsTree(self)
 
-        self.vbox = QVBoxLayout()
+        self.vbox = QVBoxLayout(self)
         self.vbox.addWidget(self.title_label)
         self.vbox.addWidget(self.objects_tree)
         self.wgt_main.setLayout(self.vbox)
 
-        self.objects_tree.send_data.connect(self.slot_obj_name)
+        self.objects_tree.send_data_double_click.connect(self.send_data_double_click)
+        self.objects_tree.send_data_right_click.connect(self.send_data_right_click)
+        self.objects_tree.send_data_hover.connect(self.send_data_hover)
 
     @pyqtSlot(dict)
     def set_tree(self, tree_dict):
         self.objects_tree.init_from_graph_tree(tree_dict)
-
-    @pyqtSlot(str)
-    def slot_obj_name(self, obj_name):
-        self.signal_obj_name.emit(obj_name)
 
 
 class PaintingArea(QWidget):
