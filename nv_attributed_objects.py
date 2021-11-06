@@ -152,7 +152,7 @@ class AttribCommonGraphTemplDescr:
 
         # print('before a_m = ', time.time()-start_time)
         a_m.create_cell(node_name_title, 'Name options')
-        a_m.create_cell(node_name, 'name', NameCellChecker(owner), auto_setter=NameAutoSetter(owner))
+        a_m.create_cell(node_name, 'name', NameCellChecker(instance), auto_setter=NameAutoSetter(owner))
         a_m.create_cell(node_build_title, 'Build options')
         a_m.create_cell(node_evaluate_title, 'Evaluation options')
         a_m.create_cell(node_view_title, 'View options')

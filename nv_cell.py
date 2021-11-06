@@ -43,6 +43,10 @@ class GlobalNamesManager:
         self._name_to_obj.pop(name)
         self._obj_to_name.pop(obj)
 
+    def rename_obj(self, obj, new_name):
+        self.remove_obj_name(obj)
+        self.register_obj_name(obj, new_name)
+
     def check_new_name(self, name):
         return not (name in self.name_to_obj)
 
@@ -86,7 +90,10 @@ def bool_syntax_checker(value: str, cls: type):
     return eval(value)
 
 
-def name_syntax_checker(value: str, cls: type) -> str:
+def name_syntax_checker(value: str, obj: Any) -> str:
+    cls = obj.__class__
+    if (obj in GNM.obj_to_name) and (value == GNM.obj_to_name[obj]):
+        return value
     prefix = cls.__name__ + '_'
     if not re.fullmatch(r'\w+', value):
         raise SyntaxCellError('Name have to consists of alphas, nums and _')
@@ -104,50 +111,50 @@ def default_type_checker(value: Any, req_cls_str: str) -> None:
         raise TypeCellError('Given value type is not equal to required type')
 
 
-class NameDescriptor:
-
-    def __init__(self, start_index=1):
-        assert type(start_index) == int, 'Start index must be int'
-        self.start_index = start_index
-
-    def __get__(self, instance, owner=None):
-
-        if not (instance is None) and not hasattr(instance, '_name'):
-            instance._name = None
-
-        if instance is None:
-            return owner.__name__
-        else:
-            if not (instance._name is None):
-                return instance._name
-            else:
-                raise ValueError('Name is not defined')
-
-    def __set__(self, instance, name_candidate):
-        if hasattr(instance, '_name'):
-            GNM.remove_obj_name(instance)
-        prefix = instance.__class__.__name__ + '_'
-        if name_candidate == 'auto_name':
-            i = self.start_index
-            while True:
-                if i < 1:
-                    name_candidate = '{}{}'.format(prefix, '0' * (1 - i))
-                else:
-                    name_candidate = '{}{}'.format(prefix, i)
-                if GNM.check_new_name(name_candidate):
-                    break
-                else:
-                    i += 1
-        else:
-            assert type(name_candidate) == str, 'Name need be str'
-            assert bool(re.fullmatch(r'\w+', name_candidate)), 'Name have to consists of alphas, nums and _'
-            assert name_candidate.startswith(prefix), 'Name have to begin from className_'
-            assert name_candidate != prefix, 'name cannot be == prefix; add specification to end'
-            assert not name_candidate[
-                       len(prefix):].isdigit(), 'Not auto-name cannot be (prefix + int); choose other name'
-            assert GNM.check_new_name(name_candidate), 'Name {} already exists'.format(name_candidate)
-        instance._name = name_candidate
-        GNM.register_obj_name(instance, name_candidate)
+# class NameDescriptor:
+#
+#     def __init__(self, start_index=1):
+#         assert type(start_index) == int, 'Start index must be int'
+#         self.start_index = start_index
+#
+#     def __get__(self, instance, owner=None):
+#
+#         if not (instance is None) and not hasattr(instance, '_name'):
+#             instance._name = None
+#
+#         if instance is None:
+#             return owner.__name__
+#         else:
+#             if not (instance._name is None):
+#                 return instance._name
+#             else:
+#                 raise ValueError('Name is not defined')
+#
+#     def __set__(self, instance, name_candidate):
+#         if hasattr(instance, '_name'):
+#             GNM.remove_obj_name(instance)
+#         prefix = instance.__class__.__name__ + '_'
+#         if name_candidate == 'auto_name':
+#             i = self.start_index
+#             while True:
+#                 if i < 1:
+#                     name_candidate = '{}{}'.format(prefix, '0' * (1 - i))
+#                 else:
+#                     name_candidate = '{}{}'.format(prefix, i)
+#                 if GNM.check_new_name(name_candidate):
+#                     break
+#                 else:
+#                     i += 1
+#         else:
+#             assert type(name_candidate) == str, 'Name need be str'
+#             assert bool(re.fullmatch(r'\w+', name_candidate)), 'Name have to consists of alphas, nums and _'
+#             assert name_candidate.startswith(prefix), 'Name have to begin from className_'
+#             assert name_candidate != prefix, 'name cannot be == prefix; add specification to end'
+#             assert not name_candidate[
+#                        len(prefix):].isdigit(), 'Not auto-name cannot be (prefix + int); choose other name'
+#             assert GNM.check_new_name(name_candidate), 'Name {} already exists'.format(name_candidate)
+#         instance._name = name_candidate
+#         GNM.register_obj_name(instance, name_candidate)
 
 
 class CellChecker:
@@ -173,8 +180,8 @@ class CellChecker:
 
 
 class NameCellChecker(CellChecker):
-    def __init__(self, cls: type):
-        super().__init__(partial(name_syntax_checker, cls=cls))
+    def __init__(self, obj: Any):
+        super().__init__(partial(name_syntax_checker, obj=obj))
         self._req_class_str = 'str'  # .format(cls.__name__)
 
 
@@ -246,6 +253,10 @@ class Cell:
     def name(self):
         return self._name
 
+    @name.setter
+    def name(self, val: str):
+        self._name = val
+
     @property
     def str_value(self) -> str:
         return self._str_value
@@ -266,7 +277,7 @@ class Cell:
         return self._active
 
     def activate(self):
-        if self.value is None:
+        if self.str_value == '':
             self.auto_set_value()
         self._active = True
 
