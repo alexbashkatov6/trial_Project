@@ -14,7 +14,7 @@ from nv_polar_graph import (End,
                             PGRoute)
 from nv_attribute_format import BSSAttributeType, AttributeFormat
 from nv_cell import Cell, DefaultCellChecker, NameCellChecker, SplitterCellChecker, BoolCellChecker, NameAutoSetter, GNM
-from nv_config import CLASSES_SEQUENCE
+from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
@@ -152,7 +152,7 @@ class AttribCommonGraphTemplDescr:
 
         # print('before a_m = ', time.time()-start_time)
         a_m.create_cell(node_name_title, 'Name options')
-        a_m.create_cell(node_name, 'name', NameCellChecker(instance), auto_setter=NameAutoSetter(owner))
+        a_m.create_cell(node_name, 'name', NameCellChecker(instance), auto_setter=NameAutoSetter(owner))  #
         a_m.create_cell(node_build_title, 'Build options')
         a_m.create_cell(node_evaluate_title, 'Evaluation options')
         a_m.create_cell(node_view_title, 'View options')
@@ -205,6 +205,8 @@ class CommonAttributeInterface(QObject):
     default_attrib_list = [AttributeFormat(BSSAttributeType('title'), '<pick object>')]
     new_str_tree = pyqtSignal(dict)
 
+    send_info_object = pyqtSignal(list)
+
     def __init__(self):
         super().__init__()
         self._current_object = None
@@ -224,13 +226,11 @@ class CommonAttributeInterface(QObject):
         self._current_object = value
         self.send_class_str.emit(value.__class__.__name__)
 
-    def form_attrib_list(self):
+    def form_attrib_list(self, obj):
+        if obj is None:
+            return self.default_attrib_list
         af_list: list[AttributeFormat] = []
-        curr_obj = self.current_object
-        if curr_obj is None:
-            self.send_attrib_list.emit(self.default_attrib_list)
-            return
-        g = curr_obj.graph_template
+        g = obj.graph_template
         am = g.am
         for node in g.not_inf_nodes:
             cells = am.cell_dicts[node].values()
@@ -244,44 +244,49 @@ class CommonAttributeInterface(QObject):
                 continue
             cell = set_cells.pop()
             out_name = name_translator_storage_to_interface(cell.name)
-            if cell not in splitter_cells_set:
-                if cell.checker is None:
-                    af = AttributeFormat(BSSAttributeType('title'), out_name)
-                else:
-                    cell.activate()
-                    af = AttributeFormat(BSSAttributeType('value'), out_name, cell.str_value)
-                    af.is_suggested = cell.is_suggested_value
-            else:
+            if cell in splitter_cells_set:
                 str_value = cells_set_list[i + 1].pop().name
                 cls = get_class_by_str(cell.checker.req_class_str)
                 cell.str_value = str_value
                 af = AttributeFormat(BSSAttributeType('splitter'), out_name, cell.str_value, cls.unique_values)
                 cell.activate()
+            elif cell.checker is None:
+                af = AttributeFormat(BSSAttributeType('title'), out_name)
+            else:
+                cell.activate()
+                af = AttributeFormat(BSSAttributeType('value'), out_name, cell.str_value)
+                af.is_suggested = cell.is_suggested_value
+
             cell.check_value()
             af.status_check = cell.status_check
             if cell.checker and hasattr(cell.checker, 'req_class_str'):
                 af.req_type_str = 'Required type: {}'.format(cell.checker.req_class_str)
             af_list.append(af)
 
-        self.send_attrib_list.emit(af_list)
+        return af_list
 
     @pyqtSlot(str)
     def change_current_object(self, obj_name: str):
-        self.current_object = GNM.name_to_obj(obj_name)
+        self.current_object = GNM.name_to_obj[obj_name]
         self._is_new_object = False
-        self.form_attrib_list()
+        self.send_current_obj_attribs()
 
     @pyqtSlot(str)
     def create_new_object(self, obj_type: str):
         new_object = eval(obj_type)()
         self.current_object = new_object
         self._is_new_object = True
-        self.form_attrib_list()
-        self.send_class_str.emit(new_object.__class__.__name__)
+        self.send_current_obj_attribs()
+
+    def send_current_obj_attribs(self):
+        self.send_class_str.emit(self.current_object.__class__.__name__)
+        af_list = self.form_attrib_list(self.current_object)
+        self.send_attrib_list.emit(af_list)
         self.check_all_values_defined()
 
     @pyqtSlot(str, str)
     def slot_change_value(self, name_interface: str, new_value: str):
+        # print('got val in changed = ', name_interface, new_value)
         name = name_translator_interface_to_storage(name_interface)
         curr_obj = self.current_object
         g = curr_obj.graph_template
@@ -289,13 +294,16 @@ class CommonAttributeInterface(QObject):
         assert node, 'Node not found'
         node_cell: Cell = g.am.get_elm_cell_by_context(node)
         assert node_cell, 'Node cell not found'
+        # print('after assert')
         node_cell.str_value = new_value
         if node in [i[0] for i in get_splitter_nodes_cells(g)]:
             move = g.am.get_single_elm_by_cell_content(PGMove, new_value, node.ni_nd.moves)
             assert move, 'Move not found'
             node.ni_nd.choice_move_activate(move)
-        self.form_attrib_list()
+        af_list = self.form_attrib_list(self.current_object)
+        self.send_attrib_list.emit(af_list)
         self.check_all_values_defined()
+        # print('after all slot_change_value')
 
     # def form_new_value(self, attr_name: str, attr_value: str, status_check: str, is_suggested: bool) -> None:
     #     af = AttributeFormat(BSSAttributeType('value'), attr_name, attr_value)
@@ -324,17 +332,26 @@ class CommonAttributeInterface(QObject):
         co = self.current_object
         if self.check_all_values_defined():
             self.create_obj_attributes()
-            GDM.add_new_instance(co)
-            GDM.add_to_tree_graph(co)
-            GNM.register_obj_name(co, co.name)
+            if co in GNM.obj_to_name:
+                old_name = GNM.obj_to_name[co]
+                GNM.rename_obj(co, co.name)
+                GDM.rename_cell(co, old_name, co.name)
+            else:
+                GDM.add_new_instance(co)
+                GDM.add_to_tree_graph(co)
+                GNM.register_obj_name(co, co.name)
         self.create_new_object(co.__class__.__name__)
-        # print('Object {}({}) is registered'.format(co.name, co))
-        # print('Tree: {}'.format(GDM.tree_graph_dict_string_repr))
         self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
 
     @pyqtSlot()
     def get_tree_graph(self):
         self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
+
+    @pyqtSlot(str)
+    def hover_handling(self, obj_name):
+        if obj_name != GDM.gcs.name:
+            af_list = self.form_attrib_list(GNM.name_to_obj[obj_name])
+            self.send_info_object.emit(af_list)
 
 
 CAI = CommonAttributeInterface()
@@ -379,7 +396,6 @@ class GlobalDataManager:
         for cls_name in CLASSES_SEQUENCE:
             node_class, _, _ = self.tree_graph.insert_node_single_link()
             a_m.create_cell(node_class, cls_name)
-        # print(a_m.)
 
     def init_dependence_graph(self):
         a_m = self.dependence_graph.am
@@ -395,8 +411,8 @@ class GlobalDataManager:
 
     def init_global_coordinate_system(self):
         self._gcs = CoordinateSystem()
-        self._gcs.name = 'CoordinateSystem_Global'
-        GNM.register_obj_name(self._gcs, 'CoordinateSystem_Global')
+        self._gcs.name = GROUND_CS_NAME
+        GNM.register_obj_name(self._gcs, GROUND_CS_NAME)
         self.add_new_instance(self._gcs)
         self.add_to_tree_graph(self._gcs)
 
@@ -437,6 +453,22 @@ class GlobalDataManager:
             child_names = list(a_m.get_elm_cell_by_context(child_pn).name for child_pn in child_pns)
             result[cell_class.name] = child_names
         return result
+
+    def rename_cell(self, obj: AttrControlObject, old_name: str, new_name: str):
+        tg = self.tree_graph
+        a_m = tg.am
+        found = False
+        for grph_elem_cls in a_m.curr_context:
+            elm = a_m.get_single_elm_by_cell_content(grph_elem_cls, old_name)
+            if elm is None:
+                continue
+            found = True
+            cell = a_m.get_elm_cell_by_context(elm)
+            cell.name = new_name
+        assert found, 'Not found'
+
+    def get_obj_by_cell(self, cell: Cell):
+        pass
 
 
 GDM = GlobalDataManager()

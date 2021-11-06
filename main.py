@@ -27,15 +27,18 @@ class Director(QObject):
         self.mw.ttb.send_class_name.connect(self.cai.create_new_object)
         self.mw.rtb.new_name_value_tb.connect(self.cai.slot_change_value)
         self.mw.rtb.apply_clicked.connect(self.cai.apply_changes)
+        self.mw.ltb.send_data_hover.connect(self.cai.hover_handling)
+        self.mw.ltb.send_data_edit.connect(self.cai.change_current_object)
 
         # storage to interface
         self.cai.send_attrib_list.connect(self.mw.rtb.set_attr_struct)
         self.cai.send_class_str.connect(self.mw.rtb.set_class_str)
         self.cai.create_readiness.connect(self.mw.rtb.set_active_apply)
         self.cai.new_str_tree.connect(self.mw.ltb.set_tree)
+        self.cai.send_info_object.connect(self.mw.ltb.show_info_about_object)
 
         # internal interface connections
-        self.mw.ltb.send_data_double_click.connect(self.mw.rtb.set_focus_widget_value)
+        self.mw.ltb.send_data_fill.connect(self.mw.rtb.set_focus_widget_value)
 
         # initialization
         self.cai.get_tree_graph()

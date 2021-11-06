@@ -1,15 +1,16 @@
 import os
 import re
 import time
+from functools import partial
 
 from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
-    QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView
-from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent
+    QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView, QToolTip, QMenu
+from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer
 from PyQt5.Qt import QStandardItemModel, QStandardItem
 
 from nv_attribute_format import AttributeFormat
-from nv_config import CLASSES_SEQUENCE
+from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME
 
 
 class ToolBarOfClasses(QToolBar):
@@ -59,54 +60,68 @@ class AttribColumn(QWidget):
         super().__init__(parent)
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
-        self.widgets_dict: dict[QWidget, QWidget] = {}
+        # self.main_layout = QVBoxLayout()
+        # self.setLayout(self.main_layout)
+        # self.widgets_dict: dict[QWidget, QWidget] = {}
 
     def clean(self):
-        layout_stack = [self.main_layout]
-        while layout_stack:
-            current_layout = layout_stack.pop()
-            count = current_layout.count()
-            wgts = set()
-            for index in range(count):
-                item = current_layout.itemAt(index)
-                if isinstance(item, QLayout):
-                    layout_stack.append(item)
-                elif isinstance(item, QWidgetItem):
-                    wgt = item.widget()
-                    wgts.add(wgt)
-                else:
-                    assert False, 'Other variants'
-            for wgt in wgts:
-                wgt.setParent(None)
+        if hasattr(self, 'column'):
+            for child in self.column.children():
+                child.setParent(None)
+            self.column.setParent(None)
+        self.column = QWidget(self)
+        self.main_layout.addWidget(self.column)
+        self.column_layout = QVBoxLayout()
+        self.column.setLayout(self.column_layout)
         self.widgets_dict = {}
+
+        # layout_stack = [self.main_layout]
+        # while layout_stack:
+        #     current_layout = layout_stack.pop()
+        #     count = current_layout.count()
+        #     wgts = set()
+        #     for index in range(count):
+        #         item = current_layout.itemAt(index)
+        #         if isinstance(item, QLayout):
+        #             layout_stack.append(item)
+        #         elif isinstance(item, QWidgetItem):
+        #             wgt = item.widget()
+        #             wgts.add(wgt)
+        #         else:
+        #             assert False, 'Other variants'
+        #     for wgt in wgts:
+        #         wgt.setParent(None)
+        #     if not (current_layout is self.main_layout):
+        #         current_layout.setParent(None)
 
     def init_from_container(self, af_list):
         self.clean()
         for af in af_list:
             attr_layout = QHBoxLayout()
             if af.attr_type == 'title':
-                attr_layout.addWidget(QLabel(af.attr_name, self))
+                attr_layout.addWidget(QLabel(af.attr_name, self.column))
             if af.attr_type == 'splitter':
-                name_wgt = QLabel(af.attr_name, self)
+                name_wgt = QLabel(af.attr_name, self.column)
                 attr_layout.addWidget(name_wgt)
-                value_wgt = QComboBox(self)
+                value_wgt = QComboBox(self.column)
                 value_wgt.addItems(af.possible_values)
                 value_wgt.setCurrentText(af.attr_value)
                 value_wgt.currentTextChanged.connect(self.changed_value)
                 attr_layout.addWidget(value_wgt)
                 self.widgets_dict[value_wgt] = name_wgt
             if af.attr_type == 'value':
-                name_wgt_0 = QLabel(af.attr_name, self)
+                name_wgt_0 = QLabel(af.attr_name, self.column)
                 name_wgt_0.setToolTip(af.req_type_str)
                 attr_layout.addWidget(name_wgt_0)
-                value_wgt_0 = QLineEdit(af.attr_value, self)
+                value_wgt_0 = QLineEdit(af.attr_value, self.column)
                 self.set_bool_color(value_wgt_0, af)
                 value_wgt_0.setToolTip(af.status_check)
                 value_wgt_0.returnPressed.connect(self.edit_finished)
                 value_wgt_0.textEdited.connect(self.color_reset)
                 attr_layout.addWidget(value_wgt_0)
                 self.widgets_dict[value_wgt_0] = name_wgt_0
-            self.main_layout.addLayout(attr_layout)
+            self.column_layout.addLayout(attr_layout)
+        # print('after all formed')
 
     @pyqtSlot()
     def edit_finished(self):
@@ -116,6 +131,7 @@ class AttribColumn(QWidget):
 
     @pyqtSlot(str)
     def changed_value(self, new_val: str):
+        # print('in changed')
         sender = self.sender()
         label: QLabel = self.widgets_dict[sender]
         self.new_name_value_ac.emit(label.text(), new_val)
@@ -186,18 +202,21 @@ class ToolBarOfAttributes(QToolBar):
 
 
 class CustomTW(QTreeView):
-    send_data_double_click = pyqtSignal(str)
+    send_data_fill = pyqtSignal(str)
+    send_data_edit = pyqtSignal(str)
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setMouseTracking(True)
         self.setHeaderHidden(True)
         self.setExpandsOnDoubleClick(False)
-        self.setMouseTracking(True)
         self.timer = QTimer(self)
         self.timer_first_notification = True
-        self.secs_of_notification: int = 2
+        self.millisecs_of_notification = 1000
+        self.obj_hovered_name = ''
+        self.current_cursor_point = QPoint(0, 0)
 
     def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
         if a0.button() == Qt.RightButton:
@@ -208,13 +227,15 @@ class CustomTW(QTreeView):
     def mouseMoveEvent(self, a0: QEvent) -> None:
         self.timer.stop()
         self.timer.timeout.connect(self.timeout_handling)
-        self.timer.start(self.secs_of_notification*1000)
+        self.timer.start(self.millisecs_of_notification)
         self.timer_first_notification = True
-        print('timer RESET')
         if isinstance(a0, QMouseEvent):
             data = self.indexAt(a0.localPos().toPoint()).data()
-            if not (data is None):
-                self.send_data_hover.emit(data)
+            self.current_cursor_point = a0.globalPos()
+            if data is None:
+                self.obj_hovered_name = ''
+            else:
+                self.obj_hovered_name = data
 
     def enterEvent(self, a0: QEvent) -> None:
         self.timer = QTimer(self)
@@ -225,20 +246,40 @@ class CustomTW(QTreeView):
     @pyqtSlot()
     def timeout_handling(self):
         if self.timer_first_notification:
-            print('TIMEOUT')
             self.timer_first_notification = False
+            ohn = self.obj_hovered_name
+            if ohn and (ohn not in self.parent().class_nodes):
+                self.send_data_hover.emit(self.obj_hovered_name)
+
+    def contextMenuEvent(self, a0: QContextMenuEvent):
+        data = self.indexAt(a0.pos()).data()
+        if data and (data not in self.parent().class_nodes):
+            contextMenu = QMenu(self)
+            fillAct = contextMenu.addAction("Fill")
+            fillAct.triggered.connect(partial(self.send_name_fill, val=self.indexAt(a0.pos())))
+            if data != GROUND_CS_NAME:
+                editAct = contextMenu.addAction("Edit")
+                editAct.triggered.connect(partial(self.send_name_edit, val=self.indexAt(a0.pos())))
+                deleteAct = contextMenu.addAction("Delete")
+
+            action = contextMenu.exec_(self.mapToGlobal(a0.pos()))
 
     def finish_operations(self):
         self.expandAll()
-        self.doubleClicked.connect(self.send_name_double_click)
+        self.doubleClicked.connect(self.send_name_fill)
 
-    def send_name_double_click(self, val):
+    def send_name_fill(self, val):
         if val.data() not in self.parent().class_nodes:
-            self.send_data_double_click.emit(val.data())
+            self.send_data_fill.emit(val.data())
+
+    def send_name_edit(self, val):
+        if val.data() not in self.parent().class_nodes:
+            self.send_data_edit.emit(val.data())
 
 
 class ObjectsTree(QWidget):
-    send_data_double_click = pyqtSignal(str)
+    send_data_fill = pyqtSignal(str)
+    send_data_edit = pyqtSignal(str)
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
 
@@ -252,15 +293,16 @@ class ObjectsTree(QWidget):
         self.class_nodes = set()
         if hasattr(self, 'tree_view'):
             self.tree_view.setParent(None)
-        self.tree_view = CustomTW(self)  # QTreeView
+        self.tree_view = CustomTW(self)  # QTreeView CustomTW
         self.tree_model = QStandardItemModel()
         self.root_node = self.tree_model.invisibleRootItem()
         self.tree_view.setModel(self.tree_model)
         self.vbox.addWidget(self.tree_view)
 
-        self.tree_view.send_data_double_click.connect(self.send_data_double_click)
+        self.tree_view.send_data_fill.connect(self.send_data_fill)
+        self.tree_view.send_data_edit.connect(self.send_data_edit)
         self.tree_view.send_data_right_click.connect(self.send_data_right_click)
-        self.tree_view.send_data_hover.connect(self.send_data_hover)
+        self.tree_view.send_data_hover.connect(self.send_data_hover)  #
 
     def init_from_graph_tree(self, tree_dict):
         self.clean()
@@ -276,9 +318,9 @@ class ObjectsTree(QWidget):
                 item_class.appendRow(item_obj)
         self.tree_view.finish_operations()
 
-
 class ToolBarOfObjects(QToolBar):
-    send_data_double_click = pyqtSignal(str)
+    send_data_fill = pyqtSignal(str)
+    send_data_edit = pyqtSignal(str)
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
 
@@ -298,13 +340,24 @@ class ToolBarOfObjects(QToolBar):
         self.vbox.addWidget(self.objects_tree)
         self.wgt_main.setLayout(self.vbox)
 
-        self.objects_tree.send_data_double_click.connect(self.send_data_double_click)
+        self.objects_tree.send_data_fill.connect(self.send_data_fill)
+        self.objects_tree.send_data_edit.connect(self.send_data_edit)
         self.objects_tree.send_data_right_click.connect(self.send_data_right_click)
         self.objects_tree.send_data_hover.connect(self.send_data_hover)
 
     @pyqtSlot(dict)
     def set_tree(self, tree_dict):
         self.objects_tree.init_from_graph_tree(tree_dict)
+
+    @pyqtSlot(list)
+    def show_info_about_object(self, af_list):
+        result_str = ''
+        for af in af_list:
+            if af.attr_type == 'title':
+                result_str += '{}\n'.format(af.attr_name)
+            if (af.attr_type == 'splitter') or (af.attr_type == 'value'):
+                result_str += '{}: {}\n'.format(af.attr_name, af.attr_value)
+        QToolTip.showText(self.objects_tree.tree_view.current_cursor_point, result_str.rstrip())
 
 
 class PaintingArea(QWidget):
