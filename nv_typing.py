@@ -82,14 +82,14 @@ def type_verification(string_requirement, value, mode='instance_check', first_en
         else:
             if string_requirement.startswith('Type'):
                 assert type_verification(sq_br_res[0], value, mode='class_check'), \
-                    'Class check {} failed for value(class) {}'.format(string_requirement, value)
+                    'Class check {} failed for str_value(class) {}'.format(string_requirement, value)
                 return True
             if string_requirement.startswith('Optional'):
                 if value is None:
                     return True
                 else:
                     assert type_verification(sq_br_res[0], value, mode), \
-                        'Class check {} failed for value {}'.format(string_requirement, value)
+                        'Class check {} failed for str_value {}'.format(string_requirement, value)
                     return True
             if string_requirement.startswith('Union'):
                 if (value is None) and ('None' in sq_br_res):
@@ -98,28 +98,28 @@ def type_verification(string_requirement, value, mode='instance_check', first_en
                 for varint_cls in sq_br_res:
                     # print('variants get: ', varint_cls)
                     class_founded |= type_verification(varint_cls, value, mode)
-                assert class_founded, 'Class check {} failed for value {}'.format(string_requirement, value)
+                assert class_founded, 'Class check {} failed for str_value {}'.format(string_requirement, value)
                 return True
             if string_requirement.startswith('list'):
                 assert type(value) == list, 'Should be list: {}'.format(value)
                 assert len(sq_br_res) == 1, 'Only single type {} supported for list'.format(value)
                 for element in value:
                     assert type_verification(sq_br_res[0], element, mode), \
-                        'Class check {} failed for value {} in list'.format(string_requirement, element)
+                        'Class check {} failed for str_value {} in list'.format(string_requirement, element)
                 return True
             if string_requirement.startswith('set'):
                 assert type(value) == set, 'Should be set: {}'.format(value)
                 assert len(sq_br_res) == 1, 'Only single type {} supported for set'.format(value)
                 for element in value:
                     assert type_verification(sq_br_res[0], element, mode), \
-                        'Class check {} failed for value {} in set'.format(string_requirement, element)
+                        'Class check {} failed for str_value {} in set'.format(string_requirement, element)
                 return True
             if string_requirement.startswith('Iterable'):
                 assert issubclass(type(value), Iterable), 'Should be Iterable: {}'.format(value)
                 assert len(sq_br_res) == 1, 'Only single type {} supported for Iterable'.format(value)
                 for element in value:
                     assert type_verification(sq_br_res[0], element, mode), \
-                        'Class check {} failed for value {} in Iterable'.format(string_requirement, element)
+                        'Class check {} failed for str_value {} in Iterable'.format(string_requirement, element)
                 return True
             if string_requirement.startswith('tuple'):
                 assert type(value) == tuple, 'Should be tuple: {}'.format(value)
@@ -127,7 +127,7 @@ def type_verification(string_requirement, value, mode='instance_check', first_en
                     'Not equal count of elements in tuple {} and requirements {}'.format(value, sq_br_res)
                 for i, element in enumerate(value):
                     assert type_verification(sq_br_res[i], element, mode), \
-                        'Class check {}({}) failed for value {} in tuple'.format(string_requirement, sq_br_res[i],
+                        'Class check {}({}) failed for str_value {} in tuple'.format(string_requirement, sq_br_res[i],
                                                                                  element)
                 return True
             if string_requirement.startswith('dict'):
@@ -137,7 +137,7 @@ def type_verification(string_requirement, value, mode='instance_check', first_en
                     assert type_verification(sq_br_res[0], d_key, mode), \
                         'Class check {} failed for key {} in dict'.format(string_requirement, d_key)
                     assert type_verification(sq_br_res[1], d_val, mode), \
-                        'Class check {} failed for value {} in dict'.format(string_requirement, d_val)
+                        'Class check {} failed for str_value {} in dict'.format(string_requirement, d_val)
                 return True
             if string_requirement.startswith('OrderedDict'):
                 assert type(value) == OrderedDict, 'Should be OrderedDict: {}'.format(value)
@@ -146,7 +146,7 @@ def type_verification(string_requirement, value, mode='instance_check', first_en
                     assert type_verification(sq_br_res[0], d_key, mode), \
                         'Class check {} failed for key {} in dict'.format(string_requirement, d_key)
                     assert type_verification(sq_br_res[1], d_val, mode), \
-                        'Class check {} failed for value {} in dict'.format(string_requirement, d_val)
+                        'Class check {} failed for str_value {} in dict'.format(string_requirement, d_val)
                 return True
     except AssertionError as ae:
         if first_enter:
@@ -158,7 +158,7 @@ def type_verification(string_requirement, value, mode='instance_check', first_en
 def strictly_typed(function):
     annotats = function.__annotations__
     arg_spec = inspect.getfullargspec(function)
-    assert "return" in annotats, "missing type for return value"
+    assert "return" in annotats, "missing type for return str_value"
     for arg in arg_spec.args + arg_spec.kwonlyargs:
         if arg == 'self':
             continue

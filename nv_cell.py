@@ -2,25 +2,9 @@ from __future__ import annotations
 import re
 from copy import copy
 from functools import partial
-# from keyword import kwlist
 
+from nv_errors import CellError, TypeCellError, SyntaxCellError
 from nv_typing import *
-
-
-class CellError(Exception):
-    pass
-
-
-class TypeCellError(CellError):
-    pass
-
-
-class SyntaxCellError(CellError):
-    pass
-
-
-class SemanticCellError(CellError):
-    pass
 
 
 class GlobalNamesManager:
@@ -33,7 +17,7 @@ class GlobalNamesManager:
             obj, name = name, obj
         assert name not in self.name_to_obj, 'Name repeating'
         assert obj not in self.obj_to_name, 'Obj repeating'
-        assert not (obj is None), 'None value cannot be registered'
+        assert not (obj is None), 'None str_value cannot be registered'
         self._name_to_obj[name] = obj
         self._obj_to_name[obj] = name
 
@@ -108,70 +92,30 @@ def name_syntax_checker(value: str, obj: Any) -> str:
 
 def default_type_checker(value: Any, req_cls_str: str) -> None:
     if not type_verification(req_cls_str, value):
-        raise TypeCellError('Given value type is not equal to required type')
-
-
-# class NameDescriptor:
-#
-#     def __init__(self, start_index=1):
-#         assert type(start_index) == int, 'Start index must be int'
-#         self.start_index = start_index
-#
-#     def __get__(self, instance, owner=None):
-#
-#         if not (instance is None) and not hasattr(instance, '_name'):
-#             instance._name = None
-#
-#         if instance is None:
-#             return owner.__name__
-#         else:
-#             if not (instance._name is None):
-#                 return instance._name
-#             else:
-#                 raise ValueError('Name is not defined')
-#
-#     def __set__(self, instance, name_candidate):
-#         if hasattr(instance, '_name'):
-#             GNM.remove_obj_name(instance)
-#         prefix = instance.__class__.__name__ + '_'
-#         if name_candidate == 'auto_name':
-#             i = self.start_index
-#             while True:
-#                 if i < 1:
-#                     name_candidate = '{}{}'.format(prefix, '0' * (1 - i))
-#                 else:
-#                     name_candidate = '{}{}'.format(prefix, i)
-#                 if GNM.check_new_name(name_candidate):
-#                     break
-#                 else:
-#                     i += 1
-#         else:
-#             assert type(name_candidate) == str, 'Name need be str'
-#             assert bool(re.fullmatch(r'\w+', name_candidate)), 'Name have to consists of alphas, nums and _'
-#             assert name_candidate.startswith(prefix), 'Name have to begin from className_'
-#             assert name_candidate != prefix, 'name cannot be == prefix; add specification to end'
-#             assert not name_candidate[
-#                        len(prefix):].isdigit(), 'Not auto-name cannot be (prefix + int); choose other name'
-#             assert GNM.check_new_name(name_candidate), 'Name {} already exists'.format(name_candidate)
-#         instance._name = name_candidate
-#         GNM.register_obj_name(instance, name_candidate)
+        raise TypeCellError('Given str_value type is not equal to required type')
 
 
 class CellChecker:
-    def __init__(self, f_check_syntax=None, f_check_type=None, f_check_semantic=None):
+    def __init__(self, f_check_syntax=None, f_check_type=None, f_check_semantic_list: list = None):
         self.f_check_syntax = f_check_syntax
         self.f_check_type = f_check_type
-        self.f_check_semantic = f_check_semantic
+        if f_check_semantic_list is None:
+            self.f_check_semantic_list = []
+        else:
+            self.f_check_semantic_list = f_check_semantic_list
         self._req_class_str = None
 
-    def check_value(self, value: str):
+    def add_semantic_checker(self, f_check_semantic: Callable):
+        self.f_check_semantic_list.append(f_check_semantic)
+
+    def check_value(self, str_value: str):
         result = None
         if self.f_check_syntax:
-            result = self.f_check_syntax(value)
+            result = self.f_check_syntax(str_value)
         if self.f_check_type:
             self.f_check_type(result)
-        if self.f_check_semantic:
-            self.f_check_semantic(result)
+        for f_check_semantic in self.f_check_semantic_list:
+            f_check_semantic(str_value, result)
         return result
 
     @property

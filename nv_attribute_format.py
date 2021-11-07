@@ -4,7 +4,7 @@ from nv_typing import *
 
 
 BSSAttributeType = bounded_string_set('BSSAttributeType',
-                                      [['title'], ['splitter'], ['value']])
+                                      [['title'], ['splitter'], ['str_value']])
 
 
 class AttributeFormat:

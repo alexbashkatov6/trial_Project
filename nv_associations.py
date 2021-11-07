@@ -34,7 +34,7 @@ class MoveAssociation(Association):
 AttribNodeAssociation = bounded_string_set('AttribNodeAssociation', [['attrib_node']], NodeAssociation)
 AttribMoveAssociation = bounded_string_set('AttribMoveAssociation', [['splitter_value_move']], MoveAssociation)
 TreeNodeAssociation = bounded_string_set('TreeNodeAssociation', [['class_object_node']], NodeAssociation)
-DependenceNodeAssociation = bounded_string_set('DependenceNodeAssociation', [['object_node']], NodeAssociation)
+DependenceNodeAssociation = bounded_string_set('DependenceNodeAssociation', [['obj_or_attr_node']], NodeAssociation)
 FieldNodeAssociation = bounded_string_set('FieldNodeAssociation', [['railway_point_node'],
                                                                    ['light_node'],
                                                                    ['crossroad_intersection_node'],

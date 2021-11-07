@@ -8,7 +8,8 @@ from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set
 from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
 from nv_cell import Cell, CellChecker, AutoValueSetter
-import nv_cell
+from nv_errors import CycleError
+# import nv_cell
 
 End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
 
@@ -476,9 +477,8 @@ class PolarGraph:
                     route.route_begin, route.route_end = route_border_ends
                     found_routes.add(route)
                     continue
-                if cycles_assertion:
-                    assert not (new_node in [out_ni.pn for out_ni in out_ni_stack]), \
-                        'Loop was found: again in {}'.format(new_node)
+                if cycles_assertion and (new_node in [out_ni.pn for out_ni in out_ni_stack]):
+                    raise CycleError('Dependence loop was found')  # : again in {}.format(new_node)
                 if blind_nodes_assertion:
                     assert new_node.count_side_connected == 2, 'Blind node was found: {}'.format(new_node)
                 out_ni_stack.append(enter_ni.pn.opposite_ni(enter_ni))
@@ -728,7 +728,7 @@ class BasePolarGraph(PolarGraph):
         return new_link
 
     @strictly_typed
-    def _disconnect_nodes(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> \
+    def disconnect_nodes(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> \
             Optional[tuple[PGLink, tuple[PGMove, PGMove]]]:
         link_group = self._get_link_group_by_ends(ni_1, ni_2)
         unstable_links = link_group.unstable_links
@@ -757,7 +757,7 @@ class BasePolarGraph(PolarGraph):
         pu_link = self.connect_nodes(ni_of_positive_up_node, insertion_node.ni_pu, make_pu_stable)
         nd_link = self.connect_nodes(ni_of_negative_down_node, insertion_node.ni_nd, make_nd_stable)
         if existing_old_nodes_link_group:
-            old_link, old_moves = self._disconnect_nodes(ni_of_positive_up_node, ni_of_negative_down_node)
+            old_link, old_moves = self.disconnect_nodes(ni_of_positive_up_node, ni_of_negative_down_node)
             self.am.replace_link_after_split(old_link, old_moves, (pu_link, nd_link))
         return insertion_node, pu_link, nd_link
 
@@ -775,7 +775,7 @@ class BasePolarGraph(PolarGraph):
             assert not link.stable, 'Stable link was found when makes neck'
             ni = link.opposite_ni(ni_necked)
             ni_s_for_reconnect.add(ni)
-            link_nis_before[ni], old_moves[ni] = self._disconnect_nodes(*link.ni_s)
+            link_nis_before[ni], old_moves[ni] = self.disconnect_nodes(*link.ni_s)
         for ni_for_reconnect in ni_s_for_reconnect:
             link_after = self.connect_nodes(ni_instead_necked, ni_for_reconnect)
             self.am.replace_link_after_node_change(link_nis_before[ni_for_reconnect], old_moves[ni_for_reconnect],
@@ -798,18 +798,18 @@ class BasePolarGraph(PolarGraph):
             assert {ni_for_pu_connect, ni_for_nd_connect} == set(link.ni_s), 'Old ni_s should be connected between'
         old_links_pu_connection = insert_pg.inf_node_pu.ni_nd.links
         old_links_nd_connection = insert_pg.inf_node_nd.ni_pu.links
-        self._disconnect_nodes(ni_for_pu_connect, ni_for_nd_connect)
+        self.disconnect_nodes(ni_for_pu_connect, ni_for_nd_connect)
         for node in insert_pg.not_inf_nodes:
             node.base_polar_graph = self
         self.nodes |= insert_pg.not_inf_nodes
         # print('before old_link in = ', time.time()-start_time)
         for old_link in old_links_pu_connection:
-            _, move_ni_s = insert_pg._disconnect_nodes(*old_link.ni_s)
+            _, move_ni_s = insert_pg.disconnect_nodes(*old_link.ni_s)
             ni = old_link.opposite_ni(insert_pg.inf_node_pu.ni_nd)
             new_link = self.connect_nodes(ni, ni_for_pu_connect)
             self.am.replace_link_after_node_change(old_link, move_ni_s, new_link, insert_pg.am)
         for old_link in old_links_nd_connection:
-            _, move_ni_s = insert_pg._disconnect_nodes(*old_link.ni_s)
+            _, move_ni_s = insert_pg.disconnect_nodes(*old_link.ni_s)
             ni = old_link.opposite_ni(insert_pg.inf_node_nd.ni_pu)
             new_link = self.connect_nodes(ni, ni_for_nd_connect)
             self.am.replace_link_after_node_change(old_link, move_ni_s, new_link, insert_pg.am)
@@ -1169,7 +1169,7 @@ class AssociationsManager:
             subgraph = self.base_polar_graph
         storage: set[Union[PolarNode, PGLink, PGMove]] = getattr(subgraph, self.dict_storage_attribute[element_type])
         assert self.curr_context[element_type], 'Context of {} not defined'.format(element_type)
-        assert len(self.curr_context[element_type]) == 1, 'More then 1 value of context {}'.format(element_type)
+        assert len(self.curr_context[element_type]) == 1, 'More then 1 str_value of context {}'.format(element_type)
         context = self.curr_context[element_type].pop()
         for element in storage:
             if (element not in self.cell_dicts) or (context not in self.cell_dicts[element]):

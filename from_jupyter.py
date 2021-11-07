@@ -79,7 +79,7 @@ class CastEvaluations:
 
     def floatToInt(self, in_value, need_type):
         if (need_type == int) and (type(in_value) == float):
-            assert in_value.is_integer(), 'Expected integer value, given is {}'.format(in_value)
+            assert in_value.is_integer(), 'Expected integer str_value, given is {}'.format(in_value)
             return int(in_value)
         else:
             return in_value
@@ -140,8 +140,8 @@ class CastEvaluations:
             assert all(map(lambda i: issubclass(type(i), need_each_type),
                            out_value)), 'Not all elements of class {} : {}'.format(need_each_type.__name__, out_value)
             if not need_count is None:
-                assert type(need_count) == int, 'Need_count need to be int, given value is {}'.format(need_count)
-                assert len(out_value) == need_count, 'Needed count is {}, given value is {}'.format(need_count,
+                assert type(need_count) == int, 'Need_count need to be int, given str_value is {}'.format(need_count)
+                assert len(out_value) == need_count, 'Needed count is {}, given str_value is {}'.format(need_count,
                                                                                                     out_value)
             return out_value
         else:
@@ -185,8 +185,8 @@ class CastEvaluations:
                            out_value)), 'Not all elements is enum vals {} : {}'.format(enum_of_each_value,
                                                                                        out_value)
             if not need_count is None:
-                assert type(need_count) == int, 'Need_count need to be int, given value is {}'.format(need_count)
-                assert len(out_value) == need_count, 'Needed count is {}, given value is {}'.format(need_count,
+                assert type(need_count) == int, 'Need_count need to be int, given str_value is {}'.format(need_count)
+                assert len(out_value) == need_count, 'Needed count is {}, given str_value is {}'.format(need_count,
                                                                                                     out_value)
             return out_value
         else:
@@ -332,7 +332,7 @@ class CoordToBasisTransformation:
         return self._Direction
     @Direction.setter
     def Direction(self, value):
-        assert abs(int(value)) == 1, 'Expected value is 1 or -1'
+        assert abs(int(value)) == 1, 'Expected str_value is 1 or -1'
         self._Direction = value
         
 class FieldCoord:
@@ -384,7 +384,7 @@ class FieldCoord:
         self._FloatCoord = (self.X, self.Y)
     @property
     def PicketCoord(self):
-        assert self.X.is_integer(), 'Cannot convert float {} to picket value'.format(self.X)
+        assert self.X.is_integer(), 'Cannot convert float {} to picket str_value'.format(self.X)
         int_val = CE.simpleSingleCast(self.X, int)
         return 'PK_{}+{}'.format(int_val//100, int_val%100)
         

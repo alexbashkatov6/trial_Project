@@ -107,6 +107,6 @@ if __name__ == '__main__':
     # print(CoolClass.__dict__)
     # cc = CoolClass('pu')
     # print(cc.__dict__)
-    # print(cc.value, cc.eq_strings)
+    # print(cc.str_value, cc.eq_strings)
     bss = BoundedStringSet()
     print(isinstance('nd', End))

@@ -15,9 +15,17 @@ from nv_polar_graph import (End,
 from nv_attribute_format import BSSAttributeType, AttributeFormat
 from nv_cell import Cell, DefaultCellChecker, NameCellChecker, SplitterCellChecker, BoolCellChecker, NameAutoSetter, GNM
 from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME
+from nv_errors import CycleCellError
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
+
+
+def default_dependence_cell_checker(cls_name_str: str):
+    dcc = DefaultCellChecker(cls_name_str)
+    if cls_name_str in CLASSES_SEQUENCE:
+        dcc.add_semantic_checker(GDM.loop_dependence_checker)
+    return dcc
 
 
 def name_translator_storage_to_interface(input_str: str):
@@ -67,7 +75,7 @@ def init_splitter_move_activation(graph_template_: BasePolarGraph):
             node.ni_nd.choice_move_activate(move_for_init_active)
 
 
-class AttribBuildGraphTemplDescr:
+class AttribBuildGraphTemplateDescriptor:
 
     def __get__(self, instance, owner=None):
         if instance is None:
@@ -93,7 +101,7 @@ class AttribBuildGraphTemplDescr:
             node_co_x = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
             node_co_y = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', default_dependence_cell_checker('CoordinateSystem'))
             a_m.create_cell(node_check_dependence, 'dependence', SplitterCellChecker(BSSDependency), 'independent')
             a_m.create_cell(node_x, 'x', DefaultCellChecker('int'))
             a_m.create_cell(move_to_x, 'dependent')
@@ -107,17 +115,17 @@ class AttribBuildGraphTemplDescr:
         if owner == Point:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', default_dependence_cell_checker('CoordinateSystem'))
 
         if owner == Line:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', default_dependence_cell_checker('CoordinateSystem'))
 
         if owner == GroundLine:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', default_dependence_cell_checker('CoordinateSystem'))
 
         expand_splitters(g_b_t)
         instance._graph_build_template = g_b_t
@@ -127,47 +135,37 @@ class AttribBuildGraphTemplDescr:
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
 
 
-class AttribCommonGraphTemplDescr:
+class AttribCommonGraphTemplateDescriptor:
 
     def __get__(self, instance, owner=None):
-        # start_time = time.time()
         if instance is None:
             return self
         if hasattr(instance, '_graph_template'):
             return instance._graph_template
 
-        # print('before g_t = ', time.time()-start_time)
         g_t = BasePolarGraph()
         a_m = g_t.am
         a_m.node_assoc_class = AttribNodeAssociation
         a_m.move_assoc_class = AttribMoveAssociation
         a_m.auto_set_curr_context()
 
-        # print('before node_ = ', time.time()-start_time)
         node_name_title, _, _ = g_t.insert_node_single_link()
         node_name, _, _ = g_t.insert_node_single_link(node_name_title.ni_nd)
         node_build_title, _, _ = g_t.insert_node_single_link(node_name.ni_nd)
         node_evaluate_title, _, _ = g_t.insert_node_single_link(node_build_title.ni_nd)
         node_view_title, _, _ = g_t.insert_node_single_link(node_evaluate_title.ni_nd)
 
-        # print('before a_m = ', time.time()-start_time)
         a_m.create_cell(node_name_title, 'Name options')
         a_m.create_cell(node_name, 'name', NameCellChecker(instance), auto_setter=NameAutoSetter(owner))  #
         a_m.create_cell(node_build_title, 'Build options')
         a_m.create_cell(node_evaluate_title, 'Evaluation options')
         a_m.create_cell(node_view_title, 'View options')
 
-        # print('before gbt = ', time.time()-start_time)
         gbt = instance.graph_build_template
-        # print('before aggregate = ', time.time()-start_time)
         g_t.aggregate(gbt, node_build_title.ni_nd, node_evaluate_title.ni_pu)
-        # print('after aggregate = ', time.time()-start_time)
 
-        # print('before init_splitter_move_activation = ', time.time()-start_time)
         init_splitter_move_activation(g_t)
-        # print('before _graph_template = ', time.time()-start_time)
         instance._graph_template = g_t
-        # print('before return = ', time.time()-start_time)
         return g_t
 
     def __set__(self, instance, value):
@@ -176,8 +174,8 @@ class AttribCommonGraphTemplDescr:
 
 class AttrControlObject:
 
-    graph_build_template = AttribBuildGraphTemplDescr()
-    graph_template = AttribCommonGraphTemplDescr()
+    graph_build_template = AttribBuildGraphTemplateDescriptor()
+    graph_template = AttribCommonGraphTemplateDescriptor()
 
 
 class CoordinateSystem(AttrControlObject):
@@ -254,9 +252,11 @@ class CommonAttributeInterface(QObject):
                 af = AttributeFormat(BSSAttributeType('title'), out_name)
             else:
                 cell.activate()
-                af = AttributeFormat(BSSAttributeType('value'), out_name, cell.str_value)
+                af = AttributeFormat(BSSAttributeType('str_value'), out_name, cell.str_value)
                 af.is_suggested = cell.is_suggested_value
 
+            GDM.current_object = obj
+            GDM.current_cell = cell
             cell.check_value()
             af.status_check = cell.status_check
             if cell.checker and hasattr(cell.checker, 'req_class_str'):
@@ -286,7 +286,6 @@ class CommonAttributeInterface(QObject):
 
     @pyqtSlot(str, str)
     def slot_change_value(self, name_interface: str, new_value: str):
-        # print('got val in changed = ', name_interface, new_value)
         name = name_translator_interface_to_storage(name_interface)
         curr_obj = self.current_object
         g = curr_obj.graph_template
@@ -294,7 +293,6 @@ class CommonAttributeInterface(QObject):
         assert node, 'Node not found'
         node_cell: Cell = g.am.get_elm_cell_by_context(node)
         assert node_cell, 'Node cell not found'
-        # print('after assert')
         node_cell.str_value = new_value
         if node in [i[0] for i in get_splitter_nodes_cells(g)]:
             move = g.am.get_single_elm_by_cell_content(PGMove, new_value, node.ni_nd.moves)
@@ -303,13 +301,6 @@ class CommonAttributeInterface(QObject):
         af_list = self.form_attrib_list(self.current_object)
         self.send_attrib_list.emit(af_list)
         self.check_all_values_defined()
-        # print('after all slot_change_value')
-
-    # def form_new_value(self, attr_name: str, attr_value: str, status_check: str, is_suggested: bool) -> None:
-    #     af = AttributeFormat(BSSAttributeType('value'), attr_name, attr_value)
-    #     af.status_check = status_check
-    #     af.is_suggested = is_suggested
-    #     self.send_single_value.emit(af)
 
     def get_active_cells(self) -> set[Cell]:
         curr_obj = self.current_object
@@ -337,7 +328,7 @@ class CommonAttributeInterface(QObject):
                 GNM.rename_obj(co, co.name)
                 GDM.rename_cell(co, old_name, co.name)
             else:
-                GDM.add_new_instance(co)
+                GDM.add_new_class_instance(co)
                 GDM.add_to_tree_graph(co)
                 GNM.register_obj_name(co, co.name)
         self.create_new_object(co.__class__.__name__)
@@ -372,6 +363,9 @@ class GlobalDataManager:
         self._gcs = None
         self.init_field_graph()
         self.init_global_coordinate_system()
+
+        self.current_cell = None
+        self.current_object = None
 
     @property
     def class_instances(self):
@@ -413,14 +407,14 @@ class GlobalDataManager:
         self._gcs = CoordinateSystem()
         self._gcs.name = GROUND_CS_NAME
         GNM.register_obj_name(self._gcs, GROUND_CS_NAME)
-        self.add_new_instance(self._gcs)
+        self.add_new_class_instance(self._gcs)
         self.add_to_tree_graph(self._gcs)
 
     @property
     def gcs(self) -> CoordinateSystem:
         return self._gcs
 
-    def add_new_instance(self, obj: AttrControlObject):
+    def add_new_class_instance(self, obj: AttrControlObject):
         cls_name = obj.__class__.__name__
         if cls_name not in self._class_instances:
             self._class_instances[cls_name] = list()
@@ -434,13 +428,50 @@ class GlobalDataManager:
         node_obj, _, _ = tg.insert_node_single_link(node_class.ni_nd)
         a_m.create_cell(node_obj, obj.name)
 
+    # def add_obj_to_dependence_graph(self, obj: AttrControlObject):
+    #     pass
+
+    def loop_dependence_checker(self, cell_str_value, cell_value):
+        obj_name = 'new_object'
+        if hasattr(self.current_object, 'name'):
+            obj_name = self.current_object.name
+        dg = self.dependence_graph
+        a_m = dg.am
+        obj_node = a_m.get_single_elm_by_cell_content(PolarNode, obj_name)
+        if obj_node is None:
+            obj_node, _, _ = dg.insert_node_single_link()
+            a_m.create_cell(obj_node, obj_name)
+        attr_name = self.current_cell.name
+        attr_full_name = '{}.{}'.format(obj_name, attr_name)
+        found_identifier_candidates = re.findall(r'\w+', cell_str_value)
+        first_identifier_candidate = True
+        attr_node = None
+        for fic in found_identifier_candidates:
+            if fic in GNM.name_to_obj:
+                parent_obj_node = a_m.get_single_elm_by_cell_content(PolarNode, fic)
+                assert parent_obj_node, 'Parent_obj_node not found'
+                if first_identifier_candidate:
+                    first_identifier_candidate = False
+                    attr_node, _, _ = dg.insert_node_single_link(parent_obj_node.ni_nd, obj_node.ni_pu)
+                    a_m.create_cell(attr_node, attr_full_name)
+                else:
+                    dg.connect_nodes(parent_obj_node.ni_nd, attr_node.ni_pu)
+
+        # raise CycleCellError('Cycle Error ! !')
+        print('Check dependence', cell_str_value, cell_value, self.current_object, self.current_cell)
+        print('Cell name', self.current_cell.name)
+        # print('Obj name', self.current_object.name)
+
+    def add_cell_to_dependence_graph(self, cell: Cell, obj: AttrControlObject):
+        dg = self.dependence_graph
+        am_dg = dg.am
+
     @property
     def tree_graph_dict_string_repr(self) -> dict[str, list[str]]:
         tg = self.tree_graph
         a_m = tg.am
         result = {}
         first_ni = tg.inf_node_pu.ni_nd
-        # print('len = ', len(first_ni.ordered_moves))
         for move in first_ni.ordered_moves:
             node_of_class = move.link.opposite_ni(first_ni).pn
             cell_class = a_m.get_elm_cell_by_context(node_of_class)
@@ -472,7 +503,6 @@ class GlobalDataManager:
 
 
 GDM = GlobalDataManager()
-# CAI.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
 
 if __name__ == '__main__':
 
