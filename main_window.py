@@ -10,13 +10,12 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent,
 from PyQt5.Qt import QStandardItemModel, QStandardItem
 
 from nv_attribute_format import AttributeFormat
-from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME
+from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, PICTURE_FOLDER
 
 
 class ToolBarOfClasses(QToolBar):
 
     send_class_name = pyqtSignal(str)
-    picFolder = 'pictures'
 
     def __init__(self):
         super().__init__()
@@ -25,7 +24,7 @@ class ToolBarOfClasses(QToolBar):
 
     def extract_pictures(self, classes_names):
         root_path = os.getcwd()
-        tree = os.walk(root_path + '\\' + self.picFolder)
+        tree = os.walk(root_path + '\\' + PICTURE_FOLDER)
         self.pic_names_sorted_list = []
         extracted_pict_names = []
         for d, dirs, files in tree:
@@ -39,7 +38,7 @@ class ToolBarOfClasses(QToolBar):
     def construct_widget(self, min_size):
         self.setMinimumSize(min_size, min_size)
         for pic_name in self.pic_names_sorted_list:
-            icon = QIcon('{}/{}.jpg'.format(self.picFolder, pic_name))
+            icon = QIcon('{}/{}.jpg'.format(PICTURE_FOLDER, pic_name))
             qb = QPushButton(icon, '')
             qb.setIconSize(QSize(min_size, min_size))
             qb.setToolTip(pic_name[pic_name.find('_') + 1:])

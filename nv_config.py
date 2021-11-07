@@ -1,3 +1,4 @@
+PICTURE_FOLDER = 'pictures'
 CLASSES_SEQUENCE = ['CoordinateSystem',
                     'Point',
                     'Line',
