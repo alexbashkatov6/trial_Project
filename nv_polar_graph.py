@@ -772,6 +772,7 @@ class BasePolarGraph(PolarGraph):
         self._infinity_node_positive_up = self._init_node()
         self._infinity_node_negative_down = self._init_node()
 
+        self._physical_links = False
         self._link_groups = set()
         self._am = AssociationsManager(self)
 
@@ -796,6 +797,16 @@ class BasePolarGraph(PolarGraph):
     @strictly_typed
     def am(self, value: AssociationsManager) -> None:
         self._am = value
+
+    @property
+    @strictly_typed
+    def physical_links(self) -> bool:
+        return self._physical_links
+
+    @physical_links.setter
+    @strictly_typed
+    def physical_links(self, value: bool) -> None:
+        self._physical_links = value
 
     @property
     @strictly_typed
@@ -896,7 +907,6 @@ class BasePolarGraph(PolarGraph):
     @strictly_typed
     def aggregate(self, insert_pg: BasePolarGraph,
                   ni_for_pu_connect: PGNodeInterface = None, ni_for_nd_connect: PGNodeInterface = None) -> None:
-        # start_time = time.time()
         if (ni_for_pu_connect is None) and (ni_for_nd_connect is None):
             new_node = self.insert_node_neck(self.inf_node_nd.ni_pu)
             ni_for_pu_connect = new_node.ni_nd
@@ -912,7 +922,6 @@ class BasePolarGraph(PolarGraph):
         for node in insert_pg.not_inf_nodes:
             node.base_polar_graph = self
         self.nodes |= insert_pg.not_inf_nodes
-        # print('before old_link in = ', time.time()-start_time)
         for old_link in old_links_pu_connection:
             _, move_ni_s = insert_pg.disconnect_nodes(*old_link.ni_s)
             ni = old_link.opposite_ni(insert_pg.inf_node_pu.ni_nd)
@@ -923,16 +932,36 @@ class BasePolarGraph(PolarGraph):
             ni = old_link.opposite_ni(insert_pg.inf_node_nd.ni_pu)
             new_link = self.connect_nodes(ni, ni_for_nd_connect)
             self.am.replace_link_after_node_change(old_link, move_ni_s, new_link, insert_pg.am)
-        # print('before links = ', time.time()-start_time)
         self.links |= insert_pg.links
         self.link_groups |= insert_pg.link_groups
         self.moves |= insert_pg.moves
 
-        # print('before ins_am = ', time.time()-start_time)
         ins_am = insert_pg.am
-        # print('before refresh_cells = ', time.time()-start_time)
         self.am.aggregate_refresh_cells(ins_am, insert_pg.not_inf_nodes | insert_pg.not_inf_nodes | insert_pg.moves)
-        # print('end aggregate = ', time.time()-start_time)
+
+    @strictly_typed
+    def remove_nodes(self, nodes: Iterable[PolarNode]) -> None:
+        nodes = set(nodes)
+        if self.physical_links:
+            for node in nodes:
+                assert len(node.ni_nd.links) == 1 and len(node.ni_pu.links) == 1, 'For material graph can delete ' \
+                                                                                  'only through nodes'
+                # ! implementation of connect/disconnect and in assoc manager
+        else:
+            for node in nodes:
+                for ni in [node.ni_nd, node.ni_pu]:
+                    for link in ni.links:
+                        self.disconnect_nodes(*link.ni_s)
+            self.nodes -= nodes
+            if not self.not_inf_nodes:
+                self.connect_nodes(*self.border_ni_s)
+            else:
+                for node in self.not_inf_nodes:
+                    if node.ni_nd.is_empty:
+                        self.connect_nodes(node.ni_nd, self.inf_node_nd.ni_pu)
+                    if node.ni_pu.is_empty:
+                        self.connect_nodes(node.ni_pu, self.inf_node_nd.ni_nd)
+            self.am.refresh_cells_unphysical_nodes_remove()
 
     def _refresh_link_groups_links_moves(self):
         self._links.clear()
@@ -1079,6 +1108,12 @@ class AssociationsManager:
                 continue
             ocs = old_am.cell_dicts[element]
             self._cell_dicts[element] = ocs
+
+    @strictly_typed
+    def refresh_cells_unphysical_nodes_remove(self) -> None:
+        for element in self.cell_dicts:
+            if isinstance(element, PolarNode) and (element not in self.base_polar_graph.nodes):
+                self._cell_dicts.pop(element)
 
     @strictly_typed
     def create_cell(self, element: Union[PolarNode, PGLink, PGMove],
@@ -1461,19 +1496,56 @@ if __name__ == '__main__':
 
         pg_00, nodes_00 = create_graph_2()
 
-        def node(num):
+        def nod(num):
             return GNM.name_to_obj['PolarNode_{}'.format(num)]
 
         print(pg_00)
         print(pg_00.nodes)
-        print(node(2))
+        print(nod(2))
         print(pg_00.links)
         print(len(pg_00.links))
 
-        sbg = pg_00.cut_subgraph([node(3), node(4), node(5)], True)  # node(2), node(3),
+        sbg = pg_00.cut_subgraph([nod(3), nod(4), nod(5)], True)  # node(2), node(3),
         print(sbg.nodes)
         print(len(sbg.links))
         print(sbg.border_ni_s)
+
+        # pg_00.remove_nodes([nod(2)])
+        # print('after remove node 2')
+        # print(pg_00.nodes)
+        # print(pg_00.links)
+        # print(len(pg_00.links))
+        #
+        # pg_00.remove_nodes([nod(3)])
+        # print('after remove node 3')
+        # print(pg_00.nodes)
+        # print(pg_00.links)
+        # print(len(pg_00.links))
+        #
+        # pg_00.remove_nodes([nod(4)])
+        # print('after remove node 4')
+        # print(pg_00.nodes)
+        # print(pg_00.links)
+        # print(len(pg_00.links))
+        #
+        # pg_00.remove_nodes([nod(5)])
+        # print('after remove node 5')
+        # print(pg_00.nodes)
+        # print(pg_00.links)
+        # print(len(pg_00.links))
+
+        # pg_00.remove_nodes([nod(1)])
+        # print('after remove node 1')
+        # print(pg_00.nodes)
+        # print(pg_00.links)
+        # print(len(pg_00.links))
+
+        # pg_00.remove_nodes([nod(1), nod(2), nod(3), nod(4), nod(5)])
+        # print('after remove node 1-5')
+        # print(pg_00.nodes)
+        # print(pg_00.links)
+        # print(len(pg_00.links))
+
         # pg_10 = deepcopy(pg_00)
         # print(pg_10.layered_representation(pg_10.inf_node_pu.ni_nd))
         # pg_00.aggregate(pg_10)
