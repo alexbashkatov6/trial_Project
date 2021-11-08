@@ -11,6 +11,100 @@ from nv_cell import Cell, CellChecker, AutoValueSetter
 from nv_errors import CycleError
 # import nv_cell
 
+# if __name__ == '__main__':
+#     import re
+#
+#     class GlobalNamesManager:
+#         def __init__(self):
+#             self._name_to_obj: dict[str, Any] = {}
+#             self._obj_to_name: dict[Any, str] = {}  # for check obj repeating
+#
+#         def register_obj_name(self, obj, name):
+#             if type(obj) == str:
+#                 obj, name = name, obj
+#             assert name not in self.name_to_obj, 'Name repeating'
+#             assert obj not in self.obj_to_name, 'Obj repeating'
+#             assert not (obj is None), 'None str_value cannot be registered'
+#             self._name_to_obj[name] = obj
+#             self._obj_to_name[obj] = name
+#
+#         def remove_obj_name(self, obj_or_name):
+#             obj, name = (self.name_to_obj[obj_or_name], obj_or_name) if type(obj_or_name) == str \
+#                 else (obj_or_name, self.obj_to_name[obj_or_name])
+#             self._name_to_obj.pop(name)
+#             self._obj_to_name.pop(obj)
+#
+#         def rename_obj(self, obj, new_name):
+#             self.remove_obj_name(obj)
+#             self.register_obj_name(obj, new_name)
+#
+#         def check_new_name(self, name):
+#             return not (name in self.name_to_obj)
+#
+#         @property
+#         def name_to_obj(self) -> dict[str, Any]:
+#             return copy(self._name_to_obj)
+#
+#         @property
+#         def obj_to_name(self) -> dict[Any, str]:
+#             return copy(self._obj_to_name)
+#
+#
+#     GNM = GlobalNamesManager()
+#
+#     class NameDescriptor:
+#
+#         def __init__(self, start_index=1):
+#             assert type(start_index) == int, 'Start index must be int'
+#             self.start_index = start_index
+#
+#         def __get__(self, instance, owner=None):
+#
+#             if not (instance is None) and not hasattr(instance, '_name'):
+#                 instance._name = None
+#
+#             if instance is None:
+#                 return owner.__name__
+#             else:
+#                 if not (instance._name is None):
+#                     return instance._name
+#                 else:
+#                     raise ValueError('Name is not defined')
+#
+#         def __set__(self, instance, name_candidate):
+#             if hasattr(instance, '_name'):
+#                 GNM.remove_obj_name(instance)
+#             prefix = instance.__class__.__name__ + '_'
+#             if name_candidate == 'auto_name':
+#                 i = self.start_index
+#                 while True:
+#                     if i < 1:
+#                         name_candidate = '{}{}'.format(prefix, '0' * (1 - i))
+#                     else:
+#                         name_candidate = '{}{}'.format(prefix, i)
+#                     if GNM.check_new_name(name_candidate):
+#                         break
+#                     else:
+#                         i += 1
+#             else:
+#                 assert type(name_candidate) == str, 'Name need be str'
+#                 assert bool(re.fullmatch(r'\w+', name_candidate)), 'Name have to consists of alphas, nums and _'
+#                 assert name_candidate.startswith(prefix), 'Name have to begin from className_'
+#                 assert name_candidate != prefix, 'name cannot be == prefix; add specification to end'
+#                 assert not name_candidate[
+#                            len(prefix):].isdigit(), 'Not auto-name cannot be (prefix + int); choose other name'
+#                 assert GNM.check_new_name(name_candidate), 'Name {} already exists'.format(name_candidate)
+#             instance._name = name_candidate
+#             GNM.register_obj_name(instance, name_candidate)
+
+    # PolarNode.name = NameDescriptor(-1)
+    # PolarNode.__repr__ = lambda x: x.name
+    # setattr(BasePolarGraph, 'name', NameDescriptor(-1))
+    # BasePolarGraph.name = NameDescriptor(-1)
+    # bpg = BasePolarGraph()
+    # print(bpg.name)
+    # BasePolarGraph.__repr__ = lambda x: x.name
+
 End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
 
 
@@ -278,7 +372,9 @@ class PGLink:
 
 
 class PolarNode:
-    # name = nv_cell.NameDescriptor(-1)
+    # name = NameDescriptor(-1) if __name__ == '__main__' else ''
+    # __repr__ = (lambda x: x.name) if __name__ == '__main__' else object.__repr__
+    #     return self.name
 
     @strictly_typed
     def __init__(self, bpg: BasePolarGraph) -> None:
@@ -287,9 +383,6 @@ class PolarNode:
         self._ni_negative_down, self._ni_positive_up = \
             PGNodeInterface(self, End('nd')), \
             PGNodeInterface(self, End('pu'))
-
-    # def __repr__(self):
-    #     return self.name
 
     @property
     @strictly_typed
@@ -322,7 +415,9 @@ class PolarNode:
 
 
 class PolarGraph:
-    # name = nv_cell.NameDescriptor()
+    # name = NameDescriptor() if __name__ == '__main__' else ''
+    # __repr__ = (lambda x: x.name) if __name__ == '__main__' else object.__repr__
+    # name = NameDescriptor() if __name__ == '__main__' else object.__repr__  # NameDescriptor()
 
     def __init__(self, bpg: Optional[BasePolarGraph] = None):
         # self.name = 'auto_name'
@@ -653,6 +748,8 @@ class PGRoute(PolarGraph):
 
 
 class BasePolarGraph(PolarGraph):
+    # name = NameDescriptor() if __name__ == '__main__' else ''
+    # __repr__ = (lambda x: x.name) if __name__ == '__main__' else object.__repr__
     # name = nv_cell.NameDescriptor()
 
     def __init__(self):
@@ -963,19 +1060,12 @@ class AssociationsManager:
     @strictly_typed
     def aggregate_refresh_cells(self, old_am: AssociationsManager,
                                 elements: Iterable[Union[PolarNode, PGLink, PGMove]]) -> None:
-        # start_time = time.time()
         for element in elements:
-            # print('before assert = ', time.time()-start_time)
             assert element not in self.cell_dicts, 'Element already in current am'
-            # print('before element not in = ', time.time()-start_time)
             if element not in old_am.cell_dicts:
                 continue
-            # print('before get = ', time.time()-start_time)
             ocs = old_am.cell_dicts[element]
-            # print('before set = ', time.time()-start_time)
             self._cell_dicts[element] = ocs
-            # print('after set = ', time.time()-start_time)
-        # print('end refresh = ', time.time()-start_time)
 
     @strictly_typed
     def create_cell(self, element: Union[PolarNode, PGLink, PGMove],
@@ -1198,6 +1288,82 @@ class AssociationsManager:
 
 if __name__ == '__main__':
 
+    class GlobalNamesManager:
+        def __init__(self):
+            self._name_to_obj: dict[str, Any] = {}
+            self._obj_to_name: dict[Any, str] = {}
+
+        def register_obj_name(self, obj, name):
+            if type(obj) == str:
+                obj, name = name, obj
+            assert name not in self.name_to_obj, 'Name repeating'
+            assert obj not in self.obj_to_name, 'Obj repeating'
+            assert not (obj is None), 'None str_value cannot be registered'
+            self._name_to_obj[name] = obj
+            self._obj_to_name[obj] = name
+
+        def remove_obj_name(self, obj_or_name):
+            obj, name = (self.name_to_obj[obj_or_name], obj_or_name) if type(obj_or_name) == str \
+                else (obj_or_name, self.obj_to_name[obj_or_name])
+            self._name_to_obj.pop(name)
+            self._obj_to_name.pop(obj)
+
+        def rename_obj(self, obj, new_name):
+            self.remove_obj_name(obj)
+            self.register_obj_name(obj, new_name)
+
+        def check_new_name(self, name):
+            return not (name in self.name_to_obj)
+
+        @property
+        def name_to_obj(self) -> dict[str, Any]:
+            return copy(self._name_to_obj)
+
+        @property
+        def obj_to_name(self) -> dict[Any, str]:
+            return copy(self._obj_to_name)
+
+
+    GNM = GlobalNamesManager()
+
+    class NameDescriptor:
+
+        def __init__(self, start_index=1):
+            assert type(start_index) == int, 'Start index must be int'
+            self.start_index = start_index
+
+        def __get__(self, instance, owner=None):
+            if instance is None:
+                return owner.__name__
+            else:
+                if hasattr(instance, '_name'):
+                    return instance._name
+                else:
+                    prefix = instance.__class__.__name__ + '_'
+                    i = self.start_index
+                    while True:
+                        if i < 1:
+                            name_candidate = '{}{}'.format(prefix, '0' * (1 - i))
+                        else:
+                            name_candidate = '{}{}'.format(prefix, i)
+                        if GNM.check_new_name(name_candidate):
+                            break
+                        else:
+                            i += 1
+                    instance._name = name_candidate
+                    GNM.register_obj_name(instance, name_candidate)
+                    return instance._name
+
+    PolarNode.name = NameDescriptor(-1)
+    PolarNode.__str__ = lambda x: x.name
+    PolarNode.__repr__ = lambda x: x.name
+    BasePolarGraph.name = NameDescriptor()
+    BasePolarGraph.__str__ = lambda x: x.name
+    BasePolarGraph.__repr__ = lambda x: x.name
+    PolarGraph.name = NameDescriptor()
+    PolarGraph.__str__ = lambda x: x.name
+    PolarGraph.__repr__ = lambda x: x.name
+
     test = 'test_2'
     if test == 'test_1':
         pass
@@ -1270,18 +1436,24 @@ if __name__ == '__main__':
             return pg_0, nodes
 
 
-        pg_00, nodes_00 = create_graph_6()
+        pg_00, nodes_00 = create_graph_2()
 
-        print(pg_00.layered_representation(pg_00.inf_node_pu.ni_nd))
+        def node(num):
+            return GNM.name_to_obj['PolarNode_{}'.format(num)]
+
         print(pg_00)
-        pg_10 = deepcopy(pg_00)
-        print(pg_10.layered_representation(pg_10.inf_node_pu.ni_nd))
-        pg_00.aggregate(pg_10)
-        pg_00l = pg_00.layered_representation(pg_00.inf_node_pu.ni_nd)
-        pg_10l = pg_10.layered_representation(pg_10.inf_node_pu.ni_nd)
-        print(pg_00l)
-        print(pg_10l)
+        print(pg_00.nodes)
+        print(node(2))
+        print(pg_00.links)
         print(len(pg_00.links))
+        # pg_10 = deepcopy(pg_00)
+        # print(pg_10.layered_representation(pg_10.inf_node_pu.ni_nd))
+        # pg_00.aggregate(pg_10)
+        # pg_00l = pg_00.layered_representation(pg_00.inf_node_pu.ni_nd)
+        # pg_10l = pg_10.layered_representation(pg_10.inf_node_pu.ni_nd)
+        # print(pg_00l)
+        # print(pg_10l)
+        # print(len(pg_00.links))
 
         # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
         # print(pg_00.links)

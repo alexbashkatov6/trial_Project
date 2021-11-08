@@ -9,6 +9,8 @@ import os
 
 __all__ = ['get_class_by_str', 'strictly_typed', 'Any', 'Optional', 'Union', 'Type', 'type_verification', 'Iterable', 'Callable']
 
+DEBUG_MODE = True
+
 
 def get_class_by_str(str_name, assertion=False):
     try:
@@ -156,6 +158,8 @@ def type_verification(string_requirement, value, mode='instance_check', first_en
 
 
 def strictly_typed(function):
+    if not DEBUG_MODE:
+        return function
     annotats = function.__annotations__
     arg_spec = inspect.getfullargspec(function)
     assert "return" in annotats, "missing type for return str_value"
