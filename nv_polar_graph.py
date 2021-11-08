@@ -1,6 +1,7 @@
 from __future__ import annotations
 from copy import copy, deepcopy
 from collections import OrderedDict
+from itertools import combinations
 from functools import partial
 import time
 
@@ -607,13 +608,47 @@ class PolarGraph:
     #     return self.walk_to_borders(start_ni_of_node)[1]
 
     @strictly_typed
-    def cut_subgraph(self, border_nodes: Iterable[PolarNode]) -> PolarGraph:
+    def find_routes(self, start_node: PolarNode, end_node: PolarNode) -> set[PGRoute]:
+        found_route_candidates: set[PGRoute] = set()
+        for start_ni in (start_node.ni_nd, start_node.ni_pu):
+            found_route_candidates |= self.walk_to_borders(start_ni, [end_node])[0]
+        return set(frc for frc in found_route_candidates if frc.route_end.pn is end_node)
+
+    @strictly_typed
+    def find_single_route(self, start_node: PolarNode, end_node: PolarNode,
+                          checkpoint_nodes: Iterable[PolarNode] = None) -> Optional[PGRoute]:
+        if not checkpoint_nodes:
+            checkpoint_nodes = set()
+        candidate_routes: set[PGRoute] = self.find_routes(start_node, end_node)
+        # not_found_assertion: bool = True
+        # if not candidate_routes and not not_found_assertion:
+        #     return
+        assert candidate_routes, 'Routes from {} to {} not found'.format(start_node, end_node)
+        routes_throw_checkpoints = set()
+        for candidate_route in candidate_routes:
+            if set(checkpoint_nodes) <= set(candidate_route.nodes):
+                routes_throw_checkpoints.add(candidate_route)
+        assert routes_throw_checkpoints, 'Route throw checkpoint nodes not found'
+        assert len(routes_throw_checkpoints) == 1, 'More then 1 route throw checkpoint nodes was found'
+        return routes_throw_checkpoints.pop()
+
+    @strictly_typed
+    def cut_subgraph(self, border_nodes: Iterable[PolarNode], include_common_links: bool = False) -> PolarGraph:
+        # common_links = in external graph and in internal graph at the same time
         sbg_ni_s: set[PGNodeInterface] = set()
-        sbg_links = self.links
         sbg_nodes = set()
-        for border_ni in self.border_ni_s:
-            local_coverage: PolarGraph = self.find_node_coverage(border_ni, border_nodes)
-            sbg_links -= local_coverage.links
+        if include_common_links:
+            sbg_links = set()
+            for node_pair in combinations(border_nodes, 2):
+                start_node, end_node = node_pair
+                candidate_routes: set[PGRoute] = self.find_routes(start_node, end_node)
+                for cr in candidate_routes:
+                    sbg_links |= cr.links
+        else:
+            sbg_links = self.links
+            for border_ni in self.border_ni_s:
+                local_coverage: PolarGraph = self.find_node_coverage(border_ni, border_nodes)
+                sbg_links -= local_coverage.links
         assert sbg_links, 'Empty subgraph was found'
         for link in sbg_links:
             sbg_ni_s |= set(link.ni_s)
@@ -623,28 +658,6 @@ class PolarGraph:
         subgraph.links = sbg_links
         subgraph.border_ni_s = sbg_ni_s - set(ni.pn.opposite_ni(ni) for ni in sbg_ni_s)
         return subgraph
-
-    @strictly_typed
-    def find_routes(self, start_node: PolarNode, end_node: PolarNode) -> set[PGRoute]:
-        found_route_candidates: set[PGRoute] = set()
-        for start_ni in (start_node.ni_nd, start_node.ni_pu):
-            found_route_candidates |= self.walk_to_borders(start_ni, [end_node])[0]
-        return set(frc for frc in found_route_candidates if frc.route_end.pn is end_node)
-
-    @strictly_typed
-    def find_single_route(self, start_node: PolarNode, end_node: PolarNode,
-                          checkpoint_nodes: Iterable[PolarNode] = None) -> PGRoute:
-        if not checkpoint_nodes:
-            checkpoint_nodes = set()
-        candidate_routes: set[PGRoute] = self.find_routes(start_node, end_node)
-        assert candidate_routes, 'Routes from {} to {} not found'.format(start_node, end_node)
-        routes_throw_checkpoints = set()
-        for candidate_route in candidate_routes:
-            if set(checkpoint_nodes) <= set(candidate_route.nodes):
-                routes_throw_checkpoints.add(candidate_route)
-        assert routes_throw_checkpoints, 'Route throw checkpoint nodes not found'
-        assert len(routes_throw_checkpoints) == 1, 'More then 1 route throw checkpoint nodes was found'
-        return routes_throw_checkpoints.pop()
 
     @strictly_typed
     def free_roll(self, start_ni_of_node: PGNodeInterface = None, stop_nodes: Iterable[PolarNode] = None,
@@ -1354,7 +1367,17 @@ if __name__ == '__main__':
                     GNM.register_obj_name(instance, name_candidate)
                     return instance._name
 
+
+    def init_get_name(old_init):
+        def wrapper(*args, **kwargs):
+            old_init(*args, **kwargs)
+            args[0].name
+            return
+        return wrapper
+
+
     PolarNode.name = NameDescriptor(-1)
+    PolarNode.__init__ = init_get_name(PolarNode.__init__)
     PolarNode.__str__ = lambda x: x.name
     PolarNode.__repr__ = lambda x: x.name
     BasePolarGraph.name = NameDescriptor()
@@ -1446,6 +1469,11 @@ if __name__ == '__main__':
         print(node(2))
         print(pg_00.links)
         print(len(pg_00.links))
+
+        sbg = pg_00.cut_subgraph([node(3), node(4), node(5)], True)  # node(2), node(3),
+        print(sbg.nodes)
+        print(len(sbg.links))
+        print(sbg.border_ni_s)
         # pg_10 = deepcopy(pg_00)
         # print(pg_10.layered_representation(pg_10.inf_node_pu.ni_nd))
         # pg_00.aggregate(pg_10)
