@@ -1,3 +1,3 @@
-from itertools import combinations
-a = [1,2,3]
-print(list(combinations(a,2)))
+a = {1,2}
+b = {2,3}
+print(a & b)

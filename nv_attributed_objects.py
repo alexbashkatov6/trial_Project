@@ -432,30 +432,30 @@ class GlobalDataManager:
     #     pass
 
     def loop_dependence_checker(self, cell_str_value, cell_value):
-        # obj_name = 'new_object'
-        # if hasattr(self.current_object, 'name'):
-        #     obj_name = self.current_object.name
-        # dg = self.dependence_graph
-        # a_m = dg.am
-        # obj_node = a_m.get_single_elm_by_cell_content(PolarNode, obj_name)
-        # if obj_node is None:
-        #     obj_node, _, _ = dg.insert_node_single_link()
-        #     a_m.create_cell(obj_node, obj_name)
-        # attr_name = self.current_cell.name
-        # attr_full_name = '{}.{}'.format(obj_name, attr_name)
-        # found_identifier_candidates = re.findall(r'\w+', cell_str_value)
-        # first_identifier_candidate = True
-        # attr_node = None
-        # for fic in found_identifier_candidates:
-        #     if fic in GNM.name_to_obj:
-        #         parent_obj_node = a_m.get_single_elm_by_cell_content(PolarNode, fic)
-        #         assert parent_obj_node, 'Parent_obj_node not found'
-        #         if first_identifier_candidate:
-        #             first_identifier_candidate = False
-        #             attr_node, _, _ = dg.insert_node_single_link(parent_obj_node.ni_nd, obj_node.ni_pu)
-        #             a_m.create_cell(attr_node, attr_full_name)
-        #         else:
-        #             dg.connect_nodes(parent_obj_node.ni_nd, attr_node.ni_pu)
+        obj_name = 'new_object'
+        if hasattr(self.current_object, 'name'):
+            obj_name = self.current_object.name
+        dg = self.dependence_graph
+        a_m = dg.am
+        obj_node = a_m.get_single_elm_by_cell_content(PolarNode, obj_name)
+        if obj_node is None:
+            obj_node, _, _ = dg.insert_node_single_link()
+            a_m.create_cell(obj_node, obj_name)
+        attr_name = self.current_cell.name
+        attr_full_name = '{}.{}'.format(obj_name, attr_name)
+        found_identifier_candidates = re.findall(r'\w+', cell_str_value)
+        first_identifier_candidate = True
+        attr_node = None
+        for fic in found_identifier_candidates:
+            if fic in GNM.name_to_obj:
+                parent_obj_node = a_m.get_single_elm_by_cell_content(PolarNode, fic)
+                assert parent_obj_node, 'Parent_obj_node not found'
+                if first_identifier_candidate:
+                    first_identifier_candidate = False
+                    attr_node, _, _ = dg.insert_node_single_link(parent_obj_node.ni_nd, obj_node.ni_pu)
+                    a_m.create_cell(attr_node, attr_full_name)
+                else:
+                    dg.connect_nodes(parent_obj_node.ni_nd, attr_node.ni_pu)
 
         # raise CycleCellError('Cycle Error ! !')
         print('Check dependence', cell_str_value, cell_value, self.current_object, self.current_cell)

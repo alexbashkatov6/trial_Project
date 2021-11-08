@@ -865,6 +865,16 @@ class BasePolarGraph(PolarGraph):
         return link, moves
 
     @strictly_typed
+    def connect_nodes_auto_inf_handling(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> PGLink:
+        assert not ({ni_1, ni_2} & self.border_ni_s), 'Should be not inf for auto-connect'
+
+
+    @strictly_typed
+    def disconnect_nodes_auto_inf_handling(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> \
+            Optional[tuple[PGLink, tuple[PGMove, PGMove]]]:
+        assert not ({ni_1, ni_2} & self.border_ni_s), 'Should be not inf for auto-disconnect'
+
+    @strictly_typed
     def insert_node_single_link(self, ni_of_positive_up_node: PGNodeInterface = None,
                                 ni_of_negative_down_node: PGNodeInterface = None,
                                 make_pu_stable: bool = False, make_nd_stable: bool = False) \
@@ -1494,21 +1504,37 @@ if __name__ == '__main__':
             return pg_0, nodes
 
 
-        pg_00, nodes_00 = create_graph_2()
+        def create_graph_7():
+            pg_0 = BasePolarGraph()
+            nodes = ['zero_element']
+            pn_1, _, _ = pg_0.insert_node_single_link()
+            pn_2, _, _ = pg_0.insert_node_single_link()
+            pg_0.connect_nodes(pn_1.ni_nd, pn_2.ni_pu)
+            return pg_0, nodes
 
-        def nod(num):
-            return GNM.name_to_obj['PolarNode_{}'.format(num)]
 
-        print(pg_00)
-        print(pg_00.nodes)
-        print(nod(2))
-        print(pg_00.links)
-        print(len(pg_00.links))
+        pg_07, _ = create_graph_7()
+        print(pg_07)
+        print(pg_07.nodes)
+        print(pg_07.links)
+        print(len(pg_07.links))
 
-        sbg = pg_00.cut_subgraph([nod(3), nod(4), nod(5)], True)  # node(2), node(3),
-        print(sbg.nodes)
-        print(len(sbg.links))
-        print(sbg.border_ni_s)
+
+        # pg_00, nodes_00 = create_graph_2()
+        #
+        # def nod(num):
+        #     return GNM.name_to_obj['PolarNode_{}'.format(num)]
+        #
+        # print(pg_00)
+        # print(pg_00.nodes)
+        # print(nod(2))
+        # print(pg_00.links)
+        # print(len(pg_00.links))
+        #
+        # sbg = pg_00.cut_subgraph([nod(3), nod(4), nod(5)], True)  # node(2), node(3),
+        # print(sbg.nodes)
+        # print(len(sbg.links))
+        # print(sbg.border_ni_s)
 
         # pg_00.remove_nodes([nod(2)])
         # print('after remove node 2')
