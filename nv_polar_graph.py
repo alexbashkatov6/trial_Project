@@ -867,12 +867,25 @@ class BasePolarGraph(PolarGraph):
     @strictly_typed
     def connect_nodes_auto_inf_handling(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> PGLink:
         assert not ({ni_1, ni_2} & self.border_ni_s), 'Should be not inf for auto-connect'
-
+        for ni in ni_1, ni_2:
+            for link in ni.links:
+                opposite_ni = link.opposite_ni(ni)
+                if opposite_ni in self.border_ni_s:
+                    self.disconnect_nodes(ni, opposite_ni)
+        return self.connect_nodes(ni_1, ni_2)
 
     @strictly_typed
     def disconnect_nodes_auto_inf_handling(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> \
             Optional[tuple[PGLink, tuple[PGMove, PGMove]]]:
         assert not ({ni_1, ni_2} & self.border_ni_s), 'Should be not inf for auto-disconnect'
+        result = self.disconnect_nodes(ni_1, ni_2)
+        for ni in ni_1, ni_2:
+            if ni.is_empty:
+                if ni == 'nd':
+                    self.connect_nodes(ni, self.inf_node_nd.ni_pu)
+                else:
+                    self.connect_nodes(ni, self.inf_node_pu.ni_nd)
+        return result
 
     @strictly_typed
     def insert_node_single_link(self, ni_of_positive_up_node: PGNodeInterface = None,
@@ -1437,6 +1450,10 @@ if __name__ == '__main__':
         pass
 
     if test == 'test_2':
+
+        def nod(num) -> PolarNode:
+            return GNM.name_to_obj['PolarNode_{}'.format(num)]
+
         def create_graph_1():
             pg_0 = BasePolarGraph()
             nodes = ['zero_element']
@@ -1509,7 +1526,7 @@ if __name__ == '__main__':
             nodes = ['zero_element']
             pn_1, _, _ = pg_0.insert_node_single_link()
             pn_2, _, _ = pg_0.insert_node_single_link()
-            pg_0.connect_nodes(pn_1.ni_nd, pn_2.ni_pu)
+            pg_0.connect_nodes_auto_inf_handling(pn_1.ni_nd, pn_2.ni_pu)
             return pg_0, nodes
 
 
@@ -1519,12 +1536,13 @@ if __name__ == '__main__':
         print(pg_07.links)
         print(len(pg_07.links))
 
+        pg_07.disconnect_nodes_auto_inf_handling(nod(1).ni_nd, nod(2).ni_pu)
+        print('after remove node 2')
+        print(pg_07.nodes)
+        print(pg_07.links)
+        print(len(pg_07.links))
 
         # pg_00, nodes_00 = create_graph_2()
-        #
-        # def nod(num):
-        #     return GNM.name_to_obj['PolarNode_{}'.format(num)]
-        #
         # print(pg_00)
         # print(pg_00.nodes)
         # print(nod(2))
