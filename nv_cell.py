@@ -192,6 +192,7 @@ class Cell:
 
         self._status_check = ''
         self._value = None
+        self._external_error = None
 
     @property
     def name(self):
@@ -200,6 +201,14 @@ class Cell:
     @name.setter
     def name(self, val: str):
         self._name = val
+
+    @property
+    def external_error(self):
+        return self._external_error
+
+    @external_error.setter
+    def external_error(self, val: CellError):
+        self._external_error = val
 
     @property
     def str_value(self) -> str:
@@ -249,6 +258,9 @@ class Cell:
             self._status_check = 'empty'
             self._value = None
             return
+        # if not (self.external_error is None):
+        #         self._status_check = ce.args[0]
+        #         self._value = None
         if self.checker:
             try:
                 result = self.checker.check_value(self.str_value)

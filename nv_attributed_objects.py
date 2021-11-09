@@ -15,17 +15,17 @@ from nv_polar_graph import (End,
 from nv_attribute_format import BSSAttributeType, AttributeFormat
 from nv_cell import Cell, DefaultCellChecker, NameCellChecker, SplitterCellChecker, BoolCellChecker, NameAutoSetter, GNM
 from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, NEW_OBJECT_NAME
-from nv_errors import CycleCellError
+from nv_errors import CycleError, CycleCellError
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
 
 
-def default_dependence_cell_checker(cls_name_str: str):
-    dcc = DefaultCellChecker(cls_name_str)
-    if cls_name_str in CLASSES_SEQUENCE:
-        dcc.add_semantic_checker(GDM.loop_dependence_checker)
-    return dcc
+# def default_dependence_cell_checker(cls_name_str: str):
+#     dcc = DefaultCellChecker(cls_name_str)
+#     if cls_name_str in CLASSES_SEQUENCE:
+#         dcc.add_semantic_checker(GDM.loop_dependence_checker)
+#     return dcc
 
 
 def name_translator_storage_to_interface(input_str: str):
@@ -101,7 +101,7 @@ class AttribBuildGraphTemplateDescriptor:
             node_co_x = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
             node_co_y = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', default_dependence_cell_checker('CoordinateSystem'))
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
             a_m.create_cell(node_check_dependence, 'dependence', SplitterCellChecker(BSSDependency), 'independent')
             a_m.create_cell(node_x, 'x', DefaultCellChecker('int'))
             a_m.create_cell(move_to_x, 'dependent')
@@ -115,17 +115,17 @@ class AttribBuildGraphTemplateDescriptor:
         if owner == Point:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', default_dependence_cell_checker('CoordinateSystem'))
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
 
         if owner == Line:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', default_dependence_cell_checker('CoordinateSystem'))
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
 
         if owner == GroundLine:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', default_dependence_cell_checker('CoordinateSystem'))
+            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
 
         expand_splitters(g_b_t)
         instance._graph_build_template = g_b_t
@@ -295,14 +295,16 @@ class CommonAttributeInterface(QObject):
         node_cell: Cell = g.am.get_elm_cell_by_context(node)
         assert node_cell, 'Node cell not found'
         node_cell.str_value = new_value
-        if GDM.loop_dependence_checker in node_cell.checker.f_check_semantic_list:  # GDM.loop_dependence_checker
-            GDM.current_object = curr_obj
-            GDM.current_cell = node_cell
+        # if GDM.loop_dependence_checker in node_cell.checker.f_check_semantic_list:  # GDM.loop_dependence_checker
+        GDM.current_object = curr_obj
+        #     GDM.current_cell = node_cell
         if node in [i[0] for i in get_splitter_nodes_cells(g)]:
             move = g.am.get_single_elm_by_cell_content(PGMove, new_value, node.ni_nd.moves)
             assert move, 'Move not found'
             node.ni_nd.choice_move_activate(move)
         af_list = self.form_attrib_list(self.current_object)
+        if isinstance(node_cell.checker, DefaultCellChecker) and node_cell.checker.req_class_str in CLASSES_SEQUENCE:
+            GDM.check_dependence_loop(curr_obj, node_cell)
         self.send_attrib_list.emit(af_list)
         self.check_all_values_defined()
 
@@ -372,8 +374,8 @@ class GlobalDataManager:
         self.init_field_graph()
         self.init_global_coordinate_system()
 
-        self.current_cell = None
-        self.current_object = None
+        # self.current_cell = None
+        # self.current_object = None
 
     @property
     def class_instances(self):
@@ -444,22 +446,24 @@ class GlobalDataManager:
     # def add_obj_to_dependence_graph(self, obj: AttrControlObject):
     #     pass
 
-    def loop_dependence_checker(self, cell_str_value, cell_value):
+    def check_dependence_loop(self, curr_obj, node_cell):
+        print('CHECK LOOP')
+        cell_str_value = node_cell.str_value
         dg = self.dependence_graph
         a_m = dg.am
         print('before - len of not inf nodes', len(dg.not_inf_nodes))
         print('before - len of links', len(dg.links))
 
         obj_name = NEW_OBJECT_NAME
-        if hasattr(self.current_object, 'name'):
-            obj_name = self.current_object.name
+        if hasattr(curr_obj, 'name'):
+            obj_name = curr_obj.name
         obj_node = a_m.get_single_elm_by_cell_content(PolarNode, obj_name)
         if obj_node is None:
             print('obj node not found!')
             obj_node, _, _ = dg.insert_node_single_link()
             a_m.create_cell(obj_node, obj_name)
 
-        attr_name = self.current_cell.name
+        attr_name = node_cell.name
         attr_full_name = '{}.{}'.format(obj_name, attr_name)
         attr_node = a_m.get_single_elm_by_cell_content(PolarNode, attr_full_name)
         if attr_node:
@@ -486,13 +490,16 @@ class GlobalDataManager:
         print('after - len of not inf nodes', len(dg.not_inf_nodes))
         print('after - len of links', len(dg.links))
         for i, link in enumerate(dg.links):
-            print('link #{}'.format(i+1), link)
-            print('    between', [a_m.get_elm_cell_by_context(ni.pn).name for ni in link.ni_s
-                                  if ni.pn not in dg.inf_nodes])
-        # raise CycleCellError('Cycle Error ! !')
-        # print('Check dependence', cell_str_value, cell_value, self.current_object, self.current_cell)
-        # print('Cell name', self.current_cell.name)
-        # print('Obj name', self.current_object.name)
+            print('link #{}'.format(i+1), 'between', [(a_m.get_elm_cell_by_context(ni.pn).name, ni.end)
+                                                      for ni in link.ni_s if ni.pn not in dg.inf_nodes])
+            # print('between', [(a_m.get_elm_cell_by_context(ni.pn).name, ni.end) for ni in link.ni_s
+            #                       if ni.pn not in dg.inf_nodes])
+
+    # def loop_dependence_checker(self, cell_str_value, cell_value):
+    #     self.refresh_dependence_graph(cell_str_value)
+    #     dg = self.dependence_graph
+        if not dg.check_loops():
+            raise CycleCellError('Dependence cycle was found')
 
     def delete_temporary_dependence(self):
         print('delete temporary dependence')

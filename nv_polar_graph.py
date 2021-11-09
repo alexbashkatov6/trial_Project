@@ -999,6 +999,19 @@ class BasePolarGraph(PolarGraph):
                         self.connect_nodes(node.ni_pu, self.inf_node_nd.ni_nd)
             self.am.refresh_cells_unphysical_nodes_remove()
 
+    @strictly_typed
+    def check_loops(self) -> bool:
+        found_nodes = set()
+        for ni in self.border_ni_s:
+            try:
+                routes, _ = self.walk_to_borders(ni)
+            except CycleError:
+                return False
+            else:
+                for route in routes:
+                    found_nodes |= route.nodes
+        return found_nodes == self.nodes
+
     def _refresh_link_groups_links_moves(self):
         self._links.clear()
         self._moves.clear()
