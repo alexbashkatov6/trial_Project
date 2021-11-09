@@ -267,12 +267,14 @@ class CommonAttributeInterface(QObject):
 
     @pyqtSlot(str)
     def change_current_object(self, obj_name: str):
+        GDM.delete_temporary_dependence()
         self.current_object = GNM.name_to_obj[obj_name]
         self._is_new_object = False
         self.send_current_obj_attribs()
 
     @pyqtSlot(str)
     def create_new_object(self, obj_type: str):
+        GDM.delete_temporary_dependence()
         new_object = eval(obj_type)()
         self.current_object = new_object
         self._is_new_object = True
@@ -326,7 +328,7 @@ class CommonAttributeInterface(QObject):
             if co in GNM.obj_to_name:
                 old_name = GNM.obj_to_name[co]
                 GNM.rename_obj(co, co.name)
-                GDM.rename_cell(co, old_name, co.name)
+                GDM.rename_cell_in_tree(old_name, co.name)  # co,
             else:
                 GDM.add_new_class_instance(co)
                 GDM.add_to_tree_graph(co)
@@ -410,6 +412,11 @@ class GlobalDataManager:
         self.add_new_class_instance(self._gcs)
         self.add_to_tree_graph(self._gcs)
 
+        dg = self.dependence_graph
+        a_m = dg.am
+        gcs_node, _, _ = dg.insert_node_single_link()
+        a_m.create_cell(gcs_node, GROUND_CS_NAME)
+
     @property
     def gcs(self) -> CoordinateSystem:
         return self._gcs
@@ -432,35 +439,48 @@ class GlobalDataManager:
     #     pass
 
     def loop_dependence_checker(self, cell_str_value, cell_value):
+        dg = self.dependence_graph
+        a_m = dg.am
+        print('before - len of not inf nodes', len(dg.not_inf_nodes))
+
         obj_name = 'new_object'
         if hasattr(self.current_object, 'name'):
             obj_name = self.current_object.name
-        dg = self.dependence_graph
-        a_m = dg.am
         obj_node = a_m.get_single_elm_by_cell_content(PolarNode, obj_name)
         if obj_node is None:
             obj_node, _, _ = dg.insert_node_single_link()
             a_m.create_cell(obj_node, obj_name)
+
         attr_name = self.current_cell.name
         attr_full_name = '{}.{}'.format(obj_name, attr_name)
+        attr_node = a_m.get_single_elm_by_cell_content(PolarNode, attr_full_name)
+        if attr_node:
+            for link in attr_node.ni_pu.links:
+                dg.disconnect_nodes_auto_inf_handling(*link.ni_s)
+        # print('attr_full_name', attr_full_name)
+
         found_identifier_candidates = re.findall(r'\w+', cell_str_value)
-        first_identifier_candidate = True
-        attr_node = None
         for fic in found_identifier_candidates:
             if fic in GNM.name_to_obj:
                 parent_obj_node = a_m.get_single_elm_by_cell_content(PolarNode, fic)
                 assert parent_obj_node, 'Parent_obj_node not found'
-                if first_identifier_candidate:
-                    first_identifier_candidate = False
+                if attr_node is None:
                     attr_node, _, _ = dg.insert_node_single_link(parent_obj_node.ni_nd, obj_node.ni_pu)
                     a_m.create_cell(attr_node, attr_full_name)
                 else:
-                    dg.connect_nodes(parent_obj_node.ni_nd, attr_node.ni_pu)
+                    dg.connect_nodes_auto_inf_handling(parent_obj_node.ni_nd, attr_node.ni_pu)
 
+        if (len(attr_node.ni_pu.links) == 1) and (attr_node.ni_pu.links.pop().opposite_ni is dg.inf_node_pu.ni_nd):
+            dg.remove_nodes([attr_node])
+
+        print('after - len of not inf nodes', len(dg.not_inf_nodes))
         # raise CycleCellError('Cycle Error ! !')
         print('Check dependence', cell_str_value, cell_value, self.current_object, self.current_cell)
         print('Cell name', self.current_cell.name)
         # print('Obj name', self.current_object.name)
+
+    def delete_temporary_dependence(self):
+        print('delete temporary dependence')
 
     def add_cell_to_dependence_graph(self, cell: Cell, obj: AttrControlObject):
         dg = self.dependence_graph
@@ -485,7 +505,7 @@ class GlobalDataManager:
             result[cell_class.name] = child_names
         return result
 
-    def rename_cell(self, obj: AttrControlObject, old_name: str, new_name: str):
+    def rename_cell_in_tree(self, old_name: str, new_name: str):  # , obj: AttrControlObject
         tg = self.tree_graph
         a_m = tg.am
         found = False

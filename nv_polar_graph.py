@@ -495,6 +495,10 @@ class PolarGraph:
         self._moves = set(value)
 
     @strictly_typed
+    def ni_s_connected(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> bool:
+        return any([(link.opposite_ni(ni_1) is ni_2) for link in ni_1.links])
+
+    @strictly_typed
     def _get_link_by_ends(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> Optional[PGLink]:
         links = [link for link in self.links if {ni_1, ni_2} == set(link.ni_s)]
         assert len(links) <= 1, '2 link_groups with equal nodes and ends was found'
