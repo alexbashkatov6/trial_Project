@@ -856,6 +856,8 @@ class BasePolarGraph(PolarGraph):
     def disconnect_nodes(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> \
             Optional[tuple[PGLink, tuple[PGMove, PGMove]]]:
         link_group = self._get_link_group_by_ends(ni_1, ni_2)
+        if not link_group:
+            return
         unstable_links = link_group.unstable_links
         if not unstable_links:
             return
@@ -869,20 +871,24 @@ class BasePolarGraph(PolarGraph):
         return link, moves
 
     @strictly_typed
-    def connect_nodes_auto_inf_handling(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> PGLink:
-        assert not ({ni_1, ni_2} & self.border_ni_s), 'Should be not inf for auto-connect'
+    def connect_nodes_auto_inf_handling(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
+                                        link_is_stable: bool = False) -> PGLink:
+        result = self.connect_nodes(ni_1, ni_2, link_is_stable)
+        if {ni_1, ni_2} & self.border_ni_s:
+            return result
         for ni in ni_1, ni_2:
             for link in ni.links:
                 opposite_ni = link.opposite_ni(ni)
                 if opposite_ni in self.border_ni_s:
                     self.disconnect_nodes(ni, opposite_ni)
-        return self.connect_nodes(ni_1, ni_2)
+        return result
 
     @strictly_typed
     def disconnect_nodes_auto_inf_handling(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface) -> \
             Optional[tuple[PGLink, tuple[PGMove, PGMove]]]:
-        assert not ({ni_1, ni_2} & self.border_ni_s), 'Should be not inf for auto-disconnect'
         result = self.disconnect_nodes(ni_1, ni_2)
+        if {ni_1, ni_2} & self.border_ni_s:
+            return result
         for ni in ni_1, ni_2:
             if ni.is_empty:
                 if ni == 'nd':
@@ -902,11 +908,14 @@ class BasePolarGraph(PolarGraph):
             ni_of_negative_down_node = self.inf_node_nd.ni_pu
         insertion_node = self._init_node()
         existing_old_nodes_link_group = self._get_link_group_by_ends(ni_of_positive_up_node, ni_of_negative_down_node)
-        pu_link = self.connect_nodes(ni_of_positive_up_node, insertion_node.ni_pu, make_pu_stable)
-        nd_link = self.connect_nodes(ni_of_negative_down_node, insertion_node.ni_nd, make_nd_stable)
+        pu_link = self.connect_nodes_auto_inf_handling(ni_of_positive_up_node, insertion_node.ni_pu, make_pu_stable)
+        nd_link = self.connect_nodes_auto_inf_handling(ni_of_negative_down_node, insertion_node.ni_nd, make_nd_stable)
         if existing_old_nodes_link_group:
-            old_link, old_moves = self.disconnect_nodes(ni_of_positive_up_node, ni_of_negative_down_node)
-            self.am.replace_link_after_split(old_link, old_moves, (pu_link, nd_link))
+            disconnect_result = self.disconnect_nodes_auto_inf_handling(ni_of_positive_up_node,
+                                                                        ni_of_negative_down_node)
+            if disconnect_result:
+                old_link, old_moves = disconnect_result
+                self.am.replace_link_after_split(old_link, old_moves, (pu_link, nd_link))
         return insertion_node, pu_link, nd_link
 
     @strictly_typed

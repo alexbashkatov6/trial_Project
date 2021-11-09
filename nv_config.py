@@ -5,3 +5,4 @@ CLASSES_SEQUENCE = ['CoordinateSystem',
                     'GroundLine']
 
 GROUND_CS_NAME = 'CoordinateSystem_Global'
+NEW_OBJECT_NAME = 'new_object'
