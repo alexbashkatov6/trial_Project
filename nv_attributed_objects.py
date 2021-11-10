@@ -1,6 +1,7 @@
 from __future__ import annotations
 import re
-import time
+from copy import copy
+# import time
 
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 
@@ -13,7 +14,8 @@ from nv_polar_graph import (End,
                             PGMove,
                             PGRoute)
 from nv_attribute_format import BSSAttributeType, AttributeFormat
-from nv_cell import Cell, DefaultCellChecker, NameCellChecker, SplitterCellChecker, BoolCellChecker, NameAutoSetter, GNM
+from nv_cell import Cell, BSSCellType
+#  , DefaultCellChecker, NameCellChecker, SplitterCellChecker, BoolCellChecker, NameAutoSetter, GNM
 from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, NEW_OBJECT_NAME
 from nv_errors import CycleError, CycleCellError
 
@@ -21,11 +23,77 @@ BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independen
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
 
 
-# def default_dependence_cell_checker(cls_name_str: str):
-#     dcc = DefaultCellChecker(cls_name_str)
-#     if cls_name_str in CLASSES_SEQUENCE:
-#         dcc.add_semantic_checker(GDM.loop_dependence_checker)
-#     return dcc
+class GlobalNamesManager:
+    def __init__(self):
+        self._name_to_obj: dict[str, Any] = {}
+        self._obj_to_name: dict[Any, str] = {}  # for check obj repeating
+
+    def register_obj_name(self, obj, name):
+        if type(obj) == str:
+            obj, name = name, obj
+        assert name not in self.name_to_obj, 'Name repeating'
+        assert obj not in self.obj_to_name, 'Obj repeating'
+        assert not (obj is None), 'None str_value cannot be registered'
+        self._name_to_obj[name] = obj
+        self._obj_to_name[obj] = name
+
+    def remove_obj_name(self, obj_or_name):
+        obj, name = (self.name_to_obj[obj_or_name], obj_or_name) if type(obj_or_name) == str \
+            else (obj_or_name, self.obj_to_name[obj_or_name])
+        self._name_to_obj.pop(name)
+        self._obj_to_name.pop(obj)
+
+    def rename_obj(self, obj, new_name):
+        self.remove_obj_name(obj)
+        self.register_obj_name(obj, new_name)
+
+    def check_new_name(self, name):
+        return not (name in self.name_to_obj)
+
+    @property
+    def name_to_obj(self) -> dict[str, Any]:
+        return copy(self._name_to_obj)
+
+    @property
+    def obj_to_name(self) -> dict[Any, str]:
+        return copy(self._obj_to_name)
+
+
+GNM = GlobalNamesManager()
+
+
+# def auto_name(cell: Cell):
+#     return
+#
+#
+# def check_syntax_name(cell: Cell):
+#     return
+#
+#
+# def check_syntax_default(cell: Cell):
+#     return
+#
+#
+# def check_syntax_common_splitter(cell: Cell):
+#     return
+#
+#
+# def check_syntax_bool_splitter(cell: Cell):
+#     return
+#
+#
+# def check_type(cell: Cell):
+#     return
+#
+#
+# def check_dependence_loop(cell: Cell):
+#     return
+#
+#
+# default_pipeline = [check_syntax_default, check_type, check_dependence_loop]
+# name_standard_pipeline = [auto_name, check_syntax_name]
+# common_splitter_pipeline = [check_syntax_common_splitter]
+# bool_splitter_pipeline = [check_syntax_bool_splitter]
 
 
 def name_translator_storage_to_interface(input_str: str):
@@ -64,7 +132,7 @@ def expand_splitters(graph_template_: BasePolarGraph):
         for link_ in node.ni_nd.links:
             move_ = node.ni_nd.get_move(link_)
             unique_value = unique_values.pop()
-            graph_template_.am.create_cell(move_, unique_value)
+            graph_template_.am.bind_cell(move_, unique_value)
 
 
 def init_splitter_move_activation(graph_template_: BasePolarGraph):
@@ -101,31 +169,33 @@ class AttribBuildGraphTemplateDescriptor:
             node_co_x = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
             node_co_y = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
-            a_m.create_cell(node_check_dependence, 'dependence', SplitterCellChecker(BSSDependency), 'independent')
-            a_m.create_cell(node_x, 'x', DefaultCellChecker('int'))
-            a_m.create_cell(move_to_x, 'dependent')
-            a_m.create_cell(node_y, 'y', DefaultCellChecker('int'))
-            a_m.create_cell(node_alpha, 'alpha', DefaultCellChecker('int'))
-            a_m.create_cell(move_to_alpha, 'independent')
-            a_m.create_cell(node_connect_polarity, 'connection_polarity', SplitterCellChecker(End), 'negative_down')
-            a_m.create_cell(node_co_x, 'co_x', BoolCellChecker(BSSBool), 'True')
-            a_m.create_cell(node_co_y, 'co_y', BoolCellChecker(BSSBool), 'True')
+            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
+            a_m.bind_cell(node_check_dependence,
+                          Cell('dependence', 'BSSDependency', 'independent', BSSCellType('common_splitter')))
+            a_m.bind_cell(node_x, Cell('x', 'int'))
+            a_m.bind_cell(move_to_x, Cell('dependent'))
+            a_m.bind_cell(node_y, Cell('y', 'int'))
+            a_m.bind_cell(node_alpha, Cell('alpha', 'int'))
+            a_m.bind_cell(move_to_alpha, Cell('independent'))
+            a_m.bind_cell(node_connect_polarity,
+                          Cell('connection_polarity', 'End', 'negative_down', BSSCellType('common_splitter')))
+            a_m.bind_cell(node_co_x, Cell('co_x', 'BSSBool', 'True', BSSCellType('bool_splitter')))
+            a_m.bind_cell(node_co_y, Cell('co_y', 'BSSBool', 'True', BSSCellType('bool_splitter')))
 
         if owner == Point:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
 
         if owner == Line:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
 
         if owner == GroundLine:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
 
-            a_m.create_cell(node_rel_cs, 'cs_relative_to', DefaultCellChecker('CoordinateSystem'))
+            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
 
         expand_splitters(g_b_t)
         instance._graph_build_template = g_b_t
@@ -155,11 +225,11 @@ class AttribCommonGraphTemplateDescriptor:
         node_evaluate_title, _, _ = g_t.insert_node_single_link(node_build_title.ni_nd)
         node_view_title, _, _ = g_t.insert_node_single_link(node_evaluate_title.ni_nd)
 
-        a_m.create_cell(node_name_title, 'Name options')
-        a_m.create_cell(node_name, 'name', NameCellChecker(instance), auto_setter=NameAutoSetter(owner))  #
-        a_m.create_cell(node_build_title, 'Build options')
-        a_m.create_cell(node_evaluate_title, 'Evaluation options')
-        a_m.create_cell(node_view_title, 'View options')
+        a_m.bind_cell(node_name_title, Cell('Name options'))
+        a_m.bind_cell(node_name, Cell('name', owner.__name__, cell_type=BSSCellType('name')))
+        a_m.bind_cell(node_build_title, Cell('Build options'))
+        a_m.bind_cell(node_evaluate_title, Cell('Evaluation options'))
+        a_m.bind_cell(node_view_title, Cell('View options'))
 
         gbt = instance.graph_build_template
         g_t.aggregate(gbt, node_build_title.ni_nd, node_evaluate_title.ni_pu)
@@ -399,7 +469,7 @@ class GlobalDataManager:
         a_m.auto_set_curr_context()
         for cls_name in CLASSES_SEQUENCE:
             node_class, _, _ = self.tree_graph.insert_node_single_link()
-            a_m.create_cell(node_class, cls_name)
+            a_m.bind_cell(node_class, cls_name)
 
     def init_dependence_graph(self):
         a_m = self.dependence_graph.am
@@ -423,7 +493,7 @@ class GlobalDataManager:
         dg = self.dependence_graph
         a_m = dg.am
         gcs_node, _, _ = dg.insert_node_single_link()
-        a_m.create_cell(gcs_node, GROUND_CS_NAME)
+        a_m.bind_cell(gcs_node, GROUND_CS_NAME)
 
     @property
     def gcs(self) -> CoordinateSystem:
@@ -441,10 +511,68 @@ class GlobalDataManager:
         node_class = a_m.get_single_elm_by_cell_content(PolarNode, obj.__class__.__name__)
         assert node_class, 'Node class not found'
         node_obj, _, _ = tg.insert_node_single_link(node_class.ni_nd)
-        a_m.create_cell(node_obj, obj.name)
+        a_m.bind_cell(node_obj, obj.name)
 
-    # def add_obj_to_dependence_graph(self, obj: AttrControlObject):
-    #     pass
+    def auto_set_name(self, cell: Cell, obj: AttrControlObject = None):
+        if cell.cell_type == 'name':
+            prefix = obj.__class__.__name__ + '_'
+            i = 1
+            while True:
+                auto_name = '{}{}'.format(prefix, i)
+                if GNM.check_new_name(auto_name):
+                    break
+                else:
+                    i += 1
+            cell.str_value = auto_name
+
+    def syntax_check(self, cell: Cell, obj: AttrControlObject = None):
+        if cell.str_value == '':
+            return
+        if cell.str_req == '':
+            return
+
+        if cell.cell_type == 'common_splitter' or cell.cell_type == 'bool_splitter':
+            cls = eval(cell.str_req)
+            if cell.str_value not in cls.possible_strings:
+                cell.status_check = 'Value of splitter not in possible values'
+                return
+            else:
+                if cell.cell_type == 'common_splitter':
+                    cell.value = cell.str_value
+                    return
+                if cell.cell_type == 'bool_splitter':
+                    cell.value = eval(cell.str_value)
+                    return
+
+        if cell.cell_type == 'name':
+            if (cell.str_value in GNM.name_to_obj) and (cell.value == GNM.name_to_obj[cell.str_value]):
+                return
+            prefix = cell.str_req + '_'
+            if not re.fullmatch(r'\w+', cell.str_value):
+                cell.status_check = 'Name have to consists of alphas, nums and _'
+            if not cell.str_value.startswith(prefix):
+                cell.status_check = 'Name have to begin from ClassName_'
+            if cell.str_value == prefix:
+                cell.status_check = 'Name cannot be == prefix; add specification to end'
+            if not GNM.check_new_name(cell.str_value):
+                cell.status_check = 'Name {} already exists'.format(cell.str_value)
+            cell.value = obj
+            return
+
+        if cell.cell_type == 'default':
+            str_value_copy = cell.str_value
+            found_identifier_candidates = re.findall(r'\w+', str_value_copy)
+            for fic in found_identifier_candidates:
+                if fic in GNM.name_to_obj:
+                    str_value_copy = str_value_copy.replace(fic, 'GNM.name_to_obj["{}"]'.format(fic))
+            try:
+                eval_result = eval(str_value_copy)
+            except SyntaxError:
+                cell.status_check = 'Syntax error when parsing ' + cell.str_value
+            except NameError:
+                cell.status_check = 'Name error when parsing ' + cell.str_value
+            else:
+                cell.eval_buffer = eval_result
 
     def check_dependence_loop(self, curr_obj, node_cell):
         print('CHECK LOOP')
@@ -461,7 +589,7 @@ class GlobalDataManager:
         if obj_node is None:
             print('obj node not found!')
             obj_node, _, _ = dg.insert_node_single_link()
-            a_m.create_cell(obj_node, obj_name)
+            a_m.bind_cell(obj_node, obj_name)
 
         attr_name = node_cell.name
         attr_full_name = '{}.{}'.format(obj_name, attr_name)
@@ -480,7 +608,7 @@ class GlobalDataManager:
                 assert parent_obj_node, 'Parent_obj_node not found'
                 if attr_node is None:
                     attr_node, _, _ = dg.insert_node_single_link(parent_obj_node.ni_nd, obj_node.ni_pu)
-                    a_m.create_cell(attr_node, attr_full_name)
+                    a_m.bind_cell(attr_node, attr_full_name)
                 else:
                     dg.connect_nodes_auto_inf_handling(parent_obj_node.ni_nd, attr_node.ni_pu)
 

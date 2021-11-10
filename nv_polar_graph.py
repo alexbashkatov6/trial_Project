@@ -1165,10 +1165,9 @@ class AssociationsManager:
                 self._cell_dicts.pop(element)
 
     @strictly_typed
-    def create_cell(self, element: Union[PolarNode, PGLink, PGMove],
-                    name: str, checker: Optional[CellChecker] = None, str_value: str = '',
-                    auto_setter: Optional[AutoValueSetter] = None,
-                    context: Optional[str] = None) -> Cell:
+    def bind_cell(self, element: Union[PolarNode, PGLink, PGMove],
+                  cell: Cell,
+                  context: Optional[str] = None) -> None:
         if not (context is None):
             assert context in self.dict_assoc_class[type(element)].possible_strings, \
                 'Context {} not found'.format(context)
@@ -1181,9 +1180,9 @@ class AssociationsManager:
             self._cell_dicts[element] = {}
         assert not (context in self.cell_dicts[element]), 'Context {} for element {} already exists'.format(context,
                                                                                                             element)
-        cell = Cell(name, str_value, checker, auto_setter)
+        # cell = Cell(name, str_value, checker, auto_setter)
         self.cell_dicts[element][context] = cell
-        return cell
+        # return cell
 
     @property
     @strictly_typed
