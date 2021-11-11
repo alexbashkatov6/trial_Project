@@ -21,6 +21,9 @@ from nv_errors import CellError
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
+BSSObjectStatus = bounded_string_set('BSSObjectStatus', [['default'],
+                                                         ['picked'], ['pick_dependent'],
+                                                         ['corrupted'], ['corrupt_dependent']])
 
 
 class GlobalNamesManager:
@@ -239,9 +242,11 @@ class AttribCommonGraphTemplateDescriptor:
 
 
 class AttrControlObject:
-
     graph_build_template = AttribBuildGraphTemplateDescriptor()
     graph_template = AttribCommonGraphTemplateDescriptor()
+
+    def __init__(self):
+        self.obj_status = BSSObjectStatus('default')
 
 
 class CoordinateSystem(AttrControlObject):
@@ -261,7 +266,6 @@ class GroundLine(AttrControlObject):
 
 
 class CommonAttributeInterface(QObject):
-
     send_attrib_list = pyqtSignal(list)
     send_single_value = pyqtSignal(AttributeFormat)
     send_class_str = pyqtSignal(str)
@@ -387,7 +391,7 @@ class CommonAttributeInterface(QObject):
 
     def check_all_values_defined(self) -> bool:
         # print('values', [active_cell.value for active_cell in self.get_active_cells()])
-        self._create_readiness = all(not(active_cell.value is None) for active_cell in self.get_active_cells())
+        self._create_readiness = all(not (active_cell.value is None) for active_cell in self.get_active_cells())
         self.create_readiness.emit(self._create_readiness)
         return self._create_readiness
 
@@ -428,6 +432,15 @@ class CommonAttributeInterface(QObject):
         if obj_name != GDM.gcs.name:
             af_list = self.form_attrib_list(GNM.name_to_obj[obj_name], False)
             self.send_info_object.emit(af_list)
+
+    @pyqtSlot(str)
+    def pick_handling(self, obj_name):
+        print('pick handling')
+        # dg = GDM.dependence_graph
+        # am = dg.am
+        # print('name is ', obj_name)
+        # node = am.get_single_elm_by_cell_content(obj_name)
+        # print('found node is ', node)
 
 
 CAI = CommonAttributeInterface()
@@ -535,7 +548,6 @@ class GlobalDataManager:
     # def check_success_before(self, cell: Cell):
     #     return cell.status_check == ''
 
-
     def check_syntax(self, cell: Cell, obj: AttrControlObject = None):
         if cell.cell_type == 'common_splitter' or cell.cell_type == 'bool_splitter':
             cls = eval(cell.str_req)
@@ -631,7 +643,8 @@ class GlobalDataManager:
                             a_m.bind_cell(attr_node, Cell(attr_full_name))
                         else:
                             dg.connect_nodes_auto_inf_handling(parent_obj_node.ni_nd, attr_node.ni_pu)
-                if (len(attr_node.ni_pu.links) == 1) and (attr_node.ni_pu.links.pop().opposite_ni is dg.inf_node_pu.ni_nd):
+                if (len(attr_node.ni_pu.links) == 1) and (
+                        attr_node.ni_pu.links.pop().opposite_ni is dg.inf_node_pu.ni_nd):
                     dg.remove_nodes([attr_node])
 
                 # print('after - len of not inf nodes', len(dg.not_inf_nodes))
@@ -653,7 +666,7 @@ class GlobalDataManager:
         dg.remove_nodes(nodes_found)
 
     @property
-    def tree_graph_dict_string_repr(self) -> dict[str, list[str]]:
+    def tree_graph_dict_string_repr(self) -> dict[str, list[tuple[str, BSSObjectStatus]]]:
         tg = self.tree_graph
         a_m = tg.am
         result = {}
@@ -668,7 +681,8 @@ class GlobalDataManager:
                 result[cell_class.name] = []
                 continue
             child_names = list(a_m.get_elm_cell_by_context(child_pn).name for child_pn in child_pns)
-            result[cell_class.name] = child_names
+            result[cell_class.name] = [(child_name, GNM.name_to_obj[child_name].obj_status)
+                                       for child_name in child_names]
         return result
 
     def rename_cells_in_dependence_graph(self, old_name: str, new_name: str):

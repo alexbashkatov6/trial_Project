@@ -501,9 +501,11 @@ class PolarGraph:
         coverage_graph.border_ni_s = border_ni_s_cov
         return coverage_graph
 
-    # @strictly_typed
-    # def layered_representation(self, start_ni_of_node: PGNodeInterface) -> list[set[PolarNode]]:
-    #     return self.walk_to_borders(start_ni_of_node)[1]
+    @strictly_typed
+    def layered_representation(self, start_ni_of_node: Optional[PGNodeInterface] = None) -> list[set[PolarNode]]:
+        if not start_ni_of_node:
+            start_ni_of_node = self.base_polar_graph.inf_node_pu.ni_nd
+        return self.walk_to_borders(start_ni_of_node)[1]
 
     @strictly_typed
     def find_routes(self, start_node: PolarNode, end_node: PolarNode) -> set[PGRoute]:
@@ -1447,24 +1449,27 @@ if __name__ == '__main__':
             return pg_0, nodes
 
 
-        pg_07, _ = create_graph_7()
-        print(pg_07)
-        print(pg_07.nodes)
-        print(pg_07.links)
-        print(len(pg_07.links))
+        # pg_07, _ = create_graph_7()
+        # print(pg_07)
+        # print(pg_07.nodes)
+        # print(pg_07.links)
+        # print(len(pg_07.links))
+        #
+        # GSS.save_graph_state(pg_07)
+        # pg_07.disconnect_nodes_auto_inf_handling(nod(1).ni_nd, nod(2).ni_pu)
+        # print('after remove node 2')
+        # print(pg_07.nodes)
+        # print(pg_07.links)
+        # print(len(pg_07.links))
+        #
+        # pg_07 = GSS.reset_graph_state()
+        # print('after reload')
+        # print(pg_07.nodes)
+        # print(pg_07.links)
+        # print(len(pg_07.links))
 
-        GSS.save_graph_state(pg_07)
-        pg_07.disconnect_nodes_auto_inf_handling(nod(1).ni_nd, nod(2).ni_pu)
-        print('after remove node 2')
-        print(pg_07.nodes)
-        print(pg_07.links)
-        print(len(pg_07.links))
-
-        pg_07 = GSS.reset_graph_state()
-        print('after reload')
-        print(pg_07.nodes)
-        print(pg_07.links)
-        print(len(pg_07.links))
+        pg_01, _ = create_graph_2()
+        print(pg_01.layered_representation())
 
         # pg_00, nodes_00 = create_graph_2()
         # print(pg_00)

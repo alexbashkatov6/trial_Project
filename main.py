@@ -28,6 +28,7 @@ class Director(QObject):
         self.mw.rtb.new_name_value_tb.connect(self.cai.slot_change_value)
         self.mw.rtb.apply_clicked.connect(self.cai.apply_changes)
         self.mw.ltb.send_data_hover.connect(self.cai.hover_handling)
+        self.mw.ltb.send_data_pick.connect(self.cai.pick_handling)
         self.mw.ltb.send_data_edit.connect(self.cai.change_current_object)
 
         # storage to interface

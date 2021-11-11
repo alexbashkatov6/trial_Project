@@ -5,11 +5,12 @@ from functools import partial
 
 from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
     QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView, QToolTip, QMenu
-from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent
+from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent, QFont, QColor
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer
 from PyQt5.Qt import QStandardItemModel, QStandardItem
 
 from nv_attribute_format import AttributeFormat
+from nv_attributed_objects import BSSObjectStatus
 from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, PICTURE_FOLDER
 
 
@@ -205,6 +206,7 @@ class CustomTW(QTreeView):
     send_data_edit = pyqtSignal(str)
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
+    send_data_pick = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -222,6 +224,32 @@ class CustomTW(QTreeView):
             data = self.indexAt(a0.localPos().toPoint()).data()
             if not (data is None):
                 self.send_data_right_click.emit(data)
+        if a0.button() == Qt.LeftButton:
+            data = self.indexAt(a0.localPos().toPoint()).data()
+            if not (data is None):
+                self.send_data_pick.emit(data)
+
+    # class Widget(QWidget):
+    #     def __init__(self):
+    #         super().__init__()
+    #         self.timer = QTimer(self)
+    #         self.timer.setSingleShot(True)
+    #         self.timer.timeout.connect(self.single_click)
+    #         self.double_click_interval = qApp.doubleClickInterval()
+    #
+    #     def mouseReleaseEvent(self, e):
+    #         if not self.timer.isActive():
+    #             self.timer.start(self.double_click_interval)
+    #         else:
+    #             self.timer.stop()
+    #             self.double_click()
+    #         super().mouseReleaseEvent(e)
+    #
+    #     def single_click(self):
+    #         print("single")
+    #
+    #     def double_click(self):
+    #         print("double")
 
     def mouseMoveEvent(self, a0: QEvent) -> None:
         self.timer.stop()
@@ -281,6 +309,7 @@ class ObjectsTree(QWidget):
     send_data_edit = pyqtSignal(str)
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
+    send_data_pick = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -301,7 +330,8 @@ class ObjectsTree(QWidget):
         self.tree_view.send_data_fill.connect(self.send_data_fill)
         self.tree_view.send_data_edit.connect(self.send_data_edit)
         self.tree_view.send_data_right_click.connect(self.send_data_right_click)
-        self.tree_view.send_data_hover.connect(self.send_data_hover)  #
+        self.tree_view.send_data_hover.connect(self.send_data_hover)
+        self.tree_view.send_data_pick.connect(self.send_data_pick)
 
     def init_from_graph_tree(self, tree_dict):
         self.clean()
@@ -311,17 +341,25 @@ class ObjectsTree(QWidget):
             item_class.setSelectable(False)
             self.root_node.appendRow(item_class)
             self.class_nodes.add(class_name)
-            for obj_name in tree_dict[class_name]:
+            for obj_name, obj_status in tree_dict[class_name]:
                 item_obj = QStandardItem(obj_name)
                 item_obj.setEditable(False)
                 item_class.appendRow(item_obj)
+                if obj_status == 'pick_dependent':
+                    item_obj.setData(QColor('green'), Qt.ForegroundRole)
+                if obj_status == 'corrupt_dependent':
+                    item_obj.setData(QColor('yellow'), Qt.ForegroundRole)
+                if obj_status == 'corrupted':
+                    item_obj.setData(QColor('red'), Qt.ForegroundRole)
         self.tree_view.finish_operations()
+
 
 class ToolBarOfObjects(QToolBar):
     send_data_fill = pyqtSignal(str)
     send_data_edit = pyqtSignal(str)
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
+    send_data_pick = pyqtSignal(str)
 
     def __init__(self, min_size):
         super().__init__()
@@ -343,6 +381,7 @@ class ToolBarOfObjects(QToolBar):
         self.objects_tree.send_data_edit.connect(self.send_data_edit)
         self.objects_tree.send_data_right_click.connect(self.send_data_right_click)
         self.objects_tree.send_data_hover.connect(self.send_data_hover)
+        self.objects_tree.send_data_pick.connect(self.send_data_pick)
 
     @pyqtSlot(dict)
     def set_tree(self, tree_dict):
