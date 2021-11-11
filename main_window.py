@@ -121,7 +121,6 @@ class AttribColumn(QWidget):
                 attr_layout.addWidget(value_wgt_0)
                 self.widgets_dict[value_wgt_0] = name_wgt_0
             self.column_layout.addLayout(attr_layout)
-        # print('after all formed')
 
     @pyqtSlot()
     def edit_finished(self):
@@ -131,7 +130,6 @@ class AttribColumn(QWidget):
 
     @pyqtSlot(str)
     def changed_value(self, new_val: str):
-        # print('in changed')
         sender = self.sender()
         label: QLabel = self.widgets_dict[sender]
         self.new_name_value_ac.emit(label.text(), new_val)
@@ -235,40 +233,18 @@ class CustomTW(QTreeView):
                 self.double_click = False
             elif not self.timer_double_click.isActive():
                 self.timer_double_click.start(qApp.doubleClickInterval())
-                if not (data is None):
-                    self.data_release = data
+                self.data_release = data
 
     def mousePressEvent(self, a0: QMouseEvent) -> None:
         if a0.button() == Qt.LeftButton:
             if self.timer_double_click.isActive():
                 self.double_click = True
+                self.send_name_fill(self.data_release)
 
     def release_data_emit(self):
         if not (self.data_release is None):
             self.send_data_pick.emit(self.data_release)
             self.timer_double_click.stop()
-
-    # class Widget(QWidget):
-    #     def __init__(self):
-    #         super().__init__()
-    #         self.timer = QTimer(self)
-    #         self.timer.setSingleShot(True)
-    #         self.timer.timeout.connect(self.single_click)
-    #         self.double_click_interval = qApp.doubleClickInterval()
-    #
-    #     def mouseReleaseEvent(self, e):
-    #         if not self.timer.isActive():
-    #             self.timer.start(self.double_click_interval)
-    #         else:
-    #             self.timer.stop()
-    #             self.double_click()
-    #         super().mouseReleaseEvent(e)
-    #
-    #     def single_click(self):
-    #         print("single")
-    #
-    #     def double_click(self):
-    #         print("double")
 
     def mouseMoveEvent(self, a0: QEvent) -> None:
         self.timer.stop()
@@ -312,11 +288,12 @@ class CustomTW(QTreeView):
 
     def finish_operations(self):
         self.expandAll()
-        self.doubleClicked.connect(self.send_name_fill)
 
     def send_name_fill(self, val):
-        if val.data() not in self.parent().class_nodes:
-            self.send_data_fill.emit(val.data())
+        if type(val) != str:
+            val = val.data()
+        if val not in self.parent().class_nodes:
+            self.send_data_fill.emit(val)
 
     def send_name_edit(self, val):
         if val.data() not in self.parent().class_nodes:
@@ -340,7 +317,7 @@ class ObjectsTree(QWidget):
         self.class_nodes = set()
         if hasattr(self, 'tree_view'):
             self.tree_view.setParent(None)
-        self.tree_view = CustomTW(self)  # QTreeView CustomTW
+        self.tree_view = CustomTW(self)
         self.tree_model = QStandardItemModel()
         self.root_node = self.tree_model.invisibleRootItem()
         self.tree_view.setModel(self.tree_model)
