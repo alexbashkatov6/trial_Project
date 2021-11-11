@@ -7,11 +7,11 @@ from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolB
     QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView, QToolTip, QMenu
 from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent, QFont, QColor
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer
-from PyQt5.Qt import QStandardItemModel, QStandardItem
+from PyQt5.Qt import QStandardItemModel, QStandardItem, qApp
 
 from nv_attribute_format import AttributeFormat
-from nv_attributed_objects import BSSObjectStatus
 from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, PICTURE_FOLDER
+# from nv_attributed_objects import BSSObjectStatus
 
 
 class ToolBarOfClasses(QToolBar):
@@ -218,6 +218,10 @@ class CustomTW(QTreeView):
         self.millisecs_of_notification = 1000
         self.obj_hovered_name = ''
         self.current_cursor_point = QPoint(0, 0)
+        self.timer_double_click = QTimer(self)
+        self.double_click = False
+        self.data_release = None
+        self.timer_double_click.timeout.connect(self.release_data_emit)
 
     def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
         if a0.button() == Qt.RightButton:
@@ -226,8 +230,23 @@ class CustomTW(QTreeView):
                 self.send_data_right_click.emit(data)
         if a0.button() == Qt.LeftButton:
             data = self.indexAt(a0.localPos().toPoint()).data()
-            if not (data is None):
-                self.send_data_pick.emit(data)
+            if self.double_click:
+                self.timer_double_click.stop()
+                self.double_click = False
+            elif not self.timer_double_click.isActive():
+                self.timer_double_click.start(qApp.doubleClickInterval())
+                if not (data is None):
+                    self.data_release = data
+
+    def mousePressEvent(self, a0: QMouseEvent) -> None:
+        if a0.button() == Qt.LeftButton:
+            if self.timer_double_click.isActive():
+                self.double_click = True
+
+    def release_data_emit(self):
+        if not (self.data_release is None):
+            self.send_data_pick.emit(self.data_release)
+            self.timer_double_click.stop()
 
     # class Widget(QWidget):
     #     def __init__(self):
