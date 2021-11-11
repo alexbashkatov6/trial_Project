@@ -8,6 +8,7 @@ from nv_bounded_string_set_class import bounded_string_set
 from nv_typing import *
 
 BSSCellType = bounded_string_set('BSSCellType', [['default'],
+                                                 ['no_check'],
                                                  ['name'],
                                                  ['common_splitter'],
                                                  ['bool_splitter']])
@@ -152,6 +153,8 @@ class Cell:
         self._str_req = str_req
         self._str_value = str_value
         self._cell_type = cell_type
+        if not str_req:
+            self._cell_type = BSSCellType('no_check')
 
         self._active = False
         self._is_suggested_value = False

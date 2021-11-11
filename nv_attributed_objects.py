@@ -12,12 +12,12 @@ from nv_polar_graph import (End,
                             BasePolarGraph,
                             PolarNode,
                             PGMove,
-                            PGRoute)
+                            PGRoute,
+                            GraphStateSaver)
 from nv_attribute_format import BSSAttributeType, AttributeFormat
 from nv_cell import Cell, BSSCellType
-#  , DefaultCellChecker, NameCellChecker, SplitterCellChecker, BoolCellChecker, NameAutoSetter, GNM
 from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, NEW_OBJECT_NAME
-from nv_errors import CycleError, CycleCellError
+from nv_errors import CellError
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
@@ -108,18 +108,14 @@ def get_splitter_nodes_cells(graph_template_: BasePolarGraph) -> set[tuple[Polar
     values = set()
     for node in graph_template_.not_inf_nodes:
         cell = graph_template_.am.cell_dicts[node]['attrib_node']
-        req_type = cell.req_class_str
-        if req_type is None:
-            continue
-        cls = get_class_by_str(req_type, True)
-        if issubclass(cls, BoundedStringSet):
+        if cell.cell_type == 'common_splitter' or cell.cell_type == 'bool_splitter':
             values.add((node, cell))
     return values
 
 
 def expand_splitters(graph_template_: BasePolarGraph):
     for node, cell in get_splitter_nodes_cells(graph_template_):
-        cls = get_class_by_str(cell.req_class_str, True)
+        cls = get_class_by_str(cell.str_req, True)
         unique_values: list = cls.unique_values
         need_count_of_links = len(unique_values)
         existing_count_of_links = len(node.ni_nd.links)
@@ -132,7 +128,7 @@ def expand_splitters(graph_template_: BasePolarGraph):
         for link_ in node.ni_nd.links:
             move_ = node.ni_nd.get_move(link_)
             unique_value = unique_values.pop()
-            graph_template_.am.bind_cell(move_, unique_value)
+            graph_template_.am.bind_cell(move_, Cell(unique_value))
 
 
 def init_splitter_move_activation(graph_template_: BasePolarGraph):
@@ -303,33 +299,43 @@ class CommonAttributeInterface(QObject):
         for node in g.not_inf_nodes:
             cells = am.cell_dicts[node].values()
             for cell in cells:
-                cell.deactivate()
+                cell.active = False
         fr = g.free_roll()
         cells_set_list = am.extract_route_content(fr)
-        splitter_cells_set = [i[1] for i in get_splitter_nodes_cells(g)]
+        # splitter_cells_set = [i[1] for i in get_splitter_nodes_cells(g)]
         for i, set_cells in enumerate(cells_set_list):
             if not set_cells:
                 continue
             cell = set_cells.pop()
+            if need_to_check:
+                cell.status_check = ''
+                cell.value = None
+                GDM.auto_set_name(cell, obj)
+                if cell.str_value:
+                    try:
+                        GDM.check_syntax(cell, obj)
+                        GDM.check_type(cell)
+                        GDM.check_dependence_loop(cell, obj)
+                    except CellError:
+                        pass
+                    else:
+                        cell.value = cell.eval_buffer
             out_name = name_translator_storage_to_interface(cell.name)
-            if cell in splitter_cells_set:
+            if (cell.cell_type == 'common_splitter') or (cell.cell_type == 'bool_splitter'):
                 str_value = cells_set_list[i + 1].pop().name
-                cls = get_class_by_str(cell.checker.req_class_str)
+                cls = get_class_by_str(cell.str_req)
                 cell.str_value = str_value
                 af = AttributeFormat(BSSAttributeType('splitter'), out_name, cell.str_value, cls.unique_values)
-                cell.activate()
-            elif cell.checker is None:
+            elif cell.cell_type == 'no_check':
                 af = AttributeFormat(BSSAttributeType('title'), out_name)
             else:
-                cell.activate()
                 af = AttributeFormat(BSSAttributeType('str_value'), out_name, cell.str_value)
-                af.is_suggested = cell.is_suggested_value
+                cell.active = True
 
-            if need_to_check:
-                cell.check_value()
             af.status_check = cell.status_check
-            if cell.checker and hasattr(cell.checker, 'req_class_str'):
-                af.req_type_str = 'Required type: {}'.format(cell.checker.req_class_str)
+            af.is_suggested = cell.is_suggested_value
+            if cell.cell_type == 'default' and cell.str_req:
+                af.req_type_str = 'Required type: {}'.format(cell.str_req)
             af_list.append(af)
 
         return af_list
@@ -365,16 +371,12 @@ class CommonAttributeInterface(QObject):
         node_cell: Cell = g.am.get_elm_cell_by_context(node)
         assert node_cell, 'Node cell not found'
         node_cell.str_value = new_value
-        # if GDM.loop_dependence_checker in node_cell.checker.f_check_semantic_list:  # GDM.loop_dependence_checker
-        GDM.current_object = curr_obj
-        #     GDM.current_cell = node_cell
+        node_cell.is_suggested_value = False
         if node in [i[0] for i in get_splitter_nodes_cells(g)]:
             move = g.am.get_single_elm_by_cell_content(PGMove, new_value, node.ni_nd.moves)
             assert move, 'Move not found'
             node.ni_nd.choice_move_activate(move)
         af_list = self.form_attrib_list(self.current_object)
-        if isinstance(node_cell.checker, DefaultCellChecker) and node_cell.checker.req_class_str in CLASSES_SEQUENCE:
-            GDM.check_dependence_loop(curr_obj, node_cell)
         self.send_attrib_list.emit(af_list)
         self.check_all_values_defined()
 
@@ -384,6 +386,7 @@ class CommonAttributeInterface(QObject):
         return {g.am.get_elm_cell_by_context(node) for node in g.am.get_filter_all_cells(PolarNode)}
 
     def check_all_values_defined(self) -> bool:
+        # print('values', [active_cell.value for active_cell in self.get_active_cells()])
         self._create_readiness = all(not(active_cell.value is None) for active_cell in self.get_active_cells())
         self.create_readiness.emit(self._create_readiness)
         return self._create_readiness
@@ -399,17 +402,19 @@ class CommonAttributeInterface(QObject):
         co = self.current_object
         if self.check_all_values_defined():
             self.create_obj_attributes()
+            # print('co.name = ', co.name)
             if co in GNM.obj_to_name:
                 old_name = GNM.obj_to_name[co]
+                # print('old name = ', old_name)
                 GNM.rename_obj(co, co.name)
                 GDM.rename_cell_in_tree(old_name, co.name)  # co,
-                print('rename for existing')
+                # print('rename for existing')
                 GDM.rename_cells_in_dependence_graph(old_name, co.name)
             else:
                 GDM.add_new_class_instance(co)
                 GDM.add_to_tree_graph(co)
                 GNM.register_obj_name(co, co.name)
-                print('rename for new')
+                # print('rename for new')
                 GDM.rename_cells_in_dependence_graph(NEW_OBJECT_NAME, co.name)
         self.create_new_object(co.__class__.__name__)
         self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
@@ -444,9 +449,6 @@ class GlobalDataManager:
         self.init_field_graph()
         self.init_global_coordinate_system()
 
-        # self.current_cell = None
-        # self.current_object = None
-
     @property
     def class_instances(self):
         return self._class_instances
@@ -469,7 +471,7 @@ class GlobalDataManager:
         a_m.auto_set_curr_context()
         for cls_name in CLASSES_SEQUENCE:
             node_class, _, _ = self.tree_graph.insert_node_single_link()
-            a_m.bind_cell(node_class, cls_name)
+            a_m.bind_cell(node_class, Cell(cls_name))
 
     def init_dependence_graph(self):
         a_m = self.dependence_graph.am
@@ -493,7 +495,7 @@ class GlobalDataManager:
         dg = self.dependence_graph
         a_m = dg.am
         gcs_node, _, _ = dg.insert_node_single_link()
-        a_m.bind_cell(gcs_node, GROUND_CS_NAME)
+        a_m.bind_cell(gcs_node, Cell(GROUND_CS_NAME))
 
     @property
     def gcs(self) -> CoordinateSystem:
@@ -511,10 +513,13 @@ class GlobalDataManager:
         node_class = a_m.get_single_elm_by_cell_content(PolarNode, obj.__class__.__name__)
         assert node_class, 'Node class not found'
         node_obj, _, _ = tg.insert_node_single_link(node_class.ni_nd)
-        a_m.bind_cell(node_obj, obj.name)
+        a_m.bind_cell(node_obj, Cell(obj.name))
 
-    def auto_set_name(self, cell: Cell, obj: AttrControlObject = None):
+    def auto_set_name(self, cell: Cell, obj: AttrControlObject):
+        if cell.str_value:
+            return
         if cell.cell_type == 'name':
+            # print('auto set')
             prefix = obj.__class__.__name__ + '_'
             i = 1
             while True:
@@ -523,42 +528,46 @@ class GlobalDataManager:
                     break
                 else:
                     i += 1
+            # print('str_value', auto_name)
             cell.str_value = auto_name
+            cell.is_suggested_value = True
 
-    def syntax_check(self, cell: Cell, obj: AttrControlObject = None):
-        if cell.str_value == '':
-            return
-        if cell.str_req == '':
-            return
+    # def check_success_before(self, cell: Cell):
+    #     return cell.status_check == ''
 
+
+    def check_syntax(self, cell: Cell, obj: AttrControlObject = None):
         if cell.cell_type == 'common_splitter' or cell.cell_type == 'bool_splitter':
             cls = eval(cell.str_req)
             if cell.str_value not in cls.possible_strings:
                 cell.status_check = 'Value of splitter not in possible values'
-                return
+                raise CellError(cell.status_check)
             else:
                 if cell.cell_type == 'common_splitter':
-                    cell.value = cell.str_value
+                    cell.eval_buffer = cell.str_value
                     return
                 if cell.cell_type == 'bool_splitter':
-                    cell.value = eval(cell.str_value)
+                    cell.eval_buffer = eval(cell.str_value)
                     return
-
         if cell.cell_type == 'name':
-            if (cell.str_value in GNM.name_to_obj) and (cell.value == GNM.name_to_obj[cell.str_value]):
+            if (cell.str_value in GNM.name_to_obj) and (obj == GNM.name_to_obj[cell.str_value]):
+                cell.eval_buffer = cell.str_value
                 return
             prefix = cell.str_req + '_'
             if not re.fullmatch(r'\w+', cell.str_value):
                 cell.status_check = 'Name have to consists of alphas, nums and _'
+                raise CellError(cell.status_check)
             if not cell.str_value.startswith(prefix):
                 cell.status_check = 'Name have to begin from ClassName_'
+                raise CellError(cell.status_check)
             if cell.str_value == prefix:
                 cell.status_check = 'Name cannot be == prefix; add specification to end'
+                raise CellError(cell.status_check)
             if not GNM.check_new_name(cell.str_value):
                 cell.status_check = 'Name {} already exists'.format(cell.str_value)
-            cell.value = obj
+                raise CellError(cell.status_check)
+            cell.eval_buffer = cell.str_value
             return
-
         if cell.cell_type == 'default':
             str_value_copy = cell.str_value
             found_identifier_candidates = re.findall(r'\w+', str_value_copy)
@@ -569,77 +578,79 @@ class GlobalDataManager:
                 eval_result = eval(str_value_copy)
             except SyntaxError:
                 cell.status_check = 'Syntax error when parsing ' + cell.str_value
+                raise CellError(cell.status_check)
             except NameError:
                 cell.status_check = 'Name error when parsing ' + cell.str_value
+                raise CellError(cell.status_check)
             else:
                 cell.eval_buffer = eval_result
 
-    def check_dependence_loop(self, curr_obj, node_cell):
-        print('CHECK LOOP')
-        cell_str_value = node_cell.str_value
-        dg = self.dependence_graph
-        a_m = dg.am
-        print('before - len of not inf nodes', len(dg.not_inf_nodes))
-        print('before - len of links', len(dg.links))
+    def check_type(self, cell: Cell):
+        if cell.cell_type == 'default':
+            if not type_verification(cell.str_req, cell.eval_buffer):
+                cell.status_check = 'Type requirement not satisfied'
+                raise CellError(cell.status_check)
 
-        obj_name = NEW_OBJECT_NAME
-        if hasattr(curr_obj, 'name'):
-            obj_name = curr_obj.name
-        obj_node = a_m.get_single_elm_by_cell_content(PolarNode, obj_name)
-        if obj_node is None:
-            print('obj node not found!')
-            obj_node, _, _ = dg.insert_node_single_link()
-            a_m.bind_cell(obj_node, obj_name)
+    def check_dependence_loop(self, cell: Cell, obj: AttrControlObject):
+        if cell.cell_type == 'default':
+            found_attr_obj = False
+            for attr_obj_cls in CLASSES_SEQUENCE:
+                if attr_obj_cls in cell.str_req:
+                    found_attr_obj = True
+                    break
+            if found_attr_obj:
+                # print('CHECK LOOP')
+                cell_str_value = cell.str_value
+                dg = self.dependence_graph
+                a_m = dg.am
+                obj_name = NEW_OBJECT_NAME
+                if hasattr(obj, 'name'):
+                    obj_name = obj.name
+                obj_node = a_m.get_single_elm_by_cell_content(PolarNode, obj_name)
+                if obj_node is None:
+                    # print('obj node not found!')
+                    obj_node, _, _ = dg.insert_node_single_link()
+                    a_m.bind_cell(obj_node, Cell(obj_name))
+                GSS = GraphStateSaver()
+                GSS.save_graph_state(dg)
+                attr_name = cell.name
+                attr_full_name = '{}.{}'.format(obj_name, attr_name)
+                attr_node = a_m.get_single_elm_by_cell_content(PolarNode, attr_full_name)
+                if attr_node:
+                    # print('attr node found!')
+                    for link in attr_node.ni_pu.links:
+                        dg.disconnect_nodes_auto_inf_handling(*link.ni_s)
+                found_identifier_candidates = re.findall(r'\w+', cell_str_value)
+                for fic in found_identifier_candidates:
+                    if fic in GNM.name_to_obj:
+                        parent_obj_node = a_m.get_single_elm_by_cell_content(PolarNode, fic)
+                        # print('fic', fic)
+                        assert parent_obj_node, 'Parent_obj_node not found'
+                        if attr_node is None:
+                            attr_node, _, _ = dg.insert_node_single_link(parent_obj_node.ni_nd, obj_node.ni_pu)
+                            a_m.bind_cell(attr_node, Cell(attr_full_name))
+                        else:
+                            dg.connect_nodes_auto_inf_handling(parent_obj_node.ni_nd, attr_node.ni_pu)
+                if (len(attr_node.ni_pu.links) == 1) and (attr_node.ni_pu.links.pop().opposite_ni is dg.inf_node_pu.ni_nd):
+                    dg.remove_nodes([attr_node])
 
-        attr_name = node_cell.name
-        attr_full_name = '{}.{}'.format(obj_name, attr_name)
-        attr_node = a_m.get_single_elm_by_cell_content(PolarNode, attr_full_name)
-        if attr_node:
-            print('attr node found!')
-            for link in attr_node.ni_pu.links:
-                dg.disconnect_nodes_auto_inf_handling(*link.ni_s)
-        # print('attr_full_name', attr_full_name)
-
-        found_identifier_candidates = re.findall(r'\w+', cell_str_value)
-        for fic in found_identifier_candidates:
-            if fic in GNM.name_to_obj:
-                parent_obj_node = a_m.get_single_elm_by_cell_content(PolarNode, fic)
-                print('fic', fic)
-                assert parent_obj_node, 'Parent_obj_node not found'
-                if attr_node is None:
-                    attr_node, _, _ = dg.insert_node_single_link(parent_obj_node.ni_nd, obj_node.ni_pu)
-                    a_m.bind_cell(attr_node, attr_full_name)
-                else:
-                    dg.connect_nodes_auto_inf_handling(parent_obj_node.ni_nd, attr_node.ni_pu)
-
-        if (len(attr_node.ni_pu.links) == 1) and (attr_node.ni_pu.links.pop().opposite_ni is dg.inf_node_pu.ni_nd):
-            dg.remove_nodes([attr_node])
-
-        print('after - len of not inf nodes', len(dg.not_inf_nodes))
-        print('after - len of links', len(dg.links))
-        for i, link in enumerate(dg.links):
-            print('link #{}'.format(i+1), 'between', [(a_m.get_elm_cell_by_context(ni.pn).name, ni.end)
-                                                      for ni in link.ni_s if ni.pn not in dg.inf_nodes])
-            # print('between', [(a_m.get_elm_cell_by_context(ni.pn).name, ni.end) for ni in link.ni_s
-            #                       if ni.pn not in dg.inf_nodes])
-
-    # def loop_dependence_checker(self, cell_str_value, cell_value):
-    #     self.refresh_dependence_graph(cell_str_value)
-    #     dg = self.dependence_graph
-        if not dg.check_loops():
-            raise CycleCellError('Dependence cycle was found')
+                # print('after - len of not inf nodes', len(dg.not_inf_nodes))
+                # print('after - len of links', len(dg.links))
+                # for i, link in enumerate(dg.links):
+                #     print('link #{}'.format(i+1), 'between', [(a_m.get_elm_cell_by_context(ni.pn).name, ni.end)
+                #                                               for ni in link.ni_s if ni.pn not in dg.inf_nodes])
+                if not dg.check_loops():
+                    self._dependence_graph = GSS.reset_graph_state()
+                    cell.status_check = 'Dependence cycle was found'
+                    raise CellError(cell.status_check)
 
     def delete_temporary_dependence(self):
-        print('delete temporary dependence')
+        # print('delete temporary dependence')
         dg = self.dependence_graph
         a_m = dg.am
         a_m.filter_function = lambda x: NEW_OBJECT_NAME in x.name
         nodes_found = a_m.get_filter_all_cells(PolarNode)
         dg.remove_nodes(nodes_found)
-
-    def add_cell_to_dependence_graph(self, cell: Cell, obj: AttrControlObject):
-        dg = self.dependence_graph
-        am_dg = dg.am
 
     @property
     def tree_graph_dict_string_repr(self) -> dict[str, list[str]]:
@@ -661,7 +672,7 @@ class GlobalDataManager:
         return result
 
     def rename_cells_in_dependence_graph(self, old_name: str, new_name: str):
-        print('rename from {} to {}'.format(old_name, new_name))
+        # print('rename from {} to {}'.format(old_name, new_name))
         dg = self.dependence_graph
         a_m = dg.am
         a_m.filter_function = lambda x: old_name in x.name

@@ -13,6 +13,7 @@ DEBUG_MODE = True
 
 
 def get_class_by_str(str_name, assertion=False):
+    # print('check for', str_name)
     try:
         cls = eval(str_name)
     except NameError:
