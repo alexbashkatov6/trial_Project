@@ -1064,7 +1064,8 @@ class AssociationsManager:
     @strictly_typed
     def bind_cell(self, element: Union[PolarNode, PGLink, PGMove],
                   cell: Cell,
-                  context: Optional[str] = None) -> None:
+                  context: Optional[str] = None,
+                  rebind_allowed: bool = True) -> None:
         if not (context is None):
             assert context in self.dict_assoc_class[type(element)].possible_strings, \
                 'Context {} not found'.format(context)
@@ -1075,8 +1076,9 @@ class AssociationsManager:
             context = set(poss_str).pop()
         if not (element in self.cell_dicts):
             self._cell_dicts[element] = {}
-        assert not (context in self.cell_dicts[element]), 'Context {} for element {} already exists'.format(context,
-                                                                                                            element)
+        if not rebind_allowed:
+            assert not (context in self.cell_dicts[element]), 'Context {} for element {} already exists'.format(context,
+                                                                                                                element)
         self.cell_dicts[element][context] = cell
 
     @property

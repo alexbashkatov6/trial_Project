@@ -205,6 +205,7 @@ class CustomTW(QTreeView):
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
     send_data_pick = pyqtSignal(str)
+    send_leave = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -228,6 +229,9 @@ class CustomTW(QTreeView):
                 self.send_data_right_click.emit(data)
         if a0.button() == Qt.LeftButton:
             data = self.indexAt(a0.localPos().toPoint()).data()
+            if data in CLASSES_SEQUENCE:
+                super().mouseReleaseEvent(a0)
+                return
             if self.double_click:
                 self.timer_double_click.stop()
                 self.double_click = False
@@ -237,6 +241,11 @@ class CustomTW(QTreeView):
 
     def mousePressEvent(self, a0: QMouseEvent) -> None:
         if a0.button() == Qt.LeftButton:
+            data = self.indexAt(a0.localPos().toPoint()).data()
+            if (data in CLASSES_SEQUENCE) or (data is None):
+                self.send_leave.emit()
+                super().mousePressEvent(a0)
+                return
             if self.timer_double_click.isActive():
                 self.double_click = True
                 self.send_name_fill(self.data_release)
@@ -258,12 +267,15 @@ class CustomTW(QTreeView):
                 self.obj_hovered_name = ''
             else:
                 self.obj_hovered_name = data
+        super().mouseMoveEvent(a0)
 
     def enterEvent(self, a0: QEvent) -> None:
         self.timer = QTimer(self)
+        super().enterEvent(a0)
 
     def leaveEvent(self, a0: QEvent) -> None:
         self.timer.stop()
+        super().leaveEvent(a0)
 
     @pyqtSlot()
     def timeout_handling(self):
@@ -290,6 +302,8 @@ class CustomTW(QTreeView):
         self.expandAll()
 
     def send_name_fill(self, val):
+        if val is None:
+            return
         if type(val) != str:
             val = val.data()
         if val not in self.parent().class_nodes:
@@ -306,6 +320,7 @@ class ObjectsTree(QWidget):
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
     send_data_pick = pyqtSignal(str)
+    send_leave = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -328,6 +343,7 @@ class ObjectsTree(QWidget):
         self.tree_view.send_data_right_click.connect(self.send_data_right_click)
         self.tree_view.send_data_hover.connect(self.send_data_hover)
         self.tree_view.send_data_pick.connect(self.send_data_pick)
+        self.tree_view.send_leave.connect(self.send_leave)
 
     def init_from_graph_tree(self, tree_dict):
         self.clean()
@@ -337,16 +353,26 @@ class ObjectsTree(QWidget):
             item_class.setSelectable(False)
             self.root_node.appendRow(item_class)
             self.class_nodes.add(class_name)
-            for obj_name, obj_status in tree_dict[class_name]:
+            for obj_name, obj_pick_status, obj_corrupt_status in tree_dict[class_name]:
                 item_obj = QStandardItem(obj_name)
                 item_obj.setEditable(False)
                 item_class.appendRow(item_obj)
-                if obj_status == 'pick_dependent':
-                    item_obj.setData(QColor('green'), Qt.ForegroundRole)
-                if obj_status == 'corrupt_dependent':
-                    item_obj.setData(QColor('yellow'), Qt.ForegroundRole)
-                if obj_status == 'corrupted':
+
+                if obj_pick_status == 'p_default':
+                    item_obj.setData(QColor('white'), Qt.BackgroundColorRole)
+                if obj_pick_status == 'picked':
+                    item_obj.setData(QColor('green'), Qt.BackgroundColorRole)
+                if obj_pick_status == 'pick_directly_dependent':
+                    item_obj.setData(QColor('greenyellow'), Qt.BackgroundColorRole)
+                if obj_pick_status == 'pick_indirectly_dependent':
+                    item_obj.setData(QColor('yellow'), Qt.BackgroundColorRole)
+
+                if obj_corrupt_status == 'c_default':
+                    item_obj.setData(QColor('black'), Qt.ForegroundRole)
+                if obj_corrupt_status == 'corrupted':
                     item_obj.setData(QColor('red'), Qt.ForegroundRole)
+                if obj_corrupt_status == 'corrupt_dependent':
+                    item_obj.setData(QColor('orange'), Qt.ForegroundRole)
         self.tree_view.finish_operations()
 
 
@@ -356,6 +382,7 @@ class ToolBarOfObjects(QToolBar):
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
     send_data_pick = pyqtSignal(str)
+    send_leave = pyqtSignal()
 
     def __init__(self, min_size):
         super().__init__()
@@ -378,6 +405,11 @@ class ToolBarOfObjects(QToolBar):
         self.objects_tree.send_data_right_click.connect(self.send_data_right_click)
         self.objects_tree.send_data_hover.connect(self.send_data_hover)
         self.objects_tree.send_data_pick.connect(self.send_data_pick)
+        self.objects_tree.send_leave.connect(self.send_leave)
+
+    # def leaveEvent(self, a0: QEvent) -> None:
+    #     self.send_leave.emit()
+    #     super().leaveEvent(a0)
 
     @pyqtSlot(dict)
     def set_tree(self, tree_dict):

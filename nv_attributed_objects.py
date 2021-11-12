@@ -1,6 +1,7 @@
 from __future__ import annotations
 import re
 from copy import copy
+from functools import reduce
 # import time
 
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
@@ -21,9 +22,10 @@ from nv_errors import CellError
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
-BSSObjectStatus = bounded_string_set('BSSObjectStatus', [['default'],
-                                                         ['picked'], ['pick_dependent'],
-                                                         ['corrupted'], ['corrupt_dependent']])
+BSSPickObjectStatus = bounded_string_set('BSSPickObjectStatus', [['p_default'], ['picked'], ['pick_directly_dependent'],
+                                                                 ['pick_indirectly_dependent']])
+BSSCorruptObjectStatus = bounded_string_set('BSSCorruptObjectStatus', [['c_default'], ['corrupted'],
+                                                                       ['corrupt_dependent']])
 
 
 class GlobalNamesManager:
@@ -246,7 +248,8 @@ class AttrControlObject:
     graph_template = AttribCommonGraphTemplateDescriptor()
 
     def __init__(self):
-        self.obj_status = BSSObjectStatus('default')
+        self.pick_status = BSSPickObjectStatus('p_default')
+        self.corrupt_status = BSSCorruptObjectStatus('c_default')
 
 
 class CoordinateSystem(AttrControlObject):
@@ -435,12 +438,37 @@ class CommonAttributeInterface(QObject):
 
     @pyqtSlot(str)
     def pick_handling(self, obj_name):
-        print('pick handling')
-        # dg = GDM.dependence_graph
-        # am = dg.am
-        # print('name is ', obj_name)
-        # node = am.get_single_elm_by_cell_content(obj_name)
-        # print('found node is ', node)
+        dg = GDM.dependence_graph
+        dg_am = dg.am
+        tg = GDM.tree_graph
+        tg_am = tg.am
+        for obj in GNM.obj_to_name:
+            obj.pick_status = 'p_default'
+        picked_obj: AttrControlObject = GNM.name_to_obj[obj_name]
+        picked_obj.pick_status = 'picked'
+        node = dg_am.get_single_elm_by_cell_content(PolarNode, obj_name)
+        nodes_throw_2 = dg.layered_representation(node.ni_nd)[::2]
+        obj_directly_dependent_nodes = nodes_throw_2[1:2]
+        obj_indirectly_dependent_nodes = nodes_throw_2[2:]
+        for node in reduce(set.union, obj_directly_dependent_nodes, set()):
+            directly_dependent_obj_name = dg_am.get_elm_cell_by_context(node).name
+            if directly_dependent_obj_name == NEW_OBJECT_NAME:
+                continue
+            directly_dependent_obj = GNM.name_to_obj[directly_dependent_obj_name]
+            directly_dependent_obj.pick_status = 'pick_directly_dependent'
+        for node in reduce(set.union, obj_indirectly_dependent_nodes, set()):
+            indirectly_dependent_obj_name = dg_am.get_elm_cell_by_context(node).name
+            if indirectly_dependent_obj_name == NEW_OBJECT_NAME:
+                continue
+            indirectly_dependent_obj = GNM.name_to_obj[indirectly_dependent_obj_name]
+            indirectly_dependent_obj.pick_status = 'pick_indirectly_dependent'
+        self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
+
+    @pyqtSlot()
+    def reset_tree_handling(self):
+        for obj in GNM.obj_to_name:
+            obj.pick_status = 'p_default'
+        self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
 
 
 CAI = CommonAttributeInterface()
@@ -526,7 +554,7 @@ class GlobalDataManager:
         node_class = a_m.get_single_elm_by_cell_content(PolarNode, obj.__class__.__name__)
         assert node_class, 'Node class not found'
         node_obj, _, _ = tg.insert_node_single_link(node_class.ni_nd)
-        a_m.bind_cell(node_obj, Cell(obj.name))
+        a_m.bind_cell(node_obj, Cell(obj.name, str_value='default'))
 
     def auto_set_name(self, cell: Cell, obj: AttrControlObject):
         if cell.str_value:
@@ -666,7 +694,7 @@ class GlobalDataManager:
         dg.remove_nodes(nodes_found)
 
     @property
-    def tree_graph_dict_string_repr(self) -> dict[str, list[tuple[str, BSSObjectStatus]]]:
+    def tree_graph_dict_string_repr(self) -> dict[str, list[tuple[str, BSSPickObjectStatus, BSSCorruptObjectStatus]]]:
         tg = self.tree_graph
         a_m = tg.am
         result = {}
@@ -680,9 +708,15 @@ class GlobalDataManager:
             if tg.inf_node_nd in child_pns:
                 result[cell_class.name] = []
                 continue
-            child_names = list(a_m.get_elm_cell_by_context(child_pn).name for child_pn in child_pns)
-            result[cell_class.name] = [(child_name, GNM.name_to_obj[child_name].obj_status)
-                                       for child_name in child_names]
+            # child_names_statuses = list((,
+            #                              BSSPickObjectStatus(a_m.get_elm_cell_by_context(child_pn).str_value))
+            #                             for child_pn in child_pns)
+            child_names_statuses = []
+            for child_pn in child_pns:
+                obj_name = a_m.get_elm_cell_by_context(child_pn).name
+                obj: AttrControlObject = GNM.name_to_obj[obj_name]
+                child_names_statuses.append((obj_name, obj.pick_status, obj.corrupt_status))
+            result[cell_class.name] = child_names_statuses
         return result
 
     def rename_cells_in_dependence_graph(self, old_name: str, new_name: str):

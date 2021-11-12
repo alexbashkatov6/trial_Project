@@ -30,6 +30,7 @@ class Director(QObject):
         self.mw.ltb.send_data_hover.connect(self.cai.hover_handling)
         self.mw.ltb.send_data_pick.connect(self.cai.pick_handling)
         self.mw.ltb.send_data_edit.connect(self.cai.change_current_object)
+        self.mw.ltb.send_leave.connect(self.cai.reset_tree_handling)
 
         # storage to interface
         self.cai.send_attrib_list.connect(self.mw.rtb.set_attr_struct)
