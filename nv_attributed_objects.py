@@ -283,10 +283,15 @@ class CommonAttributeInterface(QObject):
         self._current_object = None
         self._is_new_object = False
         self._create_readiness = False
+        self._corrupted_objects = []
 
     @property
     def is_new_object(self) -> bool:
         return self._is_new_object
+
+    @property
+    def corrupted_objects(self) -> list[AttrControlObject]:
+        return self._corrupted_objects
 
     @property
     def current_object(self) -> Optional[AttrControlObject]:
@@ -310,6 +315,8 @@ class CommonAttributeInterface(QObject):
         fr = g.free_roll()
         cells_set_list = am.extract_route_content(fr)
         # splitter_cells_set = [i[1] for i in get_splitter_nodes_cells(g)]
+        obj.corrupt_status = BSSCorruptObjectStatus('c_default')
+        obj_is_corrupted = False
         for i, set_cells in enumerate(cells_set_list):
             if not set_cells:
                 continue
@@ -324,7 +331,7 @@ class CommonAttributeInterface(QObject):
                         GDM.check_type(cell)
                         GDM.check_dependence_loop(cell, obj)
                     except CellError:
-                        pass
+                        obj_is_corrupted = True
                     else:
                         cell.value = cell.eval_buffer
             out_name = name_translator_storage_to_interface(cell.name)
@@ -344,6 +351,15 @@ class CommonAttributeInterface(QObject):
             if cell.cell_type == 'default' and cell.str_req:
                 af.req_type_str = 'Required type: {}'.format(cell.str_req)
             af_list.append(af)
+
+        if obj_is_corrupted:
+            self._corrupted_objects.append(obj)
+            obj.corrupt_status = BSSCorruptObjectStatus('corrupted')
+        else:
+            if obj in self._corrupted_objects:
+                self._corrupted_objects.remove(obj)
+            obj.corrupt_status = BSSCorruptObjectStatus('c_default')
+        self.corruption_handling()
 
         return af_list
 
@@ -436,12 +452,13 @@ class CommonAttributeInterface(QObject):
             af_list = self.form_attrib_list(GNM.name_to_obj[obj_name], False)
             self.send_info_object.emit(af_list)
 
+    def corruption_handling(self):
+        self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
+
     @pyqtSlot(str)
     def pick_handling(self, obj_name):
         dg = GDM.dependence_graph
         dg_am = dg.am
-        tg = GDM.tree_graph
-        tg_am = tg.am
         for obj in GNM.obj_to_name:
             obj.pick_status = 'p_default'
         picked_obj: AttrControlObject = GNM.name_to_obj[obj_name]

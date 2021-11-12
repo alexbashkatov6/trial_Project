@@ -243,8 +243,8 @@ class CustomTW(QTreeView):
         if a0.button() == Qt.LeftButton:
             data = self.indexAt(a0.localPos().toPoint()).data()
             if (data in CLASSES_SEQUENCE) or (data is None):
-                self.send_leave.emit()
                 super().mousePressEvent(a0)
+                self.send_leave.emit()
                 return
             if self.timer_double_click.isActive():
                 self.double_click = True
@@ -267,15 +267,15 @@ class CustomTW(QTreeView):
                 self.obj_hovered_name = ''
             else:
                 self.obj_hovered_name = data
-        super().mouseMoveEvent(a0)
+        # super().mouseMoveEvent(a0)
 
     def enterEvent(self, a0: QEvent) -> None:
         self.timer = QTimer(self)
-        super().enterEvent(a0)
+        # super().enterEvent(a0)
 
     def leaveEvent(self, a0: QEvent) -> None:
         self.timer.stop()
-        super().leaveEvent(a0)
+        # super().leaveEvent(a0)
 
     @pyqtSlot()
     def timeout_handling(self):
