@@ -205,7 +205,7 @@ class CustomTW(QTreeView):
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
     send_data_pick = pyqtSignal(str)
-    send_leave = pyqtSignal()
+    # send_leave = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -223,6 +223,7 @@ class CustomTW(QTreeView):
         self.timer_double_click.timeout.connect(self.release_data_emit)
 
     def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
+
         if a0.button() == Qt.RightButton:
             data = self.indexAt(a0.localPos().toPoint()).data()
             if not (data is None):
@@ -240,11 +241,11 @@ class CustomTW(QTreeView):
                 self.data_release = data
 
     def mousePressEvent(self, a0: QMouseEvent) -> None:
+
         if a0.button() == Qt.LeftButton:
             data = self.indexAt(a0.localPos().toPoint()).data()
             if (data in CLASSES_SEQUENCE) or (data is None):
                 super().mousePressEvent(a0)
-                self.send_leave.emit()
                 return
             if self.timer_double_click.isActive():
                 self.double_click = True
@@ -267,15 +268,12 @@ class CustomTW(QTreeView):
                 self.obj_hovered_name = ''
             else:
                 self.obj_hovered_name = data
-        # super().mouseMoveEvent(a0)
 
     def enterEvent(self, a0: QEvent) -> None:
         self.timer = QTimer(self)
-        # super().enterEvent(a0)
 
     def leaveEvent(self, a0: QEvent) -> None:
         self.timer.stop()
-        # super().leaveEvent(a0)
 
     @pyqtSlot()
     def timeout_handling(self):
@@ -320,7 +318,6 @@ class ObjectsTree(QWidget):
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
     send_data_pick = pyqtSignal(str)
-    send_leave = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -329,6 +326,7 @@ class ObjectsTree(QWidget):
         self.clean()
 
     def clean(self):
+        print('clean tree')
         self.class_nodes = set()
         if hasattr(self, 'tree_view'):
             self.tree_view.setParent(None)
@@ -343,7 +341,6 @@ class ObjectsTree(QWidget):
         self.tree_view.send_data_right_click.connect(self.send_data_right_click)
         self.tree_view.send_data_hover.connect(self.send_data_hover)
         self.tree_view.send_data_pick.connect(self.send_data_pick)
-        self.tree_view.send_leave.connect(self.send_leave)
 
     def init_from_graph_tree(self, tree_dict):
         self.clean()
@@ -405,11 +402,11 @@ class ToolBarOfObjects(QToolBar):
         self.objects_tree.send_data_right_click.connect(self.send_data_right_click)
         self.objects_tree.send_data_hover.connect(self.send_data_hover)
         self.objects_tree.send_data_pick.connect(self.send_data_pick)
-        self.objects_tree.send_leave.connect(self.send_leave)
 
-    # def leaveEvent(self, a0: QEvent) -> None:
-    #     self.send_leave.emit()
-    #     super().leaveEvent(a0)
+    def mousePressEvent(self, a0: QMouseEvent) -> None:
+        if a0.button() == Qt.LeftButton:
+            if a0.source() == 0:
+                self.send_leave.emit()
 
     @pyqtSlot(dict)
     def set_tree(self, tree_dict):

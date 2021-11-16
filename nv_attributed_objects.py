@@ -359,7 +359,8 @@ class CommonAttributeInterface(QObject):
             if obj in self._corrupted_objects:
                 self._corrupted_objects.remove(obj)
             obj.corrupt_status = BSSCorruptObjectStatus('c_default')
-        self.corruption_handling()
+        if need_to_check:
+            self.corruption_handling()
 
         return af_list
 
@@ -453,6 +454,7 @@ class CommonAttributeInterface(QObject):
             self.send_info_object.emit(af_list)
 
     def corruption_handling(self):
+        print('corrupt handling')
         self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
 
     @pyqtSlot(str)
