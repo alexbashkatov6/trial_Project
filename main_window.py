@@ -325,7 +325,6 @@ class ObjectsTree(QWidget):
         self.clean()
 
     def clean(self):
-        # print('clean tree')
         self.class_nodes = set()
         if hasattr(self, 'tree_view'):
             self.tree_view.setParent(None)

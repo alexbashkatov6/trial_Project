@@ -21,7 +21,11 @@ from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, NEW_OBJECT_NAME
 from nv_errors import CellError
 
 BSSDependency = bounded_string_set('BSSDependency', [['dependent'], ['independent']])
+BSSMoveMethod = bounded_string_set('BSSMoveMethod', [['translational'], ['rotational']])
+BSSGroundLineOrLine = bounded_string_set('BSSGroundLineOrLine', [['ground_line'], ['line']])
 BSSBool = bounded_string_set('BSSBool', [['True'], ['False']])
+
+
 BSSPickObjectStatus = bounded_string_set('BSSPickObjectStatus', [['p_default'], ['picked'], ['pick_directly_dependent'],
                                                                  ['pick_indirectly_dependent']])
 BSSCorruptObjectStatus = bounded_string_set('BSSCorruptObjectStatus', [['c_default'], ['corrupted'],
@@ -183,20 +187,49 @@ class AttribBuildGraphTemplateDescriptor:
             a_m.bind_cell(node_co_x, Cell('co_x', 'BSSBool', 'True', BSSCellType('bool_splitter')))
             a_m.bind_cell(node_co_y, Cell('co_y', 'BSSBool', 'True', BSSCellType('bool_splitter')))
 
-        if owner == Point:
-            node_rel_cs, _, _ = g_b_t.insert_node_single_link()
-
-            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
-
-        if owner == Line:
-            node_rel_cs, _, _ = g_b_t.insert_node_single_link()
-
-            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
-
         if owner == GroundLine:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
+            node_translate_or_rotate, _, _ = g_b_t.insert_node_single_link(node_rel_cs.ni_nd)
+            node_y, link_up_translate, _ = g_b_t.insert_node_single_link(node_translate_or_rotate.ni_nd)
+            move_to_translate = node_translate_or_rotate.ni_nd.get_move(link_up_translate)
+            node_center_point, link_up_rotate, _ = g_b_t.insert_node_single_link(node_translate_or_rotate.ni_nd)
+            move_to_rotate = node_translate_or_rotate.ni_nd.get_move(link_up_rotate)
+            node_alpha, _, _ = g_b_t.insert_node_single_link(node_center_point.ni_nd)
 
             a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
+            a_m.bind_cell(node_translate_or_rotate,
+                          Cell('move_method', 'BSSMoveMethod', 'translational', BSSCellType('common_splitter')))
+            a_m.bind_cell(move_to_translate, Cell('translational'))
+            a_m.bind_cell(move_to_rotate, Cell('rotational'))
+            a_m.bind_cell(node_y, Cell('y', 'int'))
+            a_m.bind_cell(node_center_point, Cell('center_point', 'Point'))
+            a_m.bind_cell(node_alpha, Cell('alpha', 'int'))
+
+        if owner == Point:
+            node_rel_cs, _, _ = g_b_t.insert_node_single_link()
+            node_x, _, _ = g_b_t.insert_node_single_link(node_rel_cs.ni_nd)
+            node_gl_or_line, _, _ = g_b_t.insert_node_single_link(node_x.ni_nd)
+            node_gl, link_gl, _ = g_b_t.insert_node_single_link(node_gl_or_line.ni_nd)
+            move_to_gl = node_gl_or_line.ni_nd.get_move(link_gl)
+            node_line, link_line, _ = g_b_t.insert_node_single_link(node_gl_or_line.ni_nd)
+            move_to_line = node_gl_or_line.ni_nd.get_move(link_line)
+
+            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
+            a_m.bind_cell(node_x, Cell('x', 'int'))
+            a_m.bind_cell(node_gl_or_line,
+                          Cell('on_line_or_ground_line', 'BSSGroundLineOrLine',
+                               'ground_line', BSSCellType('common_splitter')))
+            a_m.bind_cell(move_to_gl, Cell('ground_line'))
+            a_m.bind_cell(move_to_line, Cell('line'))
+            a_m.bind_cell(node_gl, Cell('ground_line', 'GroundLine'))
+            a_m.bind_cell(node_line, Cell('line', 'Line'))
+
+        if owner == Line:
+            node_first_point, _, _ = g_b_t.insert_node_single_link()
+            node_second_point, _, _ = g_b_t.insert_node_single_link(node_first_point.ni_nd)
+
+            a_m.bind_cell(node_first_point, Cell('first_point', 'Point'))
+            a_m.bind_cell(node_second_point, Cell('second_point', 'Point'))
 
         expand_splitters(g_b_t)
         instance._graph_build_template = g_b_t
@@ -448,7 +481,7 @@ class CommonAttributeInterface(QObject):
             self.send_info_object.emit(af_list)
 
     def corruption_handling(self):
-        print('corrupt handling')
+        # print('corrupt handling')
         self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
 
     @pyqtSlot(str)
