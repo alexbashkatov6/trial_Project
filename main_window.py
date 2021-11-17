@@ -205,7 +205,6 @@ class CustomTW(QTreeView):
     send_data_right_click = pyqtSignal(str)
     send_data_hover = pyqtSignal(str)
     send_data_pick = pyqtSignal(str)
-    # send_leave = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -213,7 +212,7 @@ class CustomTW(QTreeView):
         self.setHeaderHidden(True)
         self.setExpandsOnDoubleClick(False)
         self.timer = QTimer(self)
-        self.timer_first_notification = True
+        self.first_timer_notification = True
         self.millisecs_of_notification = 1000
         self.obj_hovered_name = ''
         self.current_cursor_point = QPoint(0, 0)
@@ -260,7 +259,7 @@ class CustomTW(QTreeView):
         self.timer.stop()
         self.timer.timeout.connect(self.timeout_handling)
         self.timer.start(self.millisecs_of_notification)
-        self.timer_first_notification = True
+        self.first_timer_notification = True
         if isinstance(a0, QMouseEvent):
             data = self.indexAt(a0.localPos().toPoint()).data()
             self.current_cursor_point = a0.globalPos()
@@ -277,8 +276,8 @@ class CustomTW(QTreeView):
 
     @pyqtSlot()
     def timeout_handling(self):
-        if self.timer_first_notification:
-            self.timer_first_notification = False
+        if self.first_timer_notification:
+            self.first_timer_notification = False
             ohn = self.obj_hovered_name
             if ohn and (ohn not in self.parent().class_nodes):
                 self.send_data_hover.emit(self.obj_hovered_name)
@@ -326,7 +325,7 @@ class ObjectsTree(QWidget):
         self.clean()
 
     def clean(self):
-        print('clean tree')
+        # print('clean tree')
         self.class_nodes = set()
         if hasattr(self, 'tree_view'):
             self.tree_view.setParent(None)

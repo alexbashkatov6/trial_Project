@@ -314,7 +314,6 @@ class CommonAttributeInterface(QObject):
                 cell.active = False
         fr = g.free_roll()
         cells_set_list = am.extract_route_content(fr)
-        # splitter_cells_set = [i[1] for i in get_splitter_nodes_cells(g)]
         obj.corrupt_status = BSSCorruptObjectStatus('c_default')
         obj_is_corrupted = False
         for i, set_cells in enumerate(cells_set_list):
@@ -410,7 +409,6 @@ class CommonAttributeInterface(QObject):
         return {g.am.get_elm_cell_by_context(node) for node in g.am.get_filter_all_cells(PolarNode)}
 
     def check_all_values_defined(self) -> bool:
-        # print('values', [active_cell.value for active_cell in self.get_active_cells()])
         self._create_readiness = all(not (active_cell.value is None) for active_cell in self.get_active_cells())
         self.create_readiness.emit(self._create_readiness)
         return self._create_readiness
@@ -426,19 +424,15 @@ class CommonAttributeInterface(QObject):
         co = self.current_object
         if self.check_all_values_defined():
             self.create_obj_attributes()
-            # print('co.name = ', co.name)
             if co in GNM.obj_to_name:
                 old_name = GNM.obj_to_name[co]
-                # print('old name = ', old_name)
                 GNM.rename_obj(co, co.name)
                 GDM.rename_cell_in_tree(old_name, co.name)  # co,
-                # print('rename for existing')
                 GDM.rename_cells_in_dependence_graph(old_name, co.name)
             else:
                 GDM.add_new_class_instance(co)
                 GDM.add_to_tree_graph(co)
                 GNM.register_obj_name(co, co.name)
-                # print('rename for new')
                 GDM.rename_cells_in_dependence_graph(NEW_OBJECT_NAME, co.name)
         self.create_new_object(co.__class__.__name__)
         self.new_str_tree.emit(GDM.tree_graph_dict_string_repr)
