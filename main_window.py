@@ -5,12 +5,14 @@ from functools import partial
 
 from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
     QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView, QToolTip, QMenu
-from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent, QFont, QColor
+from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent, QFont, QColor, \
+QResizeEvent
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer
 from PyQt5.Qt import QStandardItemModel, QStandardItem, qApp
 
 from nv_attribute_format import AttributeFormat
-from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, PICTURE_FOLDER
+from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, PICTURE_FOLDER, \
+TOOLS_TOOLBAR_HEIGHT, TREE_TOOLBAR_WIDTH, ATTRIBUTES_TOOLBAR_WIDTH, MAIN_AREA_MIN_HEIGHT, MAIN_AREA_MIN_WIDTH
 # from nv_attributed_objects import BSSObjectStatus
 
 
@@ -20,6 +22,7 @@ class ToolBarOfClasses(QToolBar):
 
     def __init__(self):
         super().__init__()
+        self.setMovable(False)
         self.pic_names_sorted_list = None
         self.qb_list = []
 
@@ -157,6 +160,7 @@ class ToolBarOfAttributes(QToolBar):
 
     def __init__(self, min_size):
         super().__init__()
+        self.setMovable(False)
         self.setMinimumSize(min_size, min_size)
         self.wgt_main = QWidget()
         self.addWidget(self.wgt_main)
@@ -381,6 +385,7 @@ class ToolBarOfObjects(QToolBar):
 
     def __init__(self, min_size):
         super().__init__()
+        self.setMovable(False)
         self.setMinimumSize(min_size, min_size)
         self.wgt_main = QWidget(self)
         self.addWidget(self.wgt_main)
@@ -422,9 +427,36 @@ class ToolBarOfObjects(QToolBar):
 
 
 class PaintingArea(QWidget):
-    def __init__(self, min_size):
+    def __init__(self, minw, minh):
         super().__init__()
-        self.setMinimumSize(min_size, min_size)
+        self.setMinimumSize(minw, minh)
+        self.painter = QPainter()
+        self.flag = False
+        self.drawRegion = (0.5, 0.95)
+
+    def resizeEvent(self, a0: QResizeEvent):
+        print(self.frameGeometry())
+
+    def mouseDoubleClickEvent(self, a0: QMouseEvent) -> None:
+        print(a0.localPos().toPoint())
+        self.flag = not self.flag
+        self.repaint()
+
+    def paintEvent(self, e):
+        if self.flag:
+            self.painter.begin(self)
+            self.drawInitialPicture()
+            self.painter.end()
+
+    def drawInitialPicture(self):
+        pen = QPen(Qt.black, 2, Qt.SolidLine)
+        self.painter.setPen(pen)
+        pnt_1 = QPoint(400, 200)
+        pnt_2 = QPoint(500, 500)
+        pnt_3 = QPoint(400, 300)
+        self.painter.drawLine(pnt_1, pnt_2)
+        self.painter.drawLine(pnt_1, pnt_3)
+        self.painter.drawEllipse(pnt_1, 100, 100)
 
 
 class MW(QMainWindow):
@@ -432,59 +464,31 @@ class MW(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # widgets params
-        top_toolbar_min_height_width = 50
-        painting_area_min_height_width = 500
-        right_toolbar_min_height_width = 250
-        left_toolbar_min_height_width = 250
-
         # central wgt
-        self.pa = PaintingArea(painting_area_min_height_width)
+        self.pa = PaintingArea(MAIN_AREA_MIN_WIDTH, MAIN_AREA_MIN_HEIGHT)
         self.setCentralWidget(self.pa)
-        # self.qp = QPainter()
-        # pen = QPen(Qt.black, 2, Qt.SolidLine)
-        # self.qp.begin(self) #.pa
-        # self.qp.setPen(pen)
-        # self.qp.drawLine(400, 400, 500, 500)
-        # self.qp.end()
-
-        # ce
-        # self.ce = ce.CurrentEdit()
 
         # Top tool bar format
         self.ttb = ToolBarOfClasses()
-        # self.ttb.extract_pictures(self.ce.extractedClasses)
+        # self.ttb.
         self.ttb.extract_pictures(CLASSES_SEQUENCE)
-        self.ttb.construct_widget(top_toolbar_min_height_width)
+        self.ttb.construct_widget(TOOLS_TOOLBAR_HEIGHT)
 
         # Right tool bar format
-        self.rtb = ToolBarOfAttributes(right_toolbar_min_height_width)
+        self.rtb = ToolBarOfAttributes(ATTRIBUTES_TOOLBAR_WIDTH)
 
         # Left tool bar format
-        self.ltb = ToolBarOfObjects(left_toolbar_min_height_width)
+        self.ltb = ToolBarOfObjects(TREE_TOOLBAR_WIDTH)
 
         self.addToolBar(Qt.TopToolBarArea, self.ttb)
         self.addToolBar(Qt.RightToolBarArea, self.rtb)
         self.addToolBar(Qt.LeftToolBarArea, self.ltb)
 
-        self.statusBar()
+        # self.statusBar()
 
         menubar = self.menuBar()
-        menubar.addMenu('&File')  # fileMenu =
+        menubar.addMenu('&File')
 
-        self.setGeometry(50, 50, 550, 450)
+        self.setGeometry(10, 40, 10, 10)
         self.setWindowTitle('Main window')
         self.show()
-
-    def paintEvent(self, e):
-        qp = QPainter()
-        qp.begin(self)
-        pen = QPen(Qt.black, 2, Qt.SolidLine)
-        qp.setPen(pen)
-        pnt_1 = QPoint(400, 200)
-        pnt_2 = QPoint(500, 500)
-        pnt_3 = QPoint(400, 300)
-        qp.drawLine(pnt_1, pnt_2)
-        qp.drawLine(pnt_1, pnt_3)
-        qp.drawEllipse(pnt_1, 100, 100)
-        qp.end()
