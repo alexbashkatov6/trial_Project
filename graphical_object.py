@@ -46,8 +46,10 @@ def rotate_operation(center: Point2D, point: Point2D, angle: Angle) -> Point2D:
     return Point2D(center.x+r*math.cos(new_angle.angle_0_2pi), center.y+r*math.sin(new_angle.angle_0_2pi))
 
 
-# def lines_intersection(line_1: Line2D, line_2: Line2D) -> Point2D:
-#     return center
+def lines_intersection(line_1: Line2D, line_2: Line2D) -> Point2D:
+    assert not angle_equality(line_1.angle, line_2.angle), 'Angles of lines are equal'
+    result = np.linalg.solve(np.array([[line_1.a, line_1.b], [line_2.a, line_2.b]]), np.array([-line_1.c, -line_2.c]))
+    return Point2D(result[0], result[1])
 
 
 class Point2D:
@@ -134,7 +136,6 @@ class Line2D:
         self.c = -self.a * self.pnt.x - self.b * self.pnt.y
 
 
-
 class Segment2D:
     def __init__(self, pnt_1: Point2D, pnt_2: Point2D):
         pass
@@ -190,9 +191,10 @@ if __name__ == '__main__':
     a = Angle(math.pi)
     print(a.angle_mpi2_ppi2)
     print(evaluate_vector(Point2D(1e-7, 0), Point2D(0, 0))[0].deg_angle_m90_p90)
-    line = Line2D(Point2D(0, 1), Point2D(3, 2))
-    print(line.a, line.b, line.c)
+    line_ = Line2D(Point2D(0, 1), Point2D(3, 2))
+    print(line_.a, line_.b, line_.c)
     b = Angle(-2*math.pi+0.001)
     print(b.angle_0_2pi)
     print(math.dist((0, 0), (1, 1)))
     print(rotate_operation(Point2D(0, 0), Point2D(0, 1), Angle(math.pi/2)).coords)
+    print(lines_intersection(Line2D(Point2D(0, 0), Point2D(1, 1)), Line2D(Point2D(1, 1), Point2D(2, 0))).coords)
