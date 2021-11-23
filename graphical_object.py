@@ -6,6 +6,50 @@ from numbers import Real
 from nv_config import ANGLE_EQUAL_PRECISION, COORD_EQUAL_PRECISION
 
 
+def angle_equality(angle_1: Angle, angle_2: Angle) -> bool:
+    return abs(angle_1.angle_mpi2_ppi2 - angle_2.angle_mpi2_ppi2) < ANGLE_EQUAL_PRECISION
+
+
+def coord_equality(coord_1: float, coord_2: float, coord_precision: float = None) -> bool:
+    if not coord_precision:
+        coord_precision = COORD_EQUAL_PRECISION
+    return abs(coord_1-coord_2) < coord_precision
+
+
+def evaluate_vector(pnt_1: Point2D, pnt_2: Point2D) -> (Angle, bool):
+    # returns angle and direction from pnt_1 to pnt_2 is positive
+    coord_eq_prec = COORD_EQUAL_PRECISION
+    max_cycle_count = 5
+    while True:
+        if not max_cycle_count:
+            raise ValueError('Given points are equal')
+        max_cycle_count -= 1
+        if coord_equality(pnt_1.y, pnt_2.y, coord_eq_prec) and coord_equality(pnt_1.x, pnt_2.x, coord_eq_prec):
+            coord_eq_prec *= COORD_EQUAL_PRECISION
+        else:
+            break
+    if coord_equality(pnt_1.y, pnt_2.y, coord_eq_prec):
+        if ANGLE_EQUAL_PRECISION * abs(pnt_1.x - pnt_2.x) > abs(pnt_1.y - pnt_2.y):
+            return Angle(0), pnt_2.x > pnt_1.x
+    if coord_equality(pnt_1.x, pnt_2.x, coord_eq_prec):
+        if ANGLE_EQUAL_PRECISION * abs(pnt_1.y - pnt_2.y) > abs(pnt_1.x - pnt_2.x):
+            return Angle(math.pi/2), pnt_2.y > pnt_1.y
+    return Angle(math.atan((pnt_1.y - pnt_2.y)/(pnt_1.x - pnt_2.x))), pnt_2.x > pnt_1.x
+
+
+def rotate_operation(center: Point2D, point: Point2D, angle: Angle) -> Point2D:
+    current_angle, direction_is_positive = evaluate_vector(center, point)
+    if not direction_is_positive:
+        current_angle += math.pi
+    new_angle = current_angle + angle.angle_0_2pi
+    r = math.dist(point.coords, center.coords)
+    return Point2D(center.x+r*math.cos(new_angle.angle_0_2pi), center.y+r*math.sin(new_angle.angle_0_2pi))
+
+
+# def lines_intersection(line_1: Line2D, line_2: Line2D) -> Point2D:
+#     return center
+
+
 class Point2D:
     def __init__(self, x: Union[Real, tuple] = None, y: Real = None, c: tuple = None, line: Line2D = None):
         if type(x) == tuple:
@@ -22,54 +66,43 @@ class Point2D:
         if line:
             self.line = line
 
+    @property
+    def coords(self):
+        return self.x, self.y
+
 
 class Angle:
     def __init__(self, free_angle: Real):
-        # value returned by angle should be in interval (-pi/2, pi/2]
         self.free_angle = float(free_angle)
 
+    def __add__(self, other):
+        assert isinstance(other, (Real, Angle)), 'Can add only angle or int/float'
+        if isinstance(other, Real):
+            return Angle(self.free_angle+other)
+        else:
+            return Angle(self.free_angle + other.free_angle)
+
     @property
-    def angle(self):
+    def angle_0_2pi(self):
+        # radian value in interval [0, 2pi)
+        positive_angle = self.free_angle % (2*math.pi)
+        return positive_angle
+
+    @property
+    def deg_angle_0_360(self):
+        # degree value in interval [0, 360)
+        return self.angle_0_2pi * 180 / math.pi
+
+    @property
+    def angle_mpi2_ppi2(self):
+        # radian value in interval (-pi/2, pi/2]
         positive_angle = self.free_angle % math.pi
         return positive_angle-math.pi if positive_angle > math.pi/2 else positive_angle
 
     @property
-    def deg_angle(self):
-        return self.angle*180/math.pi
-
-
-def angle_equality(angle_1: Angle, angle_2: Angle) -> bool:
-    return abs(angle_1.angle-angle_2.angle) < ANGLE_EQUAL_PRECISION
-
-
-def coord_equality(coord_1: float, coord_2: float, coord_precision: float = None) -> bool:
-    if not coord_precision:
-        coord_precision = COORD_EQUAL_PRECISION
-    return abs(coord_1-coord_2) < coord_precision
-
-
-def evaluate_line_angle(pnt_1: Point2D, pnt_2: Point2D) -> Angle:
-    coord_eq_prec = COORD_EQUAL_PRECISION
-    max_cycle_count = 5
-    while True:
-        if not max_cycle_count:
-            raise ValueError('Given points are equal')
-        max_cycle_count -= 1
-        if coord_equality(pnt_1.y, pnt_2.y, coord_eq_prec) and coord_equality(pnt_1.x, pnt_2.x, coord_eq_prec):
-            coord_eq_prec *= COORD_EQUAL_PRECISION
-        else:
-            break
-    if coord_equality(pnt_1.y, pnt_2.y, coord_eq_prec):
-        if ANGLE_EQUAL_PRECISION * abs(pnt_1.x - pnt_2.x) > abs(pnt_1.y - pnt_2.y):
-            return Angle(0)
-    if coord_equality(pnt_1.x, pnt_2.x, coord_eq_prec):
-        if ANGLE_EQUAL_PRECISION * abs(pnt_1.y - pnt_2.y) > abs(pnt_1.x - pnt_2.x):
-            return Angle(math.pi/2)
-    return Angle(math.atan((pnt_1.y - pnt_2.y)/(pnt_1.x - pnt_2.x)))
-
-
-def rotate_operation(point: Point2D, center: Point2D, angle: Angle) -> Point2D:
-    return center
+    def deg_angle_m90_p90(self):
+        # degree value in interval (-90, 90]
+        return self.angle_mpi2_ppi2 * 180 / math.pi
 
 
 class Line2D:
@@ -81,7 +114,7 @@ class Line2D:
         if angle:
             self.angle = angle
         else:
-            self.angle = evaluate_line_angle(pnt_1, pnt_2)
+            self.angle = evaluate_vector(pnt_1, pnt_2)[0]
         self.a, self.b, self.c = None, None, None
         self.eval_abc()
 
@@ -96,8 +129,8 @@ class Line2D:
             self.b = 0
             self.c = -self.pnt.x
             return
-        self.a = -math.sin(self.angle.angle)
-        self.b = math.cos(self.angle.angle)
+        self.a = -math.sin(self.angle.angle_mpi2_ppi2)
+        self.b = math.cos(self.angle.angle_mpi2_ppi2)
         self.c = -self.a * self.pnt.x - self.b * self.pnt.y
 
 
@@ -155,7 +188,11 @@ if __name__ == '__main__':
     r3 = Rect((300, 400), 0, 10, 20)
     print('r3 center angle = ', r3.center, r3.angle, r3.w, r3.h)
     a = Angle(math.pi)
-    print(a.angle)
-    print(evaluate_line_angle(Point2D(1e-7, 0), Point2D(0, 0)).deg_angle)
+    print(a.angle_mpi2_ppi2)
+    print(evaluate_vector(Point2D(1e-7, 0), Point2D(0, 0))[0].deg_angle_m90_p90)
     line = Line2D(Point2D(0, 1), Point2D(3, 2))
     print(line.a, line.b, line.c)
+    b = Angle(-2*math.pi+0.001)
+    print(b.angle_0_2pi)
+    print(math.dist((0, 0), (1, 1)))
+    print(rotate_operation(Point2D(0, 0), Point2D(0, 1), Angle(math.pi/2)).coords)
