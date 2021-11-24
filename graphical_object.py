@@ -1,8 +1,10 @@
 from __future__ import annotations
 import math
 import numpy as np
+from abc import ABC, abstractmethod
 from typing import Union
 from numbers import Real
+
 from nv_config import ANGLE_EQUAL_PRECISION, COORD_EQUAL_PRECISION
 
 
@@ -17,7 +19,7 @@ def coord_equality(coord_1: float, coord_2: float, coord_precision: float = None
 
 
 def evaluate_vector(pnt_1: Point2D, pnt_2: Point2D) -> (Angle, bool):
-    # returns angle and direction from pnt_1 to pnt_2 is positive
+    # returns angle and if direction from pnt_1 to pnt_2 is positive
     coord_eq_prec = COORD_EQUAL_PRECISION
     max_cycle_count = 5
     while True:
@@ -110,14 +112,12 @@ class Angle:
 class Line2D:
     def __init__(self, pnt_1: Point2D, pnt_2: Point2D = None, angle: Angle = None):
         # Line is solution of equation a*x + b*y + c = 0
-        #
         assert not(pnt_2 is None) or not(angle is None), 'Not complete input data'
         self.pnt = pnt_1
         if angle:
             self.angle = angle
         else:
             self.angle = evaluate_vector(pnt_1, pnt_2)[0]
-        self.a, self.b, self.c = None, None, None
         self.eval_abc()
 
     def eval_abc(self):
@@ -134,15 +134,6 @@ class Line2D:
         self.a = -math.sin(self.angle.angle_mpi2_ppi2)
         self.b = math.cos(self.angle.angle_mpi2_ppi2)
         self.c = -self.a * self.pnt.x - self.b * self.pnt.y
-
-
-class Segment2D:
-    def __init__(self, pnt_1: Point2D, pnt_2: Point2D):
-        pass
-
-
-class BezierCurve:
-    pass
 
 
 class Rect:
@@ -169,12 +160,69 @@ class Rect:
         self.h = h
 
     def includesPoint(self, p: Point2D):
+        # border too includes points
+        pass
+
+
+class GeomPrimitive(ABC):
+
+    @abstractmethod
+    def display(self):
+        pass
+
+    @abstractmethod
+    def clickable_area(self):
+        pass
+
+
+class Segment2D(GeomPrimitive):
+    def __init__(self, pnt_1: Point2D, pnt_2: Point2D):
+        pass
+
+    def display(self):
+        pass
+
+    def clickable_area(self):
+        pass
+
+
+class Circle(GeomPrimitive):
+    def __init__(self, center: Point2D, r: float):
+        pass
+
+    def display(self):
+        pass
+
+    def clickable_area(self):
+        pass
+
+
+class BezierCurve(GeomPrimitive):
+    def __init__(self, pnt_1: Point2D, pnt_2: Point2D):
+        pass
+
+    def display(self):
+        pass
+
+    def clickable_area(self):
         pass
 
 
 class GraphicalObject:
     def __init__(self):
         pass
+
+
+class Field:
+    pass
+
+
+class ContinuousVisibleArea:
+    pass
+
+
+class DiscreteVisibleArea:
+    pass
 
 
 if __name__ == '__main__':
