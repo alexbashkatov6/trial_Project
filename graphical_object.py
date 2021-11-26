@@ -219,6 +219,8 @@ class Field:
 
 class ContinuousVisibleArea:
     pass
+    # H_CLICK
+    # scale_from_field
 
 
 class DiscreteVisibleArea:
