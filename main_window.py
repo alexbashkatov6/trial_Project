@@ -6,18 +6,20 @@ from functools import partial
 from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
     QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView, QToolTip, QMenu
 from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent, QFont, QColor, \
-QResizeEvent
+    QResizeEvent
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer
 from PyQt5.Qt import QStandardItemModel, QStandardItem, qApp
 
 from nv_attribute_format import AttributeFormat
 from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, PICTURE_FOLDER, \
-TOOLS_TOOLBAR_HEIGHT, TREE_TOOLBAR_WIDTH, ATTRIBUTES_TOOLBAR_WIDTH, MAIN_AREA_MIN_HEIGHT, MAIN_AREA_MIN_WIDTH
+    TOOLS_TOOLBAR_HEIGHT, TREE_TOOLBAR_WIDTH, ATTRIBUTES_TOOLBAR_WIDTH, MAIN_AREA_MIN_HEIGHT, MAIN_AREA_MIN_WIDTH, \
+    MIN_SELECTION_REGION_SIZE
+
+
 # from nv_attributed_objects import BSSObjectStatus
 
 
 class ToolBarOfClasses(QToolBar):
-
     send_class_name = pyqtSignal(str)
 
     def __init__(self):
@@ -427,20 +429,51 @@ class ToolBarOfObjects(QToolBar):
 
 
 class PaintingArea(QWidget):
+    pa_coordinates_changed = pyqtSignal(tuple)
+    zoom_in_selection_coordinates = pyqtSignal(tuple)
+    zoom_out_selection_coordinates = pyqtSignal(tuple)
+
     def __init__(self, minw, minh):
         super().__init__()
         self.setMinimumSize(minw, minh)
+        self.press_coords: QPoint = None
         self.painter = QPainter()
         self.flag = False
-        self.drawRegion = (0.5, 0.95)
+
+    def init_resize(self):
+        fg = self.frameGeometry()
+        self.pa_coordinates_changed.emit(((fg.topLeft().x(), fg.topLeft().y()),
+                                          (fg.bottomRight().x(), fg.bottomRight().y())))
 
     def resizeEvent(self, a0: QResizeEvent):
-        print(self.frameGeometry())
+        fg = self.frameGeometry()
+        # print('frameGeometry', fg)
+        self.pa_coordinates_changed.emit(((fg.topLeft().x(), fg.topLeft().y()),
+                                          (fg.bottomRight().x(), fg.bottomRight().y())))
 
     def mouseDoubleClickEvent(self, a0: QMouseEvent) -> None:
+        print('localPos toPoint', self.frameGeometry())
         print(a0.localPos().toPoint())
         self.flag = not self.flag
         self.repaint()
+
+    def mousePressEvent(self, a0: QMouseEvent) -> None:
+        if a0.button() == Qt.LeftButton:
+            self.press_coords = a0.localPos().toPoint()
+
+    def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
+        if a0.button() == Qt.LeftButton:
+            if self.press_coords:
+                release_coords = a0.localPos().toPoint()
+                if ((release_coords.y() - self.press_coords.y() > MIN_SELECTION_REGION_SIZE) &
+                        (release_coords.x() - self.press_coords.x() > MIN_SELECTION_REGION_SIZE)):
+                    self.zoom_in_selection_coordinates.emit(((self.press_coords.x(), self.press_coords.y()),
+                                                             (release_coords.x(), release_coords.y())))
+                if ((release_coords.y() - self.press_coords.y() < - MIN_SELECTION_REGION_SIZE) &
+                        (release_coords.x() - self.press_coords.x() < - MIN_SELECTION_REGION_SIZE)):
+                    self.zoom_out_selection_coordinates.emit(((release_coords.x(), release_coords.y()),
+                                                             (self.press_coords.x(), self.press_coords.y())))
+                self.press_coords = None
 
     def paintEvent(self, e):
         if self.flag:

@@ -5,7 +5,9 @@ from abc import ABC, abstractmethod
 from typing import Union
 from numbers import Real
 
-from nv_config import ANGLE_EQUAL_PRECISION, COORD_EQUAL_PRECISION
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
+
+from nv_config import ANGLE_EQUAL_PRECISION, COORD_EQUAL_PRECISION, H_CLICK_ZONE
 
 
 def angle_equality(angle_1: Angle, angle_2: Angle) -> bool:
@@ -118,9 +120,12 @@ class Line2D:
             self.angle = angle
         else:
             self.angle = evaluate_vector(pnt_1, pnt_2)[0]
-        self.eval_abc()
+        self.a = -math.sin(self.angle.angle_mpi2_ppi2)
+        self.b = math.cos(self.angle.angle_mpi2_ppi2)
+        self.c = -self.a * self.pnt.x - self.b * self.pnt.y
+        self.round_abc()
 
-    def eval_abc(self):
+    def round_abc(self):
         if angle_equality(self.angle, Angle(0)):
             self.a = 0
             self.b = 1
@@ -131,9 +136,6 @@ class Line2D:
             self.b = 0
             self.c = -self.pnt.x
             return
-        self.a = -math.sin(self.angle.angle_mpi2_ppi2)
-        self.b = math.cos(self.angle.angle_mpi2_ppi2)
-        self.c = -self.a * self.pnt.x - self.b * self.pnt.y
 
 
 class Rect:
@@ -159,7 +161,7 @@ class Rect:
         self.w = w
         self.h = h
 
-    def includesPoint(self, p: Point2D):
+    def includes_point(self, p: Point2D):
         # border too includes points
         pass
 
@@ -213,18 +215,27 @@ class GraphicalObject:
         pass
 
 
-class Field:
-    pass
+class ContinuousVisibleArea(QObject):
 
+    def __init__(self):
+        super().__init__()
+        self.current_scale = 1  # px/m
+        self.upleft_x = None
 
-class ContinuousVisibleArea:
-    pass
-    # H_CLICK
-    # scale_from_field
+    @pyqtSlot(tuple)
+    def pa_coordinates_changed(self, new_coords: tuple[tuple[int, int], tuple[int, int]]):
+        print('got pa coords', new_coords[0][0], new_coords[0][1], new_coords[1][0], new_coords[1][1])
+        # H_CLICK_ZONE
 
+    @pyqtSlot(tuple)
+    def zoom_in_selection_coordinates(self, select_coords: tuple[tuple[int, int], tuple[int, int]]):
+        print('got zoom in select coords', select_coords[0][0], select_coords[0][1], select_coords[1][0], select_coords[1][1])
+        # H_CLICK_ZONE
 
-class DiscreteVisibleArea:
-    pass
+    @pyqtSlot(tuple)
+    def zoom_out_selection_coordinates(self, select_coords: tuple[tuple[int, int], tuple[int, int]]):
+        print('got zoom out select coords', select_coords[0][0], select_coords[0][1], select_coords[1][0], select_coords[1][1])
+        # H_CLICK_ZONE
 
 
 if __name__ == '__main__':
