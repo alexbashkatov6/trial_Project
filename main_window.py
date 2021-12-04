@@ -6,9 +6,10 @@ from functools import partial
 from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
     QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView, QToolTip, QMenu
 from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent, QFont, QColor, \
-    QResizeEvent
+    QResizeEvent, QPainterPath
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer
 from PyQt5.Qt import QStandardItemModel, QStandardItem, qApp
+# from PyQt5 import QList
 
 from nv_attribute_format import AttributeFormat
 from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, PICTURE_FOLDER, \
@@ -478,10 +479,10 @@ class PaintingArea(QWidget):
     def paintEvent(self, e):
         if self.flag:
             self.painter.begin(self)
-            self.drawInitialPicture()
+            self.draw_initial_picture()
             self.painter.end()
 
-    def drawInitialPicture(self):
+    def draw_initial_picture(self):
         pen = QPen(Qt.black, 2, Qt.SolidLine)
         self.painter.setPen(pen)
         pnt_1 = QPoint(400, 200)
@@ -490,6 +491,22 @@ class PaintingArea(QWidget):
         self.painter.drawLine(pnt_1, pnt_2)
         self.painter.drawLine(pnt_1, pnt_3)
         self.painter.drawEllipse(pnt_1, 100, 100)
+        path = QPainterPath()
+        path.moveTo(100, 100)
+        path.quadTo(QPoint(300, 100), QPoint(300, 200))
+        path2 = QPainterPath()
+        path2.moveTo(100, 200)
+        path2.quadTo(QPoint(300, 200), QPoint(300, 300))
+        self.painter.setPen(QPen(QColor(79, 106, 25), 5, Qt.DashLine,
+                                 Qt.FlatCap, Qt.MiterJoin))
+        self.painter.drawPath(path)
+        # space = 4
+        # dashes << 1 << space << 3 << space << 9 << space << 27 << space << 9 << space
+        pen2 = QPen(QColor(79, 106, 25), 5)
+        pen2.setDashPattern([4,3])
+        # pen2.setDashPattern([1,4,3,4,9,4,27,4,9,4])
+        self.painter.setPen(pen2)
+        self.painter.drawPath(path2)
 
 
 class MW(QMainWindow):

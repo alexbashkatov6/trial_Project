@@ -8,7 +8,7 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 
 from nv_typing import *
 from nv_associations import *
-from nv_bounded_string_set_class import bounded_string_set, BoundedStringSet
+from nv_bounded_string_set_class import bounded_string_set
 from nv_polar_graph import (End,
                             BasePolarGraph,
                             PolarNode,

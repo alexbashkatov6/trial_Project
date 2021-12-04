@@ -8,6 +8,9 @@ from numbers import Real
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 
 from nv_config import ANGLE_EQUAL_PRECISION, COORD_EQUAL_PRECISION, H_CLICK_ZONE
+from nv_bounded_string_set_class import bounded_string_set
+
+BSSPrimitiveType = bounded_string_set('BSSPrimitiveType', [['line_segment'], ['circle'], ['bezier']])
 
 
 def angle_equality(angle_1: Angle, angle_2: Angle) -> bool:
@@ -72,12 +75,18 @@ class Point2D:
         if line:
             self.line = line
 
+    def __repr__(self):
+        return "{}({}, {})".format(self.__class__.__name__, self.x, self.y)
+
+    __str__ = __repr__
+
     @property
     def coords(self):
         return self.x, self.y
 
 
 class Angle:
+    # ! angle is measured clockwise
     def __init__(self, free_angle: Real):
         self.free_angle = float(free_angle)
 
@@ -139,87 +148,103 @@ class Line2D:
 
 
 class Rect:
-    def __init__(self, x: Union[Real, tuple] = None, y: Real = None, w: Real = None, h: Real = None,
-                 center: tuple = None, angle: Real = None):
+    def __init__(self, x: Union[Real, Point2D] = None, y: Union[Real, Angle] = None, w: Real = None, h: Real = None,
+                 center: Point2D = None, angle: Angle = None):
         """ docstring """
-        if type(x) == tuple:
+        if type(x) == Point2D:
             center = x
             angle = y
             x = None
             y = None
         assert not (w is None) & (not(h is None)), 'Width and height should be defined'
-        assert ((not(x is None)) & (not(y is None)) & (not(w is None)) & (not(h is None)) & (angle is None)) |\
-               ((not(center is None)) & (not(w is None)) & (not(h is None))), 'Not complete input data'
+        assert ((not(x is None)) & (not(y is None)) & (angle is None)) | \
+               ((not(center is None)) & (not (angle is None))), 'Not complete input data'
+
         if angle is None:
-            angle = 0.
-        if x:
-            self.center = (float(x+w/2), float(y+h/2))
-            self.angle = 0.
+            angle = Angle(0)
+        if not (x is None):
+            self.center = Point2D(float(x+w/2), float(y+h/2))
+            self.angle = Angle(0)
         else:
-            self.center = (float(center[0]), float(center[1]))
-            self.angle = float(angle)
+            self.center = center
+            self.angle = angle
+        self.center: Point2D
+        self.angle: Angle
         self.w = w
         self.h = h
 
     def includes_point(self, p: Point2D):
-        # border too includes points
-        pass
+        # border includes points too
+        rot_point = rotate_operation(self.center, p, Angle(-self.angle.free_angle))
+        print('rot_point', rot_point)
+        return (self.center.x - self.w/2 <= rot_point.x <= self.center.x + self.w/2) & \
+               (self.center.y - self.h/2 <= rot_point.y <= self.center.y + self.h/2)
 
 
 class GeomPrimitive(ABC):
 
     @abstractmethod
-    def display(self):
+    def display_params(self) -> list[Real]:
         pass
 
     @abstractmethod
-    def clickable_area(self):
+    def point_in_clickable_area(self, p: Point2D, scale: float) -> bool:
         pass
 
 
-class Segment2D(GeomPrimitive):
+class LineSegment(GeomPrimitive):
     def __init__(self, pnt_1: Point2D, pnt_2: Point2D):
-        pass
+        self.pnt_1 = pnt_1
+        self.pnt_2 = pnt_2
 
-    def display(self):
-        pass
+    def display_params(self):
+        return [*self.pnt_1.coords, *self.pnt_2.coords]
 
-    def clickable_area(self):
-        pass
+    def point_in_clickable_area(self, p: Point2D, scale: float):
+        center = Point2D((self.pnt_1.x + self.pnt_2.x)/2, (self.pnt_1.y + self.pnt_2.y)/2)
+        angle, _ = evaluate_vector(self.pnt_1, self.pnt_2)
+        width = math.dist(self.pnt_1.coords, self.pnt_2.coords)
+        assert False, 'Not yet implemented'
+        return Rect(center, angle, width, )
 
 
 class Circle(GeomPrimitive):
-    def __init__(self, center: Point2D, r: float):
-        pass
+    def __init__(self, center: Point2D, r: Real):
+        self.center = center
+        self.r = r
 
-    def display(self):
-        pass
+    def display_params(self):
+        return [*self.center.coords, self.r]
 
-    def clickable_area(self):
+    def point_in_clickable_area(self, p: Point2D, scale: float):
         pass
 
 
 class BezierCurve(GeomPrimitive):
-    def __init__(self, pnt_1: Point2D, pnt_2: Point2D):
-        pass
+    def __init__(self, pnt_1: Point2D, angle_1: Angle, pnt_2: Point2D, angle_2: Angle):
+        self.pnt_1 = pnt_1
+        self.angle_1 = angle_1
+        self.pnt_2 = pnt_2
+        self.angle_2 = angle_2
+        self.pnt_intersect = lines_intersection(Line2D(pnt_1, angle=angle_1), Line2D(pnt_2, angle=angle_2))
 
-    def display(self):
-        pass
+    def display_params(self):
+        return [*self.pnt_1.coords, *self.pnt_2.coords, *self.pnt_intersect.coords]
 
-    def clickable_area(self):
+    def point_in_clickable_area(self, p: Point2D, scale: float):
         pass
 
 
 class GraphicalObject:
     def __init__(self):
-        pass
+        self.geom_primitives = set()
 
 
 class ContinuousVisibleArea(QObject):
 
     def __init__(self):
         super().__init__()
-        self.current_scale = 1  # px/m
+        self.current_scale = 1.  # px/m
         self.upleft_x = None
 
     @pyqtSlot(tuple)
@@ -243,12 +268,12 @@ if __name__ == '__main__':
     print('p1 x y = ', p1.x, p1.y)
     p2 = Point2D((12, 13))
     print('p2 x y = ', p2.x, p2.y)
-    r1 = Rect(10, 20, 300, 400)
-    print('r1 center angle = ', r1.center, r1.angle, r1.w, r1.h)
-    r2 = Rect(w=10, h=20, center=(300, 400))
-    print('r2 center angle = ', r2.center, r2.angle, r2.w, r2.h)
-    r3 = Rect((300, 400), 0, 10, 20)
-    print('r3 center angle = ', r3.center, r3.angle, r3.w, r3.h)
+    # r1 = Rect(10, 20, 300, 400)
+    # print('r1 center angle = ', r1.center, r1.angle, r1.w, r1.h)
+    # r2 = Rect(w=10, h=20, center=Point2D(300, 400))
+    # print('r2 center angle = ', r2.center, r2.angle, r2.w, r2.h)
+    # r3 = Rect((300, 400), 0, 10, 20)
+    # print('r3 center angle = ', r3.center, r3.angle, r3.w, r3.h)
     a = Angle(math.pi)
     print(a.angle_mpi2_ppi2)
     print(evaluate_vector(Point2D(1e-7, 0), Point2D(0, 0))[0].deg_angle_m90_p90)
@@ -259,3 +284,9 @@ if __name__ == '__main__':
     print(math.dist((0, 0), (1, 1)))
     print(rotate_operation(Point2D(0, 0), Point2D(0, 1), Angle(math.pi/2)).coords)
     print(lines_intersection(Line2D(Point2D(0, 0), Point2D(1, 1)), Line2D(Point2D(1, 1), Point2D(2, 0))).coords)
+
+    bc = BezierCurve(Point2D(100, 100), Angle(0), Point2D(300, 200), Angle(math.pi*0.25))
+    print(bc.display_params())
+
+    r = Rect(Point2D(7, 5), Angle(-26.565*math.pi/180), 8.944, 4.472)
+    print(r.includes_point(Point2D(3, 8)))
