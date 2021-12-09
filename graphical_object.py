@@ -263,6 +263,82 @@ class ContinuousVisibleArea(QObject):
         # H_CLICK_ZONE
 
 
+class IPoint:
+    def __init__(self, x0, y0, fictive=False):
+        self.fictive = fictive
+        self._x0 = x0
+        self._y0 = y0
+        self._scale = 1
+        self._x = x0
+        self._y = y0
+
+    @property
+    def x0(self):
+        return self._x0
+
+    @property
+    def y0(self):
+        return self._y0
+
+    @property
+    def x(self):
+        return self._x
+
+    @property
+    def y(self):
+        return self._y
+
+    @property
+    def scale(self):
+        return self._scale
+
+    @scale.setter
+    def scale(self, value: Real):
+        self._scale = value
+        self._x = self.x0 * value
+        self._y = self.y0 * value
+
+
+class IPrimitive(ABC):
+    def __init__(self, pnt_1: IPoint, pnt_2: IPoint):
+        self.weight = 1
+        self.color = 'black'
+        self.dashed = False
+        self.pnt_1 = pnt_1
+        self.pnt_2 = pnt_2
+
+    @abstractmethod
+    def re_evaluate(self):
+        pass
+
+
+class ILine(IPrimitive):
+    def __init__(self, pnt_1: IPoint, pnt_2: IPoint):
+        super().__init__(pnt_1, pnt_2)
+
+    def re_evaluate(self):
+        pass
+
+
+class ISimpleBezier(IPrimitive):
+    def __init__(self, pnt_1: IPoint, pnt_2: IPoint, ang_1: Angle, ang_2: Angle):
+        super().__init__(pnt_1, pnt_2)
+        self.ang_1 = ang_1
+        self.ang_2 = ang_2
+
+    def re_evaluate(self):
+        pass
+
+
+class IOptimalBezier(IPrimitive):
+    def __init__(self, pnt_1: IPoint, pnt_2: IPoint, ang_1: Angle):
+        super().__init__(pnt_1, pnt_2)
+        self.ang_1 = ang_1
+
+    def re_evaluate(self):
+        pass
+
+
 if __name__ == '__main__':
     p1 = Point2D(10, 20)
     print('p1 x y = ', p1.x, p1.y)
