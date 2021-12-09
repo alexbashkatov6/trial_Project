@@ -60,20 +60,21 @@ def lines_intersection(line_1: Line2D, line_2: Line2D) -> Point2D:
 
 
 class Point2D:
-    def __init__(self, x: Union[Real, tuple] = None, y: Real = None, c: tuple = None, line: Line2D = None):
-        if type(x) == tuple:
-            c = x
-            x = None
-            y = None
-        assert ((not(x is None)) & (not(y is None))) | (not(c is None)), 'Not complete input data'
-        if not (x is None):
-            self.x = float(x)
-            self.y = float(y)
+    def __init__(self, *args):
+        """ Point2D(Real, Real) Point2D(tuple[Real, Real]) """
+        if type(args[0]) == tuple:
+            assert len(args) == 1, 'Unexpected second arg for first is tuple'
+            assert len(args[0]) == 2, 'Should be 2 args in tuple'
+            assert all(isinstance(i, Real) for i in args[0]), 'Values should be real'
+            self.x = float(args[0][0])
+            self.y = float(args[0][1])
         else:
-            self.x = float(c[0])
-            self.y = float(c[1])
-        if line:
-            self.line = line
+            assert len(args) == 2, 'Expected 2 args'
+            assert all(isinstance(i, Real) for i in args), 'Values should be real'
+            self.x = float(args[0])
+            self.y = float(args[1])
+        self.xr = self.x
+        self.yr = self.y
 
     def __repr__(self):
         return "{}({}, {})".format(self.__class__.__name__, self.x, self.y)
@@ -83,6 +84,23 @@ class Point2D:
     @property
     def coords(self):
         return self.x, self.y
+
+    def apply_transposition(self, tr: LinearTransposition):
+        pass
+
+    def reset_transposition(self):
+        self.xr = self.x
+        self.yr = self.y
+
+
+class LinearTransposition:
+    def __init__(self, center: Point2D, scale: Real):
+        self.center = center
+        self.scale = float(scale)
+
+    def apply_to_point(self, pnt: Point2D) -> tuple[float, float]:
+        new_x = self.center.x + (pnt.x - self.center.x) * self.scale
+        new_y = self.center.y + (pnt.y - self.center.y) * self.scale
 
 
 class Angle:
@@ -263,80 +281,80 @@ class ContinuousVisibleArea(QObject):
         # H_CLICK_ZONE
 
 
-class IPoint:
-    def __init__(self, x0, y0, fictive=False):
-        self.fictive = fictive
-        self._x0 = x0
-        self._y0 = y0
-        self._scale = 1
-        self._x = x0
-        self._y = y0
-
-    @property
-    def x0(self):
-        return self._x0
-
-    @property
-    def y0(self):
-        return self._y0
-
-    @property
-    def x(self):
-        return self._x
-
-    @property
-    def y(self):
-        return self._y
-
-    @property
-    def scale(self):
-        return self._scale
-
-    @scale.setter
-    def scale(self, value: Real):
-        self._scale = value
-        self._x = self.x0 * value
-        self._y = self.y0 * value
-
-
-class IPrimitive(ABC):
-    def __init__(self, pnt_1: IPoint, pnt_2: IPoint):
-        self.weight = 1
-        self.color = 'black'
-        self.dashed = False
-        self.pnt_1 = pnt_1
-        self.pnt_2 = pnt_2
-
-    @abstractmethod
-    def re_evaluate(self):
-        pass
-
-
-class ILine(IPrimitive):
-    def __init__(self, pnt_1: IPoint, pnt_2: IPoint):
-        super().__init__(pnt_1, pnt_2)
-
-    def re_evaluate(self):
-        pass
-
-
-class ISimpleBezier(IPrimitive):
-    def __init__(self, pnt_1: IPoint, pnt_2: IPoint, ang_1: Angle, ang_2: Angle):
-        super().__init__(pnt_1, pnt_2)
-        self.ang_1 = ang_1
-        self.ang_2 = ang_2
-
-    def re_evaluate(self):
-        pass
-
-
-class IOptimalBezier(IPrimitive):
-    def __init__(self, pnt_1: IPoint, pnt_2: IPoint, ang_1: Angle):
-        super().__init__(pnt_1, pnt_2)
-        self.ang_1 = ang_1
-
-    def re_evaluate(self):
-        pass
+# class IPoint:
+#     def __init__(self, x0, y0, fictive=False):
+#         self.fictive = fictive
+#         self._x0 = x0
+#         self._y0 = y0
+#         self._scale = 1
+#         self._x = x0
+#         self._y = y0
+#
+#     @property
+#     def x0(self):
+#         return self._x0
+#
+#     @property
+#     def y0(self):
+#         return self._y0
+#
+#     @property
+#     def x(self):
+#         return self._x
+#
+#     @property
+#     def y(self):
+#         return self._y
+#
+#     @property
+#     def scale(self):
+#         return self._scale
+#
+#     @scale.setter
+#     def scale(self, value: Real):
+#         self._scale = value
+#         self._x = self.x0 * value
+#         self._y = self.y0 * value
+#
+#
+# class IPrimitive(ABC):
+#     def __init__(self, pnt_1: IPoint, pnt_2: IPoint):
+#         self.weight = 1
+#         self.color = 'black'
+#         self.dashed = False
+#         self.pnt_1 = pnt_1
+#         self.pnt_2 = pnt_2
+#
+#     @abstractmethod
+#     def re_evaluate(self):
+#         pass
+#
+#
+# class ILine(IPrimitive):
+#     def __init__(self, pnt_1: IPoint, pnt_2: IPoint):
+#         super().__init__(pnt_1, pnt_2)
+#
+#     def re_evaluate(self):
+#         pass
+#
+#
+# class ISimpleBezier(IPrimitive):
+#     def __init__(self, pnt_1: IPoint, pnt_2: IPoint, ang_1: Angle, ang_2: Angle):
+#         super().__init__(pnt_1, pnt_2)
+#         self.ang_1 = ang_1
+#         self.ang_2 = ang_2
+#
+#     def re_evaluate(self):
+#         pass
+#
+#
+# class IOptimalBezier(IPrimitive):
+#     def __init__(self, pnt_1: IPoint, pnt_2: IPoint, ang_1: Angle):
+#         super().__init__(pnt_1, pnt_2)
+#         self.ang_1 = ang_1
+#
+#     def re_evaluate(self):
+#         pass
 
 
 if __name__ == '__main__':
@@ -366,3 +384,5 @@ if __name__ == '__main__':
 
     r = Rect(Point2D(7, 5), Angle(-26.565*math.pi/180), 8.944, 4.472)
     print(r.includes_point(Point2D(3, 8)))
+
+    Point2D((6, ))
