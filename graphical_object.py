@@ -73,8 +73,8 @@ class Point2D:
             assert all(isinstance(i, Real) for i in args), 'Values should be real'
             self.x = float(args[0])
             self.y = float(args[1])
-        self.xr = self.x
-        self.yr = self.y
+        # self.xr = self.x
+        # self.yr = self.y
 
     def __repr__(self):
         return "{}({}, {})".format(self.__class__.__name__, self.x, self.y)
@@ -85,22 +85,78 @@ class Point2D:
     def coords(self):
         return self.x, self.y
 
-    def apply_transposition(self, tr: LinearTransposition):
+    # def apply_transposition(self, tr: LinearTransposition):
+    #     pass
+    #
+    # def reset_transposition(self):
+    #     self.xr = self.x
+    #     self.yr = self.y
+
+
+class FrCS:
+    # CS in Frame
+    def __init__(self, base_cs: FrCS = None, center_pnt: Point2D = Point2D(0, 0),
+                 scale_x: Real = 1, scale_y: Real = 1):
+        if base_cs is None:
+            self.is_base = True
+        else:
+            self.is_base = False
+        self.base_cs = base_cs
+        self._center_pnt = center_pnt
+        self._scale_x = scale_x
+        self._scale_y = scale_y
+        self._transformation = np.array([[0, 0], [1, 1]])
+        # center_x center_y
+        #
+
+    @property
+    def center_pnt(self):
+        return self._center_pnt
+
+    @center_pnt.setter
+    def center_pnt(self, value):
+        self._center_pnt = value
+
+
+class FrPoint:
+    # Point in Frame
+    def __init__(self, cs: FrCS, pnt: Point2D):
+        self.cs = cs
+        self.pnt = pnt
+
+    def coords_in_cs(self, cs: FrCS):
         pass
 
-    def reset_transposition(self):
-        self.xr = self.x
-        self.yr = self.y
+    def coords_in_base(self):
+        pass
 
 
-class LinearTransposition:
-    def __init__(self, center: Point2D, scale: Real):
-        self.center = center
-        self.scale = float(scale)
+class Frame:
+    def __init__(self):
+        self.corn_cs = None
+        self.cent_cs = None
+        self.w = None
+        self.h = None
 
-    def apply_to_point(self, pnt: Point2D) -> tuple[float, float]:
-        new_x = self.center.x + (pnt.x - self.center.x) * self.scale
-        new_y = self.center.y + (pnt.y - self.center.y) * self.scale
+
+class Pattern(Frame):
+    def __init__(self):
+        super().__init__()
+
+
+class Capture(Frame):
+    def __init__(self):
+        super().__init__()
+
+
+# class LinearTransposition:
+#     def __init__(self, center: Point2D, scale: Real):
+#         self.center = center
+#         self.scale = float(scale)
+#
+#     def apply_to_point(self, pnt: Point2D) -> tuple[float, float]:
+#         new_x = self.center.x + (pnt.x - self.center.x) * self.scale
+#         new_y = self.center.y + (pnt.y - self.center.y) * self.scale
 
 
 class Angle:
