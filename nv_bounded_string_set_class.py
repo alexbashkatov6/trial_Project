@@ -25,6 +25,9 @@ class BoundedStringSet:  # metaclass=ABCMeta
             assert self.__class__ == other.__class__, 'Classes of objects not equal'
             return other.value in self.eq_strings
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __hash__(self):
         return hash(id(self))
 
