@@ -37,8 +37,8 @@ def cut_optimization(func, *args, borders: tuple[Real, Real], maxormin: BSSMaxMi
     return curr_x_value, curr_f_value
 
 
-def angle_equality(angle_1: Angle, angle_2: Angle) -> bool:
-    return abs(angle_1.angle_mpi2_ppi2 - angle_2.angle_mpi2_ppi2) < ANGLE_EQUAL_PRECISION
+def distance(pnt_1: Point2D, pnt_2: Point2D) -> float:
+    return math.dist(pnt_1.coords, pnt_2.coords)
 
 
 def coord_equality(coord_1: float, coord_2: float, coord_precision: float = None) -> bool:
@@ -83,6 +83,28 @@ def lines_intersection(line_1: Line2D, line_2: Line2D) -> Point2D:
     return Point2D(result[0], result[1])
 
 
+def normal(pnt: Point2D, line: Line2D) -> tuple[Line2D, Point2D]:
+    angle_normal = line.angle + math.pi/2
+    line_normal = Line2D(pnt, angle=angle_normal)
+    return line_normal, lines_intersection(line, line_normal)
+
+
+def pnt_between(pnt: Point2D, pnt_1: Point2D, pnt_2: Point2D) -> bool:
+    assert Line2D(pnt, pnt_1).angle == Line2D(pnt, pnt_2).angle, "Points not on 1 line"
+    return (distance(pnt, pnt_1) <= distance(pnt_1, pnt_2)) and (distance(pnt, pnt_2) <= distance(pnt_1, pnt_2))
+
+
+def bezier_curvature(t: Real, pnt_1: Point2D, pnt_2: Point2D, pnt_control: Point2D):
+    # t is float between 0 and 1
+    x1, y1 = pnt_1.coords
+    x2, y2 = pnt_2.coords
+    x3, y3 = pnt_control.coords
+    return abs(0.5 * (-(2 * (x3 - x1) + x1 - x2) * (2 * (y3 - y1) * t - (y3 - y1) + t * y1 - t * y2) +
+                      (2 * (y3 - y1) + y1 - y2) * (2 * (x3 - x1) * t - (x3 - x1) + t * x1 - t * x2)) *
+               ((2 * (x3 - x1) * t - (x3 - x1) + t * x1 - t * x2) ** 2 + (
+                       2 * (y3 - y1) * t - (y3 - y1) + t * y1 - t * y2) ** 2) ** (-1.5))
+
+
 class Point2D:
     def __init__(self, *args):
         """ Point2D(Real, Real) Point2D(tuple[Real, Real]) """
@@ -108,16 +130,6 @@ class Point2D:
         return self.x, self.y
 
 
-def bezier_curvature(t: Real, pnt_1: Point2D, pnt_2: Point2D, pnt_control: Point2D):
-    x1, y1 = pnt_1.coords
-    x2, y2 = pnt_2.coords
-    x3, y3 = pnt_control.coords
-    return abs(0.5 * (-(2 * (x3 - x1) + x1 - x2) * (2 * (y3 - y1) * t - (y3 - y1) + t * y1 - t * y2) +
-                      (2 * (y3 - y1) + y1 - y2) * (2 * (x3 - x1) * t - (x3 - x1) + t * x1 - t * x2)) *
-               ((2 * (x3 - x1) * t - (x3 - x1) + t * x1 - t * x2) ** 2 + (
-                       2 * (y3 - y1) * t - (y3 - y1) + t * y1 - t * y2) ** 2) ** (-1.5))
-
-
 class Angle:
     # ! angle is measured clockwise
     def __init__(self, free_angle: Real):
@@ -139,6 +151,11 @@ class Angle:
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def __repr__(self):
+        return "{}({:1.7f})".format(self.__class__.__name__, self.angle_mpi2_ppi2)
+
+    __str__ = __repr__
 
     @property
     def angle_0_2pi(self):
@@ -176,6 +193,11 @@ class Line2D:
         self.b = math.cos(self.angle.angle_mpi2_ppi2)
         self.c = -self.a * self.pnt.x - self.b * self.pnt.y
         self.round_abc()
+
+    def __repr__(self):
+        return "{}({}, angle={})".format(self.__class__.__name__, self.pnt, self.angle)
+
+    __str__ = __repr__
 
     def round_abc(self):
         if self.angle == 0:
@@ -265,6 +287,7 @@ class BoundedCurve(GeometryPrimitive):
         if (self.geom_type == 'bezier') and (self.angle_2 == angle_between):
             self.geom_type = BSSCurveType('line_segment')
 
+    @property
     def bezier_control_point(self) -> Point2D:
         return lines_intersection(Line2D(self.pnt_1, angle=self.angle_1), Line2D(self.pnt_2, angle=self.angle_2))
 
@@ -280,11 +303,35 @@ class BoundedCurve(GeometryPrimitive):
         return cut_optimization(bezier_curvature, self.pnt_1, self.pnt_2, pnt_intersect,
                                 borders=(0, 1), maxormin=BSSMaxMin('max'))[1]
 
+    def point_by_param(self, t: Real) -> Point2D:
+        x1, y1 = self.pnt_1.coords
+        x2, y2 = self.pnt_2.coords
+        if self.geom_type == 'line_segment':
+            x = x1 + t*(x2-x1)
+            y = y1 + t*(y2-y1)
+        else:
+            x3, y3 = self.bezier_control_point.coords
+            x = t*(t*x2 + (1 - t)*((x3-x1) + x1)) + (1 - t)*(t*((x3-x1) + x1) + x1*(1 - t))
+            y = t*(t*y2 + (1 - t)*((y3-y1) + y1)) + (1 - t)*(t*((y3-y1) + y1) + y1*(1 - t))
+        return Point2D(x, y)
+
+    def angle_by_param(self, t: Real) -> Angle:
+        if self.geom_type == 'line_segment':
+            return Line2D(self.pnt_1, self.pnt_2).angle
+        x1, y1 = self.pnt_1.coords
+        x2, y2 = self.pnt_2.coords
+        x3, y3 = self.bezier_control_point.coords
+        dx_dt = -4*(x3-x1)*t + 2*(x3-x1) - 2*t*x1 + 2*t*x2
+        dy_dt = -4*(y3-y1)*t + 2*(y3-y1) - 2*t*y1 + 2*t*y2
+        pnt = self.point_by_param(t)
+        pnt_direction = Point2D(pnt.x + dx_dt, pnt.y + dy_dt)
+        return Line2D(pnt, pnt_direction).angle
+
     def draw_parameters(self):
         if self.geom_type == 'line_segment':
             return 'line_segment', *self.pnt_1.coords, *self.pnt_2.coords
         else:
-            return 'bezier', *self.pnt_1.coords, *self.bezier_control_point().coords, *self.pnt_2.coords
+            return 'bezier', *self.pnt_1.coords, *self.bezier_control_point.coords, *self.pnt_2.coords
 
 
 class Ellipse(GeometryPrimitive):
@@ -666,20 +713,20 @@ if __name__ == '__main__':
     print(cut_optimization(bezier_curvature, Point2D(100, 100), Point2D(300, 200), Point2D(300, 100), borders=(0, 1)))
 
 
-    def max_curvature(float_angle: float):
-        angle = Angle(float_angle)
-        pnt_1 = Point2D(1, 1)
-        angle_1 = Angle(math.pi / 4)
-        pnt_2 = Point2D(3, 1)
-        pnt_intersect = lines_intersection(Line2D(pnt_1, angle=angle_1), Line2D(pnt_2, angle=angle))
-        print(pnt_intersect)
-        return cut_optimization(bezier_curvature, pnt_1, pnt_2, pnt_intersect,
-                                borders=(0, 1), maxormin=BSSMaxMin('max'))[1]
-
-
-    # print(max_curvature(-math.pi/4))
-    print(cut_optimization(max_curvature, borders=(math.pi / 4 + 0.01, math.pi + math.pi / 4 - 0.01)))
-    print(Angle(2.3561937459466598).deg_angle_0_360)
+    # def max_curvature(float_angle: float):
+    #     angle = Angle(float_angle)
+    #     pnt_1 = Point2D(1, 1)
+    #     angle_1 = Angle(math.pi / 4)
+    #     pnt_2 = Point2D(3, 1)
+    #     pnt_intersect = lines_intersection(Line2D(pnt_1, angle=angle_1), Line2D(pnt_2, angle=angle))
+    #     print(pnt_intersect)
+    #     return cut_optimization(bezier_curvature, pnt_1, pnt_2, pnt_intersect,
+    #                             borders=(0, 1), maxormin=BSSMaxMin('max'))[1]
+    #
+    #
+    # # print(max_curvature(-math.pi/4))
+    # print(cut_optimization(max_curvature, borders=(math.pi / 4 + 0.01, math.pi + math.pi / 4 - 0.01)))
+    # print(Angle(2.3561937459466598).deg_angle_0_360)
     # print(bezier_curvature(0.0, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
     # print(bezier_curvature(0.2, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
     # print(bezier_curvature(0.4, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
@@ -690,7 +737,26 @@ if __name__ == '__main__':
     bc = BoundedCurve(Point2D(1, 1), Point2D(3, 1))
     bc_2 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4), Angle(math.pi/2))
     bc_3 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4))
+    bc_4 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(0))
+    # bc_5 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4), Angle(math.pi/4))
     print(bc.draw_parameters())
     print(bc_2.draw_parameters())
     print(bc_3.draw_parameters())
+    print(bc_4.draw_parameters())
+    # print(bc_5.draw_parameters())
+
+    print(distance(Point2D(1, 1), Point2D(2, 2)))
+    print(normal(Point2D(1, 1), Line2D(Point2D(2, 2), Point2D(3, 1))))
+    print(pnt_between(Point2D(2, 2), Point2D(1, 1), Point2D(3, 3)))
+
+    print(bc.point_by_param(0), bc.point_by_param(0.5), bc.point_by_param(1))
+    print(bc_2.point_by_param(0), bc_2.point_by_param(0.5), bc_2.point_by_param(1))
+    print(bc_3.point_by_param(0), bc_3.point_by_param(0.5), bc_3.point_by_param(1))
+
+    print(bc.angle_by_param(0), bc.angle_by_param(0.5), bc.angle_by_param(1))
+    print(bc_2.angle_by_param(0), bc_2.angle_by_param(0.5), bc_2.angle_by_param(1))
+    print(bc_3.angle_by_param(0), bc_3.angle_by_param(0.5), bc_3.angle_by_param(1))
+
+
+
 
