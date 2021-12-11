@@ -7,7 +7,7 @@ from numbers import Real
 
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 
-from nv_config import ANGLE_EQUAL_PRECISION, COORD_EQUAL_PRECISION, H_CLICK_ZONE
+from nv_config import ANGLE_EQUAL_EVAL_PRECISION, ANGLE_EQUAL_VIEW_PRECISION, COORD_EQUAL_PRECISION, H_CLICK_ZONE
 from nv_bounded_string_set_class import bounded_string_set
 
 BSSCurveType = bounded_string_set('BSSCurveType', [['line_segment'], ['bezier'], ['optimal_bezier']])
@@ -15,7 +15,7 @@ BSSMaxMin = bounded_string_set('BSSMaxMin', [['max'], ['min']])
 
 
 def cut_optimization(func, *args, borders: tuple[Real, Real], maxormin: BSSMaxMin = BSSMaxMin('min'),
-                     precision: float = ANGLE_EQUAL_PRECISION) -> tuple[float, float]:
+                     precision: float = ANGLE_EQUAL_EVAL_PRECISION) -> tuple[float, float]:
     """CUT 1D optimization for convex functions"""
     curr_borders = (min(borders), max(borders))
     curr_region_size = curr_borders[1] - curr_borders[0]
@@ -60,10 +60,10 @@ def evaluate_vector(pnt_1: Point2D, pnt_2: Point2D) -> (Angle, bool):
         else:
             break
     if coord_equality(pnt_1.y, pnt_2.y, coord_eq_prec):
-        if ANGLE_EQUAL_PRECISION * abs(pnt_1.x - pnt_2.x) > abs(pnt_1.y - pnt_2.y):
+        if ANGLE_EQUAL_EVAL_PRECISION * abs(pnt_1.x - pnt_2.x) > abs(pnt_1.y - pnt_2.y):
             return Angle(0), pnt_2.x > pnt_1.x
     if coord_equality(pnt_1.x, pnt_2.x, coord_eq_prec):
-        if ANGLE_EQUAL_PRECISION * abs(pnt_1.y - pnt_2.y) > abs(pnt_1.x - pnt_2.x):
+        if ANGLE_EQUAL_EVAL_PRECISION * abs(pnt_1.y - pnt_2.y) > abs(pnt_1.x - pnt_2.x):
             return Angle(math.pi / 2), pnt_2.y > pnt_1.y
     return Angle(math.atan((pnt_1.y - pnt_2.y) / (pnt_1.x - pnt_2.x))), pnt_2.x > pnt_1.x
 
@@ -95,7 +95,7 @@ def pnt_between(pnt: Point2D, pnt_1: Point2D, pnt_2: Point2D) -> bool:
 
 
 def bezier_curvature(t: Real, pnt_1: Point2D, pnt_2: Point2D, pnt_control: Point2D):
-    # t is float between 0 and 1
+    """t is float between 0 and 1"""
     x1, y1 = pnt_1.coords
     x2, y2 = pnt_2.coords
     x3, y3 = pnt_control.coords
@@ -131,7 +131,7 @@ class Point2D:
 
 
 class Angle:
-    # ! angle is measured clockwise
+    """angle is measured clockwise"""
     def __init__(self, free_angle: Real):
         self.free_angle = float(free_angle)
 
@@ -145,9 +145,9 @@ class Angle:
     def __eq__(self, other):
         assert isinstance(other, (Real, Angle)), 'Can compare only angle or int/float'
         if isinstance(other, Real):
-            return abs(self.angle_mpi2_ppi2 - other) < ANGLE_EQUAL_PRECISION
+            return abs(self.angle_mpi2_ppi2 - other) < ANGLE_EQUAL_EVAL_PRECISION
         else:
-            return abs(self.angle_mpi2_ppi2 - other.angle_mpi2_ppi2) < ANGLE_EQUAL_PRECISION
+            return abs(self.angle_mpi2_ppi2 - other.angle_mpi2_ppi2) < ANGLE_EQUAL_EVAL_PRECISION
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -159,30 +159,30 @@ class Angle:
 
     @property
     def angle_0_2pi(self):
-        # radian value in interval [0, 2pi)
+        """radian value in interval [0, 2pi)"""
         positive_angle = self.free_angle % (2 * math.pi)
         return positive_angle
 
     @property
     def deg_angle_0_360(self):
-        # degree value in interval [0, 360)
+        """degree value in interval [0, 360)"""
         return self.angle_0_2pi * 180 / math.pi
 
     @property
     def angle_mpi2_ppi2(self):
-        # radian value in interval (-pi/2, pi/2]
+        """radian value in interval (-pi/2, pi/2]"""
         positive_angle = self.free_angle % math.pi
         return positive_angle - math.pi if positive_angle > math.pi / 2 else positive_angle
 
     @property
     def deg_angle_m90_p90(self):
-        # degree value in interval (-90, 90]
+        """degree value in interval (-90, 90]"""
         return self.angle_mpi2_ppi2 * 180 / math.pi
 
 
 class Line2D:
     def __init__(self, pnt_1: Point2D, pnt_2: Point2D = None, angle: Angle = None):
-        # Line is solution of equation a*x + b*y + c = 0
+        """Line is solution of equation a*x + b*y + c = 0"""
         assert not (pnt_2 is None) or not (angle is None), 'Not complete input data'
         self.pnt = pnt_1
         if angle:
@@ -212,54 +212,11 @@ class Line2D:
             return
 
 
-class Rect:
-    def __init__(self, x: Union[Real, Point2D] = None, y: Union[Real, Angle] = None, w: Real = None, h: Real = None,
-                 center: Point2D = None, angle: Angle = None):
-        """ docstring """
-        if type(x) == Point2D:
-            center = x
-            angle = y
-            x = None
-            y = None
-        assert not (w is None) & (not (h is None)), 'Width and height should be defined'
-        assert ((not (x is None)) & (not (y is None)) & (angle is None)) | \
-               ((not (center is None)) & (not (angle is None))), 'Not complete input data'
-
-        if angle is None:
-            angle = Angle(0)
-        if not (x is None):
-            self.center = Point2D(float(x + w / 2), float(y + h / 2))
-            self.angle = Angle(0)
-        else:
-            self.center = center
-            self.angle = angle
-        self.center: Point2D
-        self.angle: Angle
-        self.w = w
-        self.h = h
-
-    def includes_point(self, p: Point2D):
-        # border includes points too
-        rot_point = rotate_operation(self.center, p, Angle(-self.angle.free_angle))
-        print('rot_point', rot_point)
-        return (self.center.x - self.w / 2 <= rot_point.x <= self.center.x + self.w / 2) & \
-               (self.center.y - self.h / 2 <= rot_point.y <= self.center.y + self.h / 2)
-
-
 class GeometryPrimitive(ABC):
 
     @abstractmethod
     def draw_parameters(self):
         pass
-
-
-# class LineSegment(GeometryPrimitive):
-#     def __init__(self, pnt_1: Point2D, pnt_2: Point2D):
-#         self.pnt_1 = pnt_1
-#         self.pnt_2 = pnt_2
-#
-#     def draw_parameters(self):
-#         pass
 
 
 class BoundedCurve(GeometryPrimitive):
@@ -294,8 +251,8 @@ class BoundedCurve(GeometryPrimitive):
     def bezier_optimization(self) -> Angle:
         float_angle_1 = self.angle_1.angle_mpi2_ppi2
         return Angle(cut_optimization(self.max_curvature,
-                                      borders=(float_angle_1 + 1e3 * ANGLE_EQUAL_PRECISION,
-                                               float_angle_1 + math.pi - 1e3 * ANGLE_EQUAL_PRECISION))[0])
+                                      borders=(float_angle_1 + ANGLE_EQUAL_VIEW_PRECISION,
+                                               float_angle_1 + math.pi - ANGLE_EQUAL_VIEW_PRECISION))[0])
 
     def max_curvature(self, float_angle: float) -> float:
         angle = Angle(float_angle)
@@ -327,6 +284,31 @@ class BoundedCurve(GeometryPrimitive):
         pnt_direction = Point2D(pnt.x + dx_dt, pnt.y + dy_dt)
         return Line2D(pnt, pnt_direction).angle
 
+    def t_separation(self):
+        if self.geom_type == 'line_segment':
+            return [0, 1]
+        devision = [0]
+        count = 10
+        nominal_step = 1/count
+        current_step = nominal_step
+        while True:
+            t = devision[-1]
+            next_t = t + current_step
+            angle_t = self.angle_by_param(t)
+            angle_t_delta_t = self.angle_by_param(next_t)
+            if abs(Angle(angle_t.free_angle - angle_t_delta_t.free_angle).angle_0_2pi) > 1e2*ANGLE_EQUAL_VIEW_PRECISION:
+                current_step = current_step/2
+                continue
+            else:
+                if current_step < nominal_step:
+                    current_step *= 2
+                else:
+                    current_step = nominal_step
+                devision.append(next_t)
+            if 1-next_t < nominal_step:
+                break
+        return devision
+
     def draw_parameters(self):
         if self.geom_type == 'line_segment':
             return 'line_segment', *self.pnt_1.coords, *self.pnt_2.coords
@@ -343,12 +325,11 @@ class Ellipse(GeometryPrimitive):
 
 
 class FrameCS:
-    # CS in Frame
     def __init__(self, base_cs: FrameCS = None, center_pnt_in_base: Point2D = Point2D(0, 0),
                  scale_in_base_x: Real = 1, scale_in_base_y: Real = 1):
+        """scale > 1 means that ticks more often"""
         self._base_cs = base_cs
         self._center_pnt_in_base = center_pnt_in_base
-        # scale > 1 means that ticks more often
         self._scale_in_base_x = scale_in_base_x
         self._scale_in_base_y = scale_in_base_y
 
@@ -487,54 +468,6 @@ class MainFrame:
         self.main_frame_primitives = None
 
 
-# @abstractmethod
-# def display_params(self) -> list[Real]:
-#     pass
-
-#
-# class LineSegment(GeomPrimitive):
-#     def __init__(self, pnt_1: Point2D, pnt_2: Point2D):
-#         self.pnt_1 = pnt_1
-#         self.pnt_2 = pnt_2
-#
-#     def display_params(self):
-#         return [*self.pnt_1.coords, *self.pnt_2.coords]
-#
-#     def point_in_clickable_area(self, p: Point2D, scale: float):
-#         center = Point2D((self.pnt_1.x + self.pnt_2.x) / 2, (self.pnt_1.y + self.pnt_2.y) / 2)
-#         angle, _ = evaluate_vector(self.pnt_1, self.pnt_2)
-#         width = math.dist(self.pnt_1.coords, self.pnt_2.coords)
-#         assert False, 'Not yet implemented'
-#         return Rect(center, angle, width, )
-#
-#
-# class Circle(GeomPrimitive):
-#     def __init__(self, center: Point2D, r: Real):
-#         self.center = center
-#         self.r = r
-#
-#     def display_params(self):
-#         return [*self.center.coords, self.r]
-#
-#     def point_in_clickable_area(self, p: Point2D, scale: float):
-#         pass
-#
-#
-# class BezierCurve(GeomPrimitive):
-#     def __init__(self, pnt_1: Point2D, angle_1: Angle, pnt_2: Point2D, angle_2: Angle):
-#         self.pnt_1 = pnt_1
-#         self.angle_1 = angle_1
-#         self.pnt_2 = pnt_2
-#         self.angle_2 = angle_2
-#         self.pnt_intersect = lines_intersection(Line2D(pnt_1, angle=angle_1), Line2D(pnt_2, angle=angle_2))
-#
-#     def display_params(self):
-#         return [*self.pnt_1.coords, *self.pnt_2.coords, *self.pnt_intersect.coords]
-#
-#     def point_in_clickable_area(self, p: Point2D, scale: float):
-#         pass
-
-
 class GraphicalObject:
     def __init__(self):
         self.geom_primitives = set()
@@ -565,82 +498,6 @@ class ContinuousVisibleArea(QObject):
         # H_CLICK_ZONE
 
 
-# class IPoint:
-#     def __init__(self, x0, y0, fictive=False):
-#         self.fictive = fictive
-#         self._x0 = x0
-#         self._y0 = y0
-#         self._scale = 1
-#         self._x = x0
-#         self._y = y0
-#
-#     @property
-#     def x0(self):
-#         return self._x0
-#
-#     @property
-#     def y0(self):
-#         return self._y0
-#
-#     @property
-#     def x(self):
-#         return self._x
-#
-#     @property
-#     def y(self):
-#         return self._y
-#
-#     @property
-#     def scale(self):
-#         return self._scale
-#
-#     @scale.setter
-#     def scale(self, value: Real):
-#         self._scale = value
-#         self._x = self.x0 * value
-#         self._y = self.y0 * value
-#
-#
-# class IPrimitive(ABC):
-#     def __init__(self, pnt_1: IPoint, pnt_2: IPoint):
-#         self.weight = 1
-#         self.color = 'black'
-#         self.dashed = False
-#         self.pnt_1 = pnt_1
-#         self.pnt_2 = pnt_2
-#
-#     @abstractmethod
-#     def re_evaluate(self):
-#         pass
-#
-#
-# class ILine(IPrimitive):
-#     def __init__(self, pnt_1: IPoint, pnt_2: IPoint):
-#         super().__init__(pnt_1, pnt_2)
-#
-#     def re_evaluate(self):
-#         pass
-#
-#
-# class ISimpleBezier(IPrimitive):
-#     def __init__(self, pnt_1: IPoint, pnt_2: IPoint, ang_1: Angle, ang_2: Angle):
-#         super().__init__(pnt_1, pnt_2)
-#         self.ang_1 = ang_1
-#         self.ang_2 = ang_2
-#
-#     def re_evaluate(self):
-#         pass
-#
-#
-# class IOptimalBezier(IPrimitive):
-#     def __init__(self, pnt_1: IPoint, pnt_2: IPoint, ang_1: Angle):
-#         super().__init__(pnt_1, pnt_2)
-#         self.ang_1 = ang_1
-#
-#     def re_evaluate(self):
-#         pass
-
-
 if __name__ == '__main__':
     p1 = Point2D(10, 20)
     print('p1 x y = ', p1.x, p1.y)
@@ -666,8 +523,43 @@ if __name__ == '__main__':
     # bc = BezierCurve(Point2D(100, 100), Angle(0), Point2D(300, 200), Angle(math.pi * 0.25))
     # print(bc.display_params())
 
-    r = Rect(Point2D(7, 5), Angle(-26.565 * math.pi / 180), 8.944, 4.472)
-    print(r.includes_point(Point2D(3, 8)))
+
+# class Rect:
+#     def __init__(self, x: Union[Real, Point2D] = None, y: Union[Real, Angle] = None, w: Real = None, h: Real = None,
+#                  center: Point2D = None, angle: Angle = None):
+#         """ docstring """
+#         if type(x) == Point2D:
+#             center = x
+#             angle = y
+#             x = None
+#             y = None
+#         assert not (w is None) & (not (h is None)), 'Width and height should be defined'
+#         assert ((not (x is None)) & (not (y is None)) & (angle is None)) | \
+#                ((not (center is None)) & (not (angle is None))), 'Not complete input data'
+#
+#         if angle is None:
+#             angle = Angle(0)
+#         if not (x is None):
+#             self.center = Point2D(float(x + w / 2), float(y + h / 2))
+#             self.angle = Angle(0)
+#         else:
+#             self.center = center
+#             self.angle = angle
+#         self.center: Point2D
+#         self.angle: Angle
+#         self.w = w
+#         self.h = h
+#
+#     def includes_point(self, p: Point2D):
+#         """border includes points too"""
+#         rot_point = rotate_operation(self.center, p, Angle(-self.angle.free_angle))
+#         print('rot_point', rot_point)
+#         return (self.center.x - self.w / 2 <= rot_point.x <= self.center.x + self.w / 2) & \
+#                (self.center.y - self.h / 2 <= rot_point.y <= self.center.y + self.h / 2)
+
+
+    # r = Rect(Point2D(7, 5), Angle(-26.565 * math.pi / 180), 8.944, 4.472)
+    # print(r.includes_point(Point2D(3, 8)))
 
     # Point2D((6,))
 
@@ -737,6 +629,7 @@ if __name__ == '__main__':
     bc = BoundedCurve(Point2D(1, 1), Point2D(3, 1))
     bc_2 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4), Angle(math.pi/2))
     bc_3 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4))
+    print("here")
     bc_4 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(0))
     # bc_5 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4), Angle(math.pi/4))
     print(bc.draw_parameters())
@@ -754,9 +647,11 @@ if __name__ == '__main__':
     print(bc_3.point_by_param(0), bc_3.point_by_param(0.5), bc_3.point_by_param(1))
 
     print(bc.angle_by_param(0), bc.angle_by_param(0.5), bc.angle_by_param(1))
-    print(bc_2.angle_by_param(0), bc_2.angle_by_param(0.5), bc_2.angle_by_param(1))
+    print(bc_2.angle_by_param(0), bc_2.angle_by_param(0.15424156188964), bc_2.angle_by_param(0.5), bc_2.angle_by_param(1))
     print(bc_3.angle_by_param(0), bc_3.angle_by_param(0.5), bc_3.angle_by_param(1))
 
-
+    sep = bc_3.t_separation()
+    print(sep)
+    print(len(sep))
 
 
