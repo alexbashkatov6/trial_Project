@@ -14,6 +14,18 @@ BSSCurveType = bounded_string_set('BSSCurveType', [['line_segment'], ['bezier'],
 BSSMaxMin = bounded_string_set('BSSMaxMin', [['max'], ['min']])
 
 
+class GeometryException(Exception):
+    pass
+
+
+class ParallelLinesException(GeometryException):
+    pass
+
+
+class PointsEqualException(GeometryException):
+    pass
+
+
 def cut_optimization(func, *args, borders: tuple[Real, Real], maxormin: BSSMaxMin = BSSMaxMin('min'),
                      precision: float = ANGLE_EQUAL_EVAL_PRECISION) -> tuple[float, float]:
     """CUT 1D optimization for convex functions"""
@@ -78,7 +90,8 @@ def rotate_operation(center: Point2D, point: Point2D, angle: Angle) -> Point2D:
 
 
 def lines_intersection(line_1: Line2D, line_2: Line2D) -> Point2D:
-    assert line_1.angle != line_2.angle, 'Angles of lines are equal'
+    if line_1.angle == line_2.angle:
+        raise ParallelLinesException('Angles of lines {}, {} are equal'.format(line_1, line_2))
     result = np.linalg.solve(np.array([[line_1.a, line_1.b], [line_2.a, line_2.b]]), np.array([-line_1.c, -line_2.c]))
     return Point2D(result[0], result[1])
 
@@ -459,12 +472,12 @@ class FPViewProperties:
 class FramePrimitive(ABC):
 
     @abstractmethod
-    @property
+    # @property
     def view_properties(self) -> FPViewProperties:
         pass
 
     @abstractmethod
-    @property
+    # @property
     def connected_frame(self) -> Frame:
         pass
 
@@ -495,7 +508,7 @@ class FPBoundedCurve(FramePrimitive):
 
 
 class Frame:
-    def __init__(self, base_frame: Frame = None):
+    def __init__(self, base_frame: BaseFrame = None):
         if base_frame:
             self.center_fcs: FrameCS = FrameCS(base_frame.center_fcs)
         else:
@@ -505,9 +518,30 @@ class Frame:
         self.fprimitives: list[FramePrimitive] = []
         self.width: Real = 1
         self.height: Real = 1
+        self._width_to_height_ratio: Real = 1
+
+    @property
+    def width_to_height_ratio(self):
+        return self._width_to_height_ratio
+
+    @width_to_height_ratio.setter
+    def width_to_height_ratio(self, value):
+        self._width_to_height_ratio = value
 
 
-PatternFrame = Frame()
+class BaseFrame(Frame):
+    def __init__(self):
+        super().__init__()
+        self.additional_fcs_list: list[FrameCS] = []
+        # show_border is border for capture frame
+        self.show_border_h: Real = 0.05  # percent from h
+        self.show_border_w: Real = 0.05  # percent from w
+        # gl_padding is border for region where for each GL 1 point at least
+        self.gl_padding_h: Real = 0.05  # percent from h
+        self.gl_padding_w: Real = 0.05  # percent from w
+
+
+PatternFrame = BaseFrame()
 CaptureFrame = Frame(PatternFrame)
 
 
@@ -692,4 +726,4 @@ if __name__ == '__main__':
     print(sep)
     print(len(sep))
 
-
+    # lines_intersection(Line2D(Point2D(0,0), angle=Angle(0)), Line2D(Point2D(0,1), angle=Angle(0)))
