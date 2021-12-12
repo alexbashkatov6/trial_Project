@@ -284,7 +284,7 @@ class BoundedCurve(GeometryPrimitive):
         pnt_direction = Point2D(pnt.x + dx_dt, pnt.y + dy_dt)
         return Line2D(pnt, pnt_direction).angle
 
-    def t_separation(self):
+    def t_devision(self):
         if self.geom_type == 'line_segment':
             return [0, 1]
         devision = [0]
@@ -305,8 +305,10 @@ class BoundedCurve(GeometryPrimitive):
                 else:
                     current_step = nominal_step
                 devision.append(next_t)
-            if 1-next_t < nominal_step:
+            if 1-next_t < nominal_step/10:
                 break
+        if devision[-1] > 1:
+            devision[-1] = 1
         return devision
 
     def draw_parameters(self):
@@ -442,7 +444,29 @@ class FrameAngle:
                                    / cs.scale_absolute_y / self.cs.scale_absolute_x))
 
 
+def distance_in_frame(f: Frame, fp_1: FramePoint, fp_2: FramePoint):
+    return distance(fp_1.reevaluate_in_cs(f.center_fcs), fp_2.reevaluate_in_cs(f.center_fcs))
+
+
+class FPViewProperties:
+    def __init__(self):
+        self.visible = True
+        self.line_weight = 1
+        self.line_dashed = False
+        self.line_color = 'black'
+
+
 class FramePrimitive(ABC):
+
+    @abstractmethod
+    @property
+    def view_properties(self) -> FPViewProperties:
+        pass
+
+    @abstractmethod
+    @property
+    def connected_frame(self) -> Frame:
+        pass
 
     @abstractmethod
     def reevaluate(self) -> GeometryPrimitive:
@@ -453,24 +477,38 @@ class FramePrimitive(ABC):
         pass
 
 
-class FPLineSegment(FramePrimitive):
+class FPBoundedCurve(FramePrimitive):
 
-    def reevaluate(self):
+    @property
+    def view_properties(self) -> FPViewProperties:
+        pass
+
+    @property
+    def connected_frame(self) -> Frame:
+        pass
+
+    def reevaluate(self) -> GeometryPrimitive:
         pass
 
     def point_in_clickable_area(self, pnt: Point2D) -> bool:
         pass
 
 
-class MainFrame:
-    def __init__(self):
-        self.main_frame_points = None
-        self.main_frame_primitives = None
+class Frame:
+    def __init__(self, base_frame: Frame = None):
+        if base_frame:
+            self.center_fcs: FrameCS = FrameCS(base_frame.center_fcs)
+        else:
+            self.center_fcs: FrameCS = FrameCS()
+        self.corner_fcs: FrameCS = FrameCS(self.center_fcs)
+        self.fpoints: list[FramePoint] = []
+        self.fprimitives: list[FramePrimitive] = []
+        self.width: Real = 1
+        self.height: Real = 1
 
 
-class GraphicalObject:
-    def __init__(self):
-        self.geom_primitives = set()
+PatternFrame = Frame()
+CaptureFrame = Frame(PatternFrame)
 
 
 class ContinuousVisibleArea(QObject):
@@ -563,9 +601,9 @@ if __name__ == '__main__':
 
     # Point2D((6,))
 
-    # base_cs = FrameCS()
-    # center_cs = FrameCS(base_cs, Point2D(10, 20), 2, 2)
-    # sec_cs = FrameCS(center_cs, Point2D(10, 20), 3, 2)
+    # center_fcs = FrameCS()
+    # center_fcs = FrameCS(center_fcs, Point2D(10, 20), 2, 2)
+    # sec_cs = FrameCS(center_fcs, Point2D(10, 20), 3, 2)
     # print(sec_cs.center_pnt_absolute_x, sec_cs.center_pnt_absolute_y, sec_cs.scale_absolute_x, sec_cs.scale_absolute_y)
 
     # def transform_coordinates(pnt: Point2D, cs_base: FrameCS, cs_new: FrameCS) -> Point2D:
@@ -574,7 +612,7 @@ if __name__ == '__main__':
     #     pnt_new_x = (pnt_abs_x - cs_new.center_pnt_absolute_x) * cs_new.scale_absolute_x
     #     pnt_new_y = (pnt_abs_y - cs_new.center_pnt_absolute_y) * cs_new.scale_absolute_y
     #     return Point2D(pnt_new_x, pnt_new_y)
-    #     print(transform_coordinates(Point2D(3, 2), center_cs, sec_cs))
+    #     print(transform_coordinates(Point2D(3, 2), center_fcs, sec_cs))
 
     base_cs_ = FrameCS()
     center_cs = FrameCS(base_cs_, Point2D(3.5, 2), 2, 2)
@@ -650,7 +688,7 @@ if __name__ == '__main__':
     print(bc_2.angle_by_param(0), bc_2.angle_by_param(0.15424156188964), bc_2.angle_by_param(0.5), bc_2.angle_by_param(1))
     print(bc_3.angle_by_param(0), bc_3.angle_by_param(0.5), bc_3.angle_by_param(1))
 
-    sep = bc_3.t_separation()
+    sep = bc_3.t_devision()
     print(sep)
     print(len(sep))
 
