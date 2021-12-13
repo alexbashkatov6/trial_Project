@@ -7,7 +7,8 @@ from PyQt5.QtCore import QObject
 from main_window import MW
 from messages import MessagesManager
 from nv_attributed_objects import CommonAttributeInterface
-from graphical_object import ContinuousVisibleArea
+from graphical_object import Frame, BaseFrame  # ContinuousVisibleArea,
+from core_object_handler import CoreObjectHandler
 
 
 def excepthook(exc_type, exc_value, exc_tb):
@@ -24,7 +25,10 @@ class Director(QObject):
         self.mw = MW()
         self.mm = MessagesManager(self.mw)
         self.cai = CommonAttributeInterface()
-        self.cva = ContinuousVisibleArea()
+        # self.cva = ContinuousVisibleArea()
+        self.coh = CoreObjectHandler()  # PatternFrame
+        self.pfr = BaseFrame()  # PatternFrame
+        self.cfr = Frame(self.pfr)  # CaptureFrame
 
         # interface to attr_object storage
         self.mw.ttb.send_class_name.connect(self.cai.create_new_object)
@@ -43,12 +47,16 @@ class Director(QObject):
         self.cai.send_info_object.connect(self.mw.ltb.show_info_about_object)
 
         # interface to visible_area
-        self.mw.pa.pa_coordinates_changed.connect(self.cva.pa_coordinates_changed)
-        self.mw.pa.zoom_in_selection_coordinates.connect(self.cva.zoom_in_selection_coordinates)
-        self.mw.pa.zoom_out_selection_coordinates.connect(self.cva.zoom_out_selection_coordinates)
+        self.mw.pa.pa_coordinates_changed.connect(self.pfr.pa_coordinates_changed)
+        self.mw.pa.zoom_in_selection_coordinates.connect(self.pfr.zoom_in_selection_coordinates)
+        self.mw.pa.zoom_out_selection_coordinates.connect(self.pfr.zoom_out_selection_coordinates)
 
         # internal interface connections
         self.mw.ltb.send_data_fill.connect(self.mw.rtb.set_focus_widget_value)
+
+        # obj creation connections
+        self.cai.obj_created.connect(self.coh.got_obj_created)
+        self.coh.obj_created.connect(self.pfr.got_obj_created)
 
         # initialization
         self.cai.get_tree_graph()

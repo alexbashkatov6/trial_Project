@@ -507,8 +507,9 @@ class FPBoundedCurve(FramePrimitive):
         pass
 
 
-class Frame:
+class Frame(QObject):
     def __init__(self, base_frame: BaseFrame = None):
+        super().__init__()
         if base_frame:
             self.center_fcs: FrameCS = FrameCS(base_frame.center_fcs)
         else:
@@ -540,18 +541,6 @@ class BaseFrame(Frame):
         self.gl_padding_h: Real = 0.05  # percent from h
         self.gl_padding_w: Real = 0.05  # percent from w
 
-
-PatternFrame = BaseFrame()
-CaptureFrame = Frame(PatternFrame)
-
-
-class ContinuousVisibleArea(QObject):
-
-    def __init__(self):
-        super().__init__()
-        self.current_scale = 1.  # px/m
-        self.upleft_x = None
-
     @pyqtSlot(tuple)
     def pa_coordinates_changed(self, new_coords: tuple[tuple[int, int], tuple[int, int]]):
         print('got pa coords', new_coords[0][0], new_coords[0][1], new_coords[1][0], new_coords[1][1])
@@ -567,6 +556,35 @@ class ContinuousVisibleArea(QObject):
     def zoom_out_selection_coordinates(self, select_coords: tuple[tuple[int, int], tuple[int, int]]):
         print('got zoom out select coords', select_coords[0][0], select_coords[0][1], select_coords[1][0],
               select_coords[1][1])
+        # H_CLICK_ZONE
+
+    @pyqtSlot(dict)
+    def got_obj_created(self, obj_info: dict):
+        print('got obj_created in BaseFrame', obj_info)
+
+
+# class ContinuousVisibleArea(QObject):
+#
+#     def __init__(self):
+#         super().__init__()
+#         self.current_scale = 1.  # px/m
+#         self.upleft_x = None
+#
+#     @pyqtSlot(tuple)
+#     def pa_coordinates_changed(self, new_coords: tuple[tuple[int, int], tuple[int, int]]):
+#         print('got pa coords', new_coords[0][0], new_coords[0][1], new_coords[1][0], new_coords[1][1])
+#         # H_CLICK_ZONE
+#
+#     @pyqtSlot(tuple)
+#     def zoom_in_selection_coordinates(self, select_coords: tuple[tuple[int, int], tuple[int, int]]):
+#         print('got zoom in select coords', select_coords[0][0], select_coords[0][1], select_coords[1][0],
+#               select_coords[1][1])
+#         # H_CLICK_ZONE
+#
+#     @pyqtSlot(tuple)
+#     def zoom_out_selection_coordinates(self, select_coords: tuple[tuple[int, int], tuple[int, int]]):
+#         print('got zoom out select coords', select_coords[0][0], select_coords[0][1], select_coords[1][0],
+#               select_coords[1][1])
         # H_CLICK_ZONE
 
 

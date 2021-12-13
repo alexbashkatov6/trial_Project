@@ -311,6 +311,8 @@ class CommonAttributeInterface(QObject):
 
     send_info_object = pyqtSignal(list)
 
+    obj_created = pyqtSignal(dict)
+
     def __init__(self):
         super().__init__()
         self._current_object = None
@@ -451,6 +453,7 @@ class CommonAttributeInterface(QObject):
         for active_cell in self.get_active_cells():
             assert re.fullmatch(r'\w+', active_cell.name), 'Name {} for attr is not possible'.format(active_cell.name)
             setattr(curr_obj, active_cell.name, active_cell.value)
+        self.obj_created.emit({'obj_1': "lala"})
 
     @pyqtSlot()
     def apply_changes(self):
