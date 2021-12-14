@@ -374,6 +374,7 @@ class CommonAttributeInterface(QObject):
                 cls = get_class_by_str(cell.str_req)
                 cell.str_value = str_value
                 af = AttributeFormat(BSSAttributeType('splitter'), out_name, cell.str_value, cls.unique_values)
+                cell.active = True
             elif cell.cell_type == 'no_check':
                 af = AttributeFormat(BSSAttributeType('title'), out_name)
             else:
@@ -450,10 +451,12 @@ class CommonAttributeInterface(QObject):
 
     def create_obj_attributes(self):
         curr_obj = self.current_object
+        attribs_dict = {}
         for active_cell in self.get_active_cells():
             assert re.fullmatch(r'\w+', active_cell.name), 'Name {} for attr is not possible'.format(active_cell.name)
+            attribs_dict[active_cell.name] = active_cell.value
             setattr(curr_obj, active_cell.name, active_cell.value)
-        self.obj_created.emit({'obj_1': "lala"})
+        self.obj_created.emit({curr_obj: None})
 
     @pyqtSlot()
     def apply_changes(self):
