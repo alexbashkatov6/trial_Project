@@ -303,7 +303,7 @@ class GroundLine(AttrControlObject):
 
 class CommonAttributeInterface(QObject):
     send_attrib_list = pyqtSignal(list)
-    send_single_value = pyqtSignal(AttributeFormat)
+    # send_single_value = pyqtSignal(AttributeFormat)
     send_class_str = pyqtSignal(str)
     create_readiness = pyqtSignal(bool)
     default_attrib_list = [AttributeFormat(BSSAttributeType('title'), '<pick object>')]
