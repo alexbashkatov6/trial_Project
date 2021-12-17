@@ -16,6 +16,9 @@ class ImgBuilder:
 
 class ImgValidator:
     def __init__(self, manager: ImagesManager):
+        """
+        Main idea is use built-in Python interpreter for string evaluations
+        """
         self.mng = manager
 
     def validate_value(self):
@@ -24,6 +27,11 @@ class ImgValidator:
 
 class ImgCommandSupervisor:
     def __init__(self, manager: ImagesManager):
+        """
+        Undo commands for command:
+        create([obj_1, obj_2, ...]) <-> delete([obj_1, obj_2, ...])
+        edit(obj -> e_obj) <-> edit(e_obj -> obj)
+        """
         self.mng = manager
         self.redo_commands = []
         self.undo_commands = []
@@ -31,8 +39,12 @@ class ImgCommandSupervisor:
 
 class ImgDependenceGraph:
     def __init__(self, manager: ImagesManager):
+        """
+        Batch execution:
+        virtual_builtin -> linearize -> validate_img
+        """
         self.mng = manager
-        self.clear_dg = None
+        self.clean_dg = None
 
     def virtual_builtin(self):
         pass
