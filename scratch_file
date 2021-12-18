@@ -578,5 +578,28 @@ class AlwaysTrueValidator(QValidator):
 #     def info_message(self, val):
 #         QMessageBox.about(self.mw, "Title", val)
 
+# --------------------------------  Layout cleaning ----------------
 
+        # self.main_layout = QVBoxLayout()
+        # self.setLayout(self.main_layout)
+        # self.widgets_dict: dict[QWidget, QWidget] = {}
+
+        # layout_stack = [self.main_layout]
+        # while layout_stack:
+        #     current_layout = layout_stack.pop()
+        #     count = current_layout.count()
+        #     wgts = set()
+        #     for index in range(count):
+        #         item = current_layout.itemAt(index)
+        #         if isinstance(item, QLayout):
+        #             layout_stack.append(item)
+        #         elif isinstance(item, QWidgetItem):
+        #             wgt = item.widget()
+        #             wgts.add(wgt)
+        #         else:
+        #             assert False, 'Other variants'
+        #     for wgt in wgts:
+        #         wgt.setParent(None)
+        #     if not (current_layout is self.main_layout):
+        #         current_layout.setParent(None)
 

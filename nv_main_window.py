@@ -66,9 +66,6 @@ class AttribColumn(QWidget):
         super().__init__(parent)
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
-        # self.main_layout = QVBoxLayout()
-        # self.setLayout(self.main_layout)
-        # self.widgets_dict: dict[QWidget, QWidget] = {}
 
     def clean(self):
         if hasattr(self, 'column'):
@@ -81,47 +78,29 @@ class AttribColumn(QWidget):
         self.column.setLayout(self.column_layout)
         self.widgets_dict = {}
 
-        # layout_stack = [self.main_layout]
-        # while layout_stack:
-        #     current_layout = layout_stack.pop()
-        #     count = current_layout.count()
-        #     wgts = set()
-        #     for index in range(count):
-        #         item = current_layout.itemAt(index)
-        #         if isinstance(item, QLayout):
-        #             layout_stack.append(item)
-        #         elif isinstance(item, QWidgetItem):
-        #             wgt = item.widget()
-        #             wgts.add(wgt)
-        #         else:
-        #             assert False, 'Other variants'
-        #     for wgt in wgts:
-        #         wgt.setParent(None)
-        #     if not (current_layout is self.main_layout):
-        #         current_layout.setParent(None)
-
     def init_from_container(self, af_list):
+        af_list: list[dict]
         self.clean()
         for af in af_list:
             attr_layout = QHBoxLayout()
-            if af.attr_type == 'title':
-                attr_layout.addWidget(QLabel(af.attr_name, self.column))
-            if af.attr_type == 'splitter':
-                name_wgt = QLabel(af.attr_name, self.column)
+            if af['attr_type'] == 'title':
+                attr_layout.addWidget(QLabel(af['attr_name'], self.column))
+            if af['attr_type'] == 'splitter':
+                name_wgt = QLabel(af['attr_name'], self.column)
                 attr_layout.addWidget(name_wgt)
                 value_wgt = QComboBox(self.column)
-                value_wgt.addItems(af.possible_values)
-                value_wgt.setCurrentText(af.attr_value)
+                value_wgt.addItems(af['possible_values'])
+                value_wgt.setCurrentText(af['attr_value'])
                 value_wgt.currentTextChanged.connect(self.changed_value)
                 attr_layout.addWidget(value_wgt)
                 self.widgets_dict[value_wgt] = name_wgt
-            if af.attr_type == 'str_value':
-                name_wgt_0 = QLabel(af.attr_name, self.column)
-                name_wgt_0.setToolTip(af.req_type_str)
+            if af['attr_type'] == 'str_value':
+                name_wgt_0 = QLabel(af['attr_name'], self.column)
+                name_wgt_0.setToolTip(af['req_type_str'])
                 attr_layout.addWidget(name_wgt_0)
-                value_wgt_0 = QLineEdit(af.attr_value, self.column)
+                value_wgt_0 = QLineEdit(af['attr_value'], self.column)
                 self.set_bool_color(value_wgt_0, af)
-                value_wgt_0.setToolTip(af.status_check)
+                value_wgt_0.setToolTip(af['status_check'])
                 value_wgt_0.returnPressed.connect(self.edit_finished)
                 value_wgt_0.textEdited.connect(self.color_reset)
                 attr_layout.addWidget(value_wgt_0)
@@ -146,12 +125,12 @@ class AttribColumn(QWidget):
         sender.setStyleSheet("background-color: white")
 
     @staticmethod
-    def set_bool_color(le: QLineEdit, af: AttributeFormat):
-        if af.attr_value == '':
+    def set_bool_color(le: QLineEdit, af: dict):
+        if af['attr_value'] == '':
             le.setStyleSheet("background-color: white")
-        elif af.status_check:
+        elif af['status_check']:
             le.setStyleSheet("background-color: red")
-        elif af.is_suggested:
+        elif af['is_suggested'] == 'True':
             le.setStyleSheet("background-color: yellow")
         else:
             le.setStyleSheet("background-color: green")
@@ -189,13 +168,13 @@ class ToolBarOfAttributes(QToolBar):
     def set_attr_struct(self, af_list):
         self.attributes_column.init_from_container(af_list)
 
-    @pyqtSlot(str)
-    def set_class_str(self, class_str):
-        self.active_class_label.setText(class_str)
+    @pyqtSlot(dict)
+    def set_class_str(self, d_class_str):
+        self.active_class_label.setText(d_class_str["class_name"])
 
-    @pyqtSlot(bool)
-    def set_active_apply(self, active_apply):
-        self.apply_button.setEnabled(active_apply)
+    @pyqtSlot(dict)
+    def set_active_apply(self, d_active_apply):
+        self.apply_button.setEnabled(d_active_apply['cr_ready'] == "True")
 
     @pyqtSlot(str)
     def set_focus_widget_value(self, obj_name_str):

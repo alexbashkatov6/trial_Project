@@ -20,10 +20,14 @@ class ImgAttribView(QObject):
     'attr_value': str,
     'possible_values': list[str],
     'status_check': str,
-    'req_type': str,
+    'req_type_str': str,
     'is_suggested': str
     } 
     """
+    send_class_name = pyqtSignal(dict)
+    """ format of data exchange {'class_name': str} """
+    send_create_readiness = pyqtSignal(dict)
+    """ format of data exchange {'cr_ready': str} """
 
     def __init__(self, manager: ImagesManager):
         super().__init__()
@@ -46,6 +50,37 @@ class ImgAttribView(QObject):
 
 
 class ImgTreeView(QObject):
+    send_tree_view = pyqtSignal(dict)
+    """ format of data exchange
+    {
+    "classes_list":
+    [
+        {
+        "class_name": str,
+        "objects_list":
+        [
+            {
+                "obj_name": str,
+                "pick_status": str,
+                "corrupt_status": str
+            }
+            {
+                ...
+            }
+            ...
+        ]
+        }
+        {
+            ...
+        }
+        ...
+    ]
+    }"""
+    send_object_info = pyqtSignal(dict)
+    """ 
+    list of attributes; format of each attribute shown above
+    """
+
     def __init__(self, manager: ImagesManager):
         super().__init__()
         self.mng = manager
