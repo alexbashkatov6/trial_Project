@@ -5,9 +5,13 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 
 from nv_config import CLASSES_SEQUENCE
 
-""" data exchange (submit/receive) 
+""" 
+--------------------------------------
+data exchange (submit/receive) 
 implemented throw dict[str, str] only  
-for json-compatibility """
+for json-compatibility 
+--------------------------------------
+"""
 
 
 class ImgAttribView(QObject):
@@ -34,7 +38,7 @@ class ImgAttribView(QObject):
         self.mng = manager
 
     @pyqtSlot(dict)
-    def set_image_class(self, d):
+    def set_new_image_class(self, d):
         """ format of data exchange {'class_name': str} """
         new_img_cls = d["class_name"]
 

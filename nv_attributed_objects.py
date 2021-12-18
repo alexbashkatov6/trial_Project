@@ -378,7 +378,7 @@ class CommonAttributeInterface(QObject):
             elif cell.cell_type == 'no_check':
                 af = AttributeFormat(BSSAttributeType('title'), out_name)
             else:
-                af = AttributeFormat(BSSAttributeType('str_value'), out_name, cell.str_value)
+                af = AttributeFormat(BSSAttributeType('form'), out_name, cell.str_value)
                 cell.active = True
 
             af.status_check = cell.status_check

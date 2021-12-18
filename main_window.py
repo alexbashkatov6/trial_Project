@@ -115,7 +115,7 @@ class AttribColumn(QWidget):
                 value_wgt.currentTextChanged.connect(self.changed_value)
                 attr_layout.addWidget(value_wgt)
                 self.widgets_dict[value_wgt] = name_wgt
-            if af.attr_type == 'str_value':
+            if af.attr_type == 'form':
                 name_wgt_0 = QLabel(af.attr_name, self.column)
                 name_wgt_0.setToolTip(af.req_type_str)
                 attr_layout.addWidget(name_wgt_0)
