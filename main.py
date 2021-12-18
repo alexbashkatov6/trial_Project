@@ -5,9 +5,8 @@ from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QObject
 
 from main_window import MW
-from messages import MessagesManager
 from nv_attributed_objects import CommonAttributeInterface
-from graphical_object import Frame, BaseFrame  # ContinuousVisibleArea,
+from graphical_object import Frame, BaseFrame
 from core_object_handler import CoreObjectHandler
 
 
@@ -23,10 +22,8 @@ class Director(QObject):
     def __init__(self):
         super().__init__()
         self.mw = MW()
-        self.mm = MessagesManager(self.mw)
         self.cai = CommonAttributeInterface()
-        # self.cva = ContinuousVisibleArea()
-        self.coh = CoreObjectHandler()  # PatternFrame
+        self.coh = CoreObjectHandler()  #
         self.pfr = BaseFrame()  # PatternFrame
         self.cfr = Frame(self.pfr)  # CaptureFrame
 
