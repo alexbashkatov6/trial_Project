@@ -8,7 +8,7 @@ import time
 from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set
 from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
-from nv_cell import Cell
+from nv_cell import AttribCell
 from nv_errors import CycleError
 
 End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
@@ -943,6 +943,11 @@ class GraphStateSaver:
         return self.saved_graph
 
 
+class ContentFilter:
+    def __init__(self):
+        pass
+
+
 class AssociationsManager:
 
     @strictly_typed
@@ -982,14 +987,14 @@ class AssociationsManager:
 
     @property
     # @strictly_typed
-    def cell_dicts(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, Cell]]:
+    def cell_dicts(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, AttribCell]]:
         return copy(self._cell_dicts)
 
     @strictly_typed
     def get_old_link_change_associations(self, link_before: PGLink,
                                          moves_before: tuple[PGMove, PGMove],
                                          old_am: Optional[AssociationsManager] = None) \
-            -> tuple[Optional[dict[str, Cell]], dict[PGMove, dict[str, Cell]]]:
+            -> tuple[Optional[dict[str, AttribCell]], dict[PGMove, dict[str, AttribCell]]]:
         am = old_am if old_am else self
         link_dict = None
         if link_before in am.cell_dicts:
@@ -1063,7 +1068,7 @@ class AssociationsManager:
 
     @strictly_typed
     def bind_cell(self, element: Union[PolarNode, PGLink, PGMove],
-                  cell: Cell,
+                  cell: AttribCell,
                   context: Optional[str] = None,
                   rebind_allowed: bool = True) -> None:
         if not (context is None):
@@ -1183,7 +1188,7 @@ class AssociationsManager:
 
     @strictly_typed
     def get_elm_cell_by_context(self, element: Union[PolarNode, PGLink, PGMove], context: Optional[str] = None) \
-            -> Optional[Cell]:
+            -> Optional[AttribCell]:
         if element not in self.cell_dicts:
             return
         if context is None:
@@ -1261,7 +1266,7 @@ class AssociationsManager:
             self.access_function(cell, value)
 
     @strictly_typed
-    def extract_route_content(self, route: PGRoute) -> list[set[Cell]]:
+    def extract_route_content(self, route: PGRoute) -> list[set[AttribCell]]:
         result = []
         for element in route.sequence:
             element_result = set()

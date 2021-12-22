@@ -16,7 +16,7 @@ from nv_polar_graph import (End,
                             PGRoute,
                             GraphStateSaver)
 from nv_attribute_format import BSSAttributeType, AttributeFormat
-from nv_cell import Cell, BSSCellType
+from nv_cell import AttribCell, BSSAttribCellType
 from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, NEW_OBJECT_NAME
 from nv_errors import CellError
 
@@ -113,7 +113,7 @@ def name_translator_interface_to_storage(input_str: str):
     return input_str.replace(' ', '_').lower()
 
 
-def get_splitter_nodes_cells(graph_template_: BasePolarGraph) -> set[tuple[PolarNode, Cell]]:
+def get_splitter_nodes_cells(graph_template_: BasePolarGraph) -> set[tuple[PolarNode, AttribCell]]:
     values = set()
     for node in graph_template_.not_inf_nodes:
         cell = graph_template_.am.cell_dicts[node]['attrib_node']
@@ -137,7 +137,7 @@ def expand_splitters(graph_template_: BasePolarGraph):
         for link_ in node.ni_nd.links:
             move_ = node.ni_nd.get_move(link_)
             unique_value = unique_values.pop()
-            graph_template_.am.bind_cell(move_, Cell(unique_value))
+            graph_template_.am.bind_cell(move_, AttribCell(unique_value))
 
 
 def init_splitter_move_activation(graph_template_: BasePolarGraph):
@@ -174,18 +174,18 @@ class AttribBuildGraphTemplateDescriptor:
             node_co_x = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
             node_co_y = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
 
-            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
+            a_m.bind_cell(node_rel_cs, AttribCell('cs_relative_to', 'CoordinateSystem'))
             a_m.bind_cell(node_check_dependence,
-                          Cell('dependence', 'BSSDependency', 'independent', BSSCellType('common_splitter')))
-            a_m.bind_cell(node_x, Cell('x', 'int'))
-            a_m.bind_cell(move_to_x, Cell('dependent'))
-            a_m.bind_cell(node_y, Cell('y', 'int'))
-            a_m.bind_cell(node_alpha, Cell('alpha', 'int'))
-            a_m.bind_cell(move_to_alpha, Cell('independent'))
+                          AttribCell('dependence', 'BSSDependency', 'independent', BSSAttribCellType('common_splitter')))
+            a_m.bind_cell(node_x, AttribCell('x', 'int'))
+            a_m.bind_cell(move_to_x, AttribCell('dependent'))
+            a_m.bind_cell(node_y, AttribCell('y', 'int'))
+            a_m.bind_cell(node_alpha, AttribCell('alpha', 'int'))
+            a_m.bind_cell(move_to_alpha, AttribCell('independent'))
             a_m.bind_cell(node_connect_polarity,
-                          Cell('connection_polarity', 'End', 'negative_down', BSSCellType('common_splitter')))
-            a_m.bind_cell(node_co_x, Cell('co_x', 'BSSBool', 'True', BSSCellType('bool_splitter')))
-            a_m.bind_cell(node_co_y, Cell('co_y', 'BSSBool', 'True', BSSCellType('bool_splitter')))
+                          AttribCell('connection_polarity', 'End', 'negative_down', BSSAttribCellType('common_splitter')))
+            a_m.bind_cell(node_co_x, AttribCell('co_x', 'BSSBool', 'True', BSSAttribCellType('bool_splitter')))
+            a_m.bind_cell(node_co_y, AttribCell('co_y', 'BSSBool', 'True', BSSAttribCellType('bool_splitter')))
 
         if owner == GroundLine:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
@@ -196,14 +196,14 @@ class AttribBuildGraphTemplateDescriptor:
             move_to_rotate = node_translate_or_rotate.ni_nd.get_move(link_up_rotate)
             node_alpha, _, _ = g_b_t.insert_node_single_link(node_center_point.ni_nd)
 
-            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
+            a_m.bind_cell(node_rel_cs, AttribCell('cs_relative_to', 'CoordinateSystem'))
             a_m.bind_cell(node_translate_or_rotate,
-                          Cell('move_method', 'BSSMoveMethod', 'translational', BSSCellType('common_splitter')))
-            a_m.bind_cell(move_to_translate, Cell('translational'))
-            a_m.bind_cell(move_to_rotate, Cell('rotational'))
-            a_m.bind_cell(node_y, Cell('y', 'int'))
-            a_m.bind_cell(node_center_point, Cell('center_point', 'Point'))
-            a_m.bind_cell(node_alpha, Cell('alpha', 'int'))
+                          AttribCell('move_method', 'BSSMoveMethod', 'translational', BSSAttribCellType('common_splitter')))
+            a_m.bind_cell(move_to_translate, AttribCell('translational'))
+            a_m.bind_cell(move_to_rotate, AttribCell('rotational'))
+            a_m.bind_cell(node_y, AttribCell('y', 'int'))
+            a_m.bind_cell(node_center_point, AttribCell('center_point', 'Point'))
+            a_m.bind_cell(node_alpha, AttribCell('alpha', 'int'))
 
         if owner == Point:
             node_rel_cs, _, _ = g_b_t.insert_node_single_link()
@@ -214,22 +214,22 @@ class AttribBuildGraphTemplateDescriptor:
             node_line, link_line, _ = g_b_t.insert_node_single_link(node_gl_or_line.ni_nd)
             move_to_line = node_gl_or_line.ni_nd.get_move(link_line)
 
-            a_m.bind_cell(node_rel_cs, Cell('cs_relative_to', 'CoordinateSystem'))
-            a_m.bind_cell(node_x, Cell('x', 'int'))
+            a_m.bind_cell(node_rel_cs, AttribCell('cs_relative_to', 'CoordinateSystem'))
+            a_m.bind_cell(node_x, AttribCell('x', 'int'))
             a_m.bind_cell(node_gl_or_line,
-                          Cell('on_line_or_ground_line', 'BSSGroundLineOrLine',
-                               'ground_line', BSSCellType('common_splitter')))
-            a_m.bind_cell(move_to_gl, Cell('ground_line'))
-            a_m.bind_cell(move_to_line, Cell('line'))
-            a_m.bind_cell(node_gl, Cell('ground_line', 'GroundLine'))
-            a_m.bind_cell(node_line, Cell('line', 'Line'))
+                          AttribCell('on_line_or_ground_line', 'BSSGroundLineOrLine',
+                               'ground_line', BSSAttribCellType('common_splitter')))
+            a_m.bind_cell(move_to_gl, AttribCell('ground_line'))
+            a_m.bind_cell(move_to_line, AttribCell('line'))
+            a_m.bind_cell(node_gl, AttribCell('ground_line', 'GroundLine'))
+            a_m.bind_cell(node_line, AttribCell('line', 'Line'))
 
         if owner == Line:
             node_first_point, _, _ = g_b_t.insert_node_single_link()
             node_second_point, _, _ = g_b_t.insert_node_single_link(node_first_point.ni_nd)
 
-            a_m.bind_cell(node_first_point, Cell('first_point', 'Point'))
-            a_m.bind_cell(node_second_point, Cell('second_point', 'Point'))
+            a_m.bind_cell(node_first_point, AttribCell('first_point', 'Point'))
+            a_m.bind_cell(node_second_point, AttribCell('second_point', 'Point'))
 
         expand_splitters(g_b_t)
         instance._graph_build_template = g_b_t
@@ -259,11 +259,11 @@ class AttribCommonGraphTemplateDescriptor:
         node_evaluate_title, _, _ = g_t.insert_node_single_link(node_build_title.ni_nd)
         node_view_title, _, _ = g_t.insert_node_single_link(node_evaluate_title.ni_nd)
 
-        a_m.bind_cell(node_name_title, Cell('Name options'))
-        a_m.bind_cell(node_name, Cell('name', owner.__name__, cell_type=BSSCellType('name')))
-        a_m.bind_cell(node_build_title, Cell('Build options'))
-        a_m.bind_cell(node_evaluate_title, Cell('Evaluation options'))
-        a_m.bind_cell(node_view_title, Cell('View options'))
+        a_m.bind_cell(node_name_title, AttribCell('Name options'))
+        a_m.bind_cell(node_name, AttribCell('name', owner.__name__, cell_type=BSSAttribCellType('name')))
+        a_m.bind_cell(node_build_title, AttribCell('Build options'))
+        a_m.bind_cell(node_evaluate_title, AttribCell('Evaluation options'))
+        a_m.bind_cell(node_view_title, AttribCell('View options'))
 
         gbt = instance.graph_build_template
         g_t.aggregate(gbt, node_build_title.ni_nd, node_evaluate_title.ni_pu)
@@ -427,7 +427,7 @@ class CommonAttributeInterface(QObject):
         g = curr_obj.graph_template
         node: PolarNode = g.am.get_single_elm_by_cell_content(PolarNode, name)
         assert node, 'Node not found'
-        node_cell: Cell = g.am.get_elm_cell_by_context(node)
+        node_cell: AttribCell = g.am.get_elm_cell_by_context(node)
         assert node_cell, 'Node cell not found'
         node_cell.str_value = new_value
         node_cell.is_suggested_value = False
@@ -439,7 +439,7 @@ class CommonAttributeInterface(QObject):
         self.send_attrib_list.emit(af_list)
         self.check_all_values_defined()
 
-    def get_active_cells(self) -> set[Cell]:
+    def get_active_cells(self) -> set[AttribCell]:
         curr_obj = self.current_object
         g = curr_obj.graph_template
         return {g.am.get_elm_cell_by_context(node) for node in g.am.get_filter_all_cells(PolarNode)}
@@ -564,7 +564,7 @@ class GlobalDataManager:
         a_m.auto_set_curr_context()
         for cls_name in CLASSES_SEQUENCE:
             node_class, _, _ = self.tree_graph.insert_node_single_link()
-            a_m.bind_cell(node_class, Cell(cls_name))
+            a_m.bind_cell(node_class, AttribCell(cls_name))
 
     def init_dependence_graph(self):
         a_m = self.dependence_graph.am
@@ -588,7 +588,7 @@ class GlobalDataManager:
         dg = self.dependence_graph
         a_m = dg.am
         gcs_node, _, _ = dg.insert_node_single_link()
-        a_m.bind_cell(gcs_node, Cell(GROUND_CS_NAME))
+        a_m.bind_cell(gcs_node, AttribCell(GROUND_CS_NAME))
 
     @property
     def gcs(self) -> CoordinateSystem:
@@ -606,9 +606,9 @@ class GlobalDataManager:
         node_class = a_m.get_single_elm_by_cell_content(PolarNode, obj.__class__.__name__)
         assert node_class, 'Node class not found'
         node_obj, _, _ = tg.insert_node_single_link(node_class.ni_nd)
-        a_m.bind_cell(node_obj, Cell(obj.name, str_value='default'))
+        a_m.bind_cell(node_obj, AttribCell(obj.name, str_value='default'))
 
-    def auto_set_name(self, cell: Cell, obj: AttrControlObject):
+    def auto_set_name(self, cell: AttribCell, obj: AttrControlObject):
         if cell.str_value:
             return
         if cell.cell_type == 'name':
@@ -628,7 +628,7 @@ class GlobalDataManager:
     # def check_success_before(self, cell: Cell):
     #     return cell.status_check == ''
 
-    def check_syntax(self, cell: Cell, obj: AttrControlObject = None):
+    def check_syntax(self, cell: AttribCell, obj: AttrControlObject = None):
         if cell.cell_type == 'common_splitter' or cell.cell_type == 'bool_splitter':
             cls = eval(cell.str_req)
             if cell.str_value not in cls.possible_strings:
@@ -677,13 +677,13 @@ class GlobalDataManager:
             else:
                 cell.eval_buffer = eval_result
 
-    def check_type(self, cell: Cell):
+    def check_type(self, cell: AttribCell):
         if cell.cell_type == 'default':
             if not type_verification(cell.str_req, cell.eval_buffer):
                 cell.status_check = 'Type requirement not satisfied'
                 raise CellError(cell.status_check)
 
-    def check_dependence_loop(self, cell: Cell, obj: AttrControlObject):
+    def check_dependence_loop(self, cell: AttribCell, obj: AttrControlObject):
         if cell.cell_type == 'default':
             found_attr_obj = False
             for attr_obj_cls in CLASSES_SEQUENCE:
@@ -702,7 +702,7 @@ class GlobalDataManager:
                 if obj_node is None:
                     # print('obj node not found!')
                     obj_node, _, _ = dg.insert_node_single_link()
-                    a_m.bind_cell(obj_node, Cell(obj_name))
+                    a_m.bind_cell(obj_node, AttribCell(obj_name))
                 GSS = GraphStateSaver()
                 GSS.save_graph_state(dg)
                 attr_name = cell.name
@@ -720,7 +720,7 @@ class GlobalDataManager:
                         assert parent_obj_node, 'Parent_obj_node not found'
                         if attr_node is None:
                             attr_node, _, _ = dg.insert_node_single_link(parent_obj_node.ni_nd, obj_node.ni_pu)
-                            a_m.bind_cell(attr_node, Cell(attr_full_name))
+                            a_m.bind_cell(attr_node, AttribCell(attr_full_name))
                         else:
                             dg.connect_nodes_auto_inf_handling(parent_obj_node.ni_nd, attr_node.ni_pu)
                 if (len(attr_node.ni_pu.links) == 1) and (
@@ -794,7 +794,7 @@ class GlobalDataManager:
             cell.name = new_name
         assert found, 'Not found'
 
-    def get_obj_by_cell(self, cell: Cell):
+    def get_obj_by_cell(self, cell: AttribCell):
         pass
 
 

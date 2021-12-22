@@ -35,7 +35,8 @@ AttribNodeAssociation = bounded_string_set('AttribNodeAssociation', [['attrib_no
 AttribMoveAssociation = bounded_string_set('AttribMoveAssociation', [['splitter_value_move']], MoveAssociation)
 TreeNodeAssociation = bounded_string_set('TreeNodeAssociation', [['class_object_node']], NodeAssociation)
 DependenceNodeAssociation = bounded_string_set('DependenceNodeAssociation', [['obj_or_attr_node']], NodeAssociation)
-FieldNodeAssociation = bounded_string_set('FieldNodeAssociation', [['railway_point_node'],
+FieldNodeAssociation = bounded_string_set('FieldNodeAssociation', [['r_point_center_node'],
+                                                                   ['r_point_geom_node'],
                                                                    ['light_node'],
                                                                    ['crossroad_intersection_node'],
                                                                    ['worker_node'],
@@ -48,7 +49,7 @@ FieldNodeAssociation = bounded_string_set('FieldNodeAssociation', [['railway_poi
 FieldLinkAssociation = bounded_string_set('FieldLinkAssociation', [['isolation_zone_link'],
                                                                    ['station_zone_link'],
                                                                    ['velocity_zone_link']], LinkAssociation)
-FieldMoveAssociation = bounded_string_set('FieldMoveAssociation', [['railway_point_position_move']], MoveAssociation)
+FieldMoveAssociation = bounded_string_set('FieldMoveAssociation', [['r_point_position_move']], MoveAssociation)
 
 
 if __name__ == '__main__':

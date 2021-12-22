@@ -7,30 +7,43 @@ from nv_errors import CellError, TypeCellError, SyntaxCellError
 from nv_bounded_string_set_class import bounded_string_set
 from nv_typing import *
 
-BSSCellType = bounded_string_set('BSSCellType', [['default'],
-                                                 ['no_check'],
-                                                 ['name'],
-                                                 ['common_splitter'],
-                                                 ['bool_splitter']])
+BSSAttribCellType = bounded_string_set('BSSAttribCellType', [['default'],
+                                                             ['no_check'],
+                                                             ['name'],
+                                                             ['common_splitter'],
+                                                             ['bool_splitter']])
 
 
 class Cell:
+    def __init__(self):
+        self._value = None
 
-    @strictly_typed
+    @property
+    def value(self) -> Any:
+        return self._value
+
+    @value.setter
+    def value(self, val: Any):
+        self._value = val
+
+
+class AttribCell(Cell):
+
+    # @strictly_typed
     def __init__(self, name: str, str_req: str = '', str_value: str = '',
-                 cell_type: BSSCellType = BSSCellType('default')) -> None:
+                 cell_type: BSSAttribCellType = BSSAttribCellType('default')) -> None:
+        super().__init__()
         self._name = name
         self._str_req = str_req
         self._str_value = str_value
         self._cell_type = cell_type
         if not str_req:
-            self._cell_type = BSSCellType('no_check')
+            self._cell_type = BSSAttribCellType('no_check')
 
         self._active = False
         self._is_suggested_value = False
         self._status_check = ''
         self._eval_buffer = None
-        self._value = None
 
     @property
     def name(self):
@@ -95,11 +108,3 @@ class Cell:
     @eval_buffer.setter
     def eval_buffer(self, val: Any):
         self._eval_buffer = val
-
-    @property
-    def value(self) -> Any:
-        return self._value
-
-    @value.setter
-    def value(self, val: Any):
-        self._value = val
