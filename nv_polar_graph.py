@@ -597,6 +597,15 @@ class PolarGraph:
             self._moves_activate_by_ends(*link.ni_s)
 
 
+class LocalDirection:
+    def __init__(self, pn_1: PolarNode, pn_2: PolarNode):
+        self.pn_1 = pn_1
+        self.pn_2 = pn_2
+
+    def __repr__(self):
+        return '{}({}, {})'.format(self.__class__.__name__, self.pn_1, self.pn_2)
+
+
 class PGRoute(PolarGraph):
 
     @strictly_typed
@@ -655,6 +664,9 @@ class PGRoute(PolarGraph):
     @strictly_typed
     def route_end(self, value: PGNodeInterface) -> None:
         self._route_end = value
+
+    def directionCheckLocal(self, ld: LocalDirection):
+        pass
 
 
 class BasePolarGraph(PolarGraph):
