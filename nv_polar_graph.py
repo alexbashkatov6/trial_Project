@@ -955,9 +955,23 @@ class GraphStateSaver:
         return self.saved_graph
 
 
-class ContentFilter:
+class ContentAccess:
     def __init__(self):
         pass
+
+    def apply_filter(self, f: Callable, objs: Iterable, one_expected: False):
+        """ one_expected = True -> find function """
+        out_type = type(objs)
+        return out_type(filter(f, objs))
+
+    # def change_found(self, attr_name: str, value: Any):
+    #     pass
+
+
+class Cell:
+    def __init__(self, element: Union[PolarNode, PGLink, PGMove]):
+        self.element = element
+        self.attached_objects = []
 
 
 class AssociationsManager:
