@@ -8,8 +8,8 @@ import time
 
 from nv_typing import *
 from nv_bounded_string_set_class import bounded_string_set
-from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
-from nv_cell import AttribCell
+# from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
+# from nv_cell import AttribCell
 from nv_errors import CycleError
 
 End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
@@ -965,343 +965,36 @@ class ContentAccess:
         out_type = type(objs)
         return out_type(filter(f, objs))
 
-    # def change_found(self, attr_name: str, value: Any):
-    #     pass
-
-
-
 
 class AssociationsManager:
 
-    # @strictly_typed
     def __init__(self, bpg: BasePolarGraph) -> None:
         self._base_polar_graph = bpg
 
-        self._cell_dicts = {}
-
-        self._node_assoc_class = None
-        self._link_assoc_class = None
-        self._move_assoc_class = None
-
+        self._cell_dict: dict[Union[PolarNode, PGLink, PGMove], list[Cell]] = {}
         self._dict_storage_attribute = {PolarNode: 'nodes', PGLink: 'links', PGMove: 'moves'}
-        self._dict_assoc_class = None
-
-        self._find_function = self.default_find_function  # getter
-        self._filter_function = self.default_filter_function  # getter
-        self._access_function = self.default_access_function  # setter
-        self._curr_context = {}
 
     @property
-    @strictly_typed
     def base_polar_graph(self) -> BasePolarGraph:
         return self._base_polar_graph
 
-    @staticmethod
-    def default_find_function(x):
-        return x.name
-
-    @staticmethod
-    def default_filter_function(x):
-        return x.active
-
-    @staticmethod
-    def default_access_function(x, val):
-        x.str_value = val
-
     @property
-    # @strictly_typed
-    def cell_dicts(self) -> dict[Union[PolarNode, PGLink, PGMove], dict[str, AttribCell]]:
-        return copy(self._cell_dicts)
+    def cell_dict(self) -> dict[Union[PolarNode, PGLink, PGMove], list[Cell]]:
+        return copy(self._cell_dict)
 
-    @strictly_typed
-    def get_old_link_change_associations(self, link_before: PGLink,
-                                         moves_before: tuple[PGMove, PGMove],
-                                         old_am: Optional[AssociationsManager] = None) \
-            -> tuple[Optional[dict[str, AttribCell]], dict[PGMove, dict[str, AttribCell]]]:
-        am = old_am if old_am else self
-        link_dict = None
-        if link_before in am.cell_dicts:
-            link_dict = am.cell_dicts[link_before]
-        move_dict = {}
-        for move in moves_before:
-            if move in am.cell_dicts:
-                move_dict[move] = am.cell_dicts[move]
-        return link_dict, move_dict
+    def bind_cell(self, cell, element):
+        if element not in self.cell_dict:
+            self.cell_dict[element] = []
+        self.cell_dict[element].append(cell)
 
-    @strictly_typed
-    def replace_link_after_node_change(self, link_before: PGLink,
-                                       moves_before: tuple[PGMove, PGMove],
-                                       link_after: PGLink,
-                                       old_am: Optional[AssociationsManager] = None) -> None:
-        link_dict, move_dict = self.get_old_link_change_associations(link_before, moves_before, old_am)
-        if not (link_dict is None):
-            self._cell_dicts[link_after] = link_dict
-        ni_s_before = link_before.ni_s
-        ni_s_after = link_after.ni_s
-        common_ni_s = set(ni_s_before) & set(ni_s_after)
-        assert len(common_ni_s) == 1, 'Len of common nis should be 1'
-        common_ni = common_ni_s.pop()
-        old_not_common_ni = (set(ni_s_before) - {common_ni}).pop()
-        new_not_common_ni = (set(ni_s_after) - {common_ni}).pop()
-        for old_move in move_dict:
-            if old_move.ni is common_ni:
-                new_move = common_ni.get_move(link_after)
-                self._cell_dicts[new_move] = move_dict[old_move]
-                continue
-            if old_move.ni is old_not_common_ni:
-                new_move = new_not_common_ni.get_move(link_after)
-                self._cell_dicts[new_move] = move_dict[old_move]
-                continue
-            assert False, 'Cannot be variants'
+    def unbind_cell(self, cell, element):
+        self.cell_dict[element].remove(cell)
 
-    @strictly_typed
-    def replace_link_after_split(self, link_before: PGLink,
-                                 moves_before: tuple[PGMove, PGMove],
-                                 links_after: tuple[PGLink, PGLink]) -> None:
-        link_dict, move_dict = self.get_old_link_change_associations(link_before, moves_before)
-        ni_s_before = link_before.ni_s
-        ni_s_found = set()
-        for link_after in links_after:
-            if not (link_dict is None):
-                self._cell_dicts[link_after] = link_dict
-            for ni in ni_s_before:
-                if ni in link_after.ni_s:
-                    ni_s_found.add(ni)
-                    move_after = ni.get_move(link_after)
-                    for move in move_dict:
-                        if ni is move.ni:
-                            self._cell_dicts[move_after] = move_dict[move]
-        assert ni_s_found == set(link_before.ni_s), 'Not all ni_s found'
-
-    @strictly_typed
-    def aggregate_refresh_cells(self, old_am: AssociationsManager,
-                                elements: Iterable[Union[PolarNode, PGLink, PGMove]]) -> None:
+    def expand_cell(self, cell, old_element, elements, remove_old_bind=True):
+        if remove_old_bind:
+            self.unbind_cell(cell, old_element)
         for element in elements:
-            assert element not in self.cell_dicts, 'Element already in current am'
-            if element not in old_am.cell_dicts:
-                continue
-            ocs = old_am.cell_dicts[element]
-            self._cell_dicts[element] = ocs
-
-    @strictly_typed
-    def refresh_cells_unphysical_nodes_remove(self) -> None:
-        for element in self.cell_dicts:
-            if isinstance(element, PolarNode) and (element not in self.base_polar_graph.nodes):
-                self._cell_dicts.pop(element)
-
-    @strictly_typed
-    def bind_cell(self, element: Union[PolarNode, PGLink, PGMove],
-                  cell: AttribCell,
-                  context: Optional[str] = None,
-                  rebind_allowed: bool = True) -> None:
-        if not (context is None):
-            assert context in self.dict_assoc_class[type(element)].possible_strings, \
-                'Context {} not found'.format(context)
-        else:
-            poss_str = self.dict_assoc_class[type(element)].possible_strings
-            assert len(poss_str) == 1, \
-                'Context should be specified, more then 1 values: {}'.format(poss_str)
-            context = set(poss_str).pop()
-        if not (element in self.cell_dicts):
-            self._cell_dicts[element] = {}
-        if not rebind_allowed:
-            assert not (context in self.cell_dicts[element]), 'Context {} for element {} already exists'.format(context,
-                                                                                                                element)
-        self.cell_dicts[element][context] = cell
-
-    @property
-    @strictly_typed
-    def curr_context(self) -> dict[Type[Union[PolarNode, PGLink, PGMove]], set[str]]:
-        return {key: copy(val) for key, val in self._curr_context.items()}
-
-    @strictly_typed
-    def clear_curr_context(self) -> None:
-        self._curr_context.clear()
-
-    @strictly_typed
-    def auto_set_curr_context(self) -> None:
-        self.clear_curr_context()
-        for t, cls in self.dict_assoc_class.items():
-            if not (cls is None):
-                self._curr_context[t] = set(cls.possible_strings)
-
-    @strictly_typed
-    def add_to_curr_context(self, key: Type[Union[PolarNode, PGLink, PGMove]], value: str) -> None:
-        if key not in self._curr_context:
-            self._curr_context[key] = set()
-        self._curr_context[key].add(value)
-
-    @strictly_typed
-    def pop_from_curr_context(self, key: Type[Union[PolarNode, PGLink, PGMove]], value: str) -> None:
-        self._curr_context[key].pop(value)
-
-    @property
-    @strictly_typed
-    def filter_function(self) -> Callable:
-        return self._filter_function
-
-    @filter_function.setter
-    @strictly_typed
-    def filter_function(self, value: Callable) -> None:
-        self._filter_function = value
-
-    @property
-    @strictly_typed
-    def find_function(self) -> Callable:
-        return self._find_function
-
-    @find_function.setter
-    @strictly_typed
-    def find_function(self, value: Callable) -> None:
-        self._find_function = value
-
-    @property
-    @strictly_typed
-    def access_function(self) -> Callable:
-        return self._access_function
-
-    @access_function.setter
-    @strictly_typed
-    def access_function(self, value: Callable) -> None:
-        self._access_function = value
-
-    @property
-    @strictly_typed
-    def node_assoc_class(self) -> Optional[Type[NodeAssociation]]:
-        return self._node_assoc_class
-
-    @node_assoc_class.setter
-    @strictly_typed
-    def node_assoc_class(self, value: Type[NodeAssociation]) -> None:
-        assert self._node_assoc_class is None, 'Node assoc class is already defined'
-        self._node_assoc_class = value
-
-    @property
-    @strictly_typed
-    def link_assoc_class(self) -> Optional[Type[LinkAssociation]]:
-        return self._link_assoc_class
-
-    @link_assoc_class.setter
-    @strictly_typed
-    def link_assoc_class(self, value: Type[LinkAssociation]) -> None:
-        assert self._link_assoc_class is None, 'Link assoc class is already defined'
-        self._link_assoc_class = value
-
-    @property
-    @strictly_typed
-    def move_assoc_class(self) -> Optional[Type[MoveAssociation]]:
-        return self._move_assoc_class
-
-    @move_assoc_class.setter
-    @strictly_typed
-    def move_assoc_class(self, value: Type[MoveAssociation]) -> None:
-        assert self._move_assoc_class is None, 'Move assoc class is already defined'
-        self._move_assoc_class = value
-
-    @property
-    @strictly_typed
-    def dict_storage_attribute(self) -> dict[Type[Union[PolarNode, PGLink, PGMove]], str]:
-        return self._dict_storage_attribute
-
-    @property
-    @strictly_typed
-    def dict_assoc_class(self) -> dict[Type[Union[PolarNode, PGLink, PGMove]],
-                                       Optional[Type[Union[NodeAssociation, LinkAssociation, MoveAssociation]]]]:
-        return {PolarNode: self.node_assoc_class, PGLink: self.link_assoc_class, PGMove: self.move_assoc_class}
-
-    @strictly_typed
-    def get_elm_cell_by_context(self, element: Union[PolarNode, PGLink, PGMove], context: Optional[str] = None) \
-            -> Optional[AttribCell]:
-        if element not in self.cell_dicts:
-            return
-        if context is None:
-            assert len(self.cell_dicts[element]) == 1, 'Context of element {} should be specified'.format(element)
-            return set(self.cell_dicts[element].values()).pop()
-        return self.cell_dicts[element][context]
-
-    @strictly_typed
-    def get_single_elm_by_cell_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
-                                       searched_value: Any,
-                                       given_elements: Optional[Iterable[Union[PolarNode, PGLink, PGMove]]] = None,
-                                       not_found_assertion: bool = False) \
-            -> Optional[Union[PolarNode, PGLink, PGMove]]:
-        if given_elements is None:
-            storage = getattr(self.base_polar_graph, self.dict_storage_attribute[element_type])
-        else:
-            assert all([issubclass(type(elt), element_type) for elt in given_elements]), 'Type <> type(elts)'
-            storage = given_elements
-        found_elements = set()
-        assert element_type in self.curr_context, 'Context not initialized for {}'.format(element_type)
-        context_set = self.curr_context[element_type]
-        assert len(context_set) == 1, 'More then 1 context in context set'
-        context = context_set.pop()
-        for element in storage:
-            context_result = self.get_elm_cell_by_context(element, context)
-            if context_result is None:
-                continue
-            func_value = self.find_function(context_result)
-            if func_value == searched_value:
-                found_elements.add(element)
-        if not found_elements:
-            if not_found_assertion:
-                assert found_elements, 'Element {} not found'.format(searched_value)
-            else:
-                return None
-        assert len(found_elements) == 1, 'More then 1 element was found'
-        return found_elements.pop()
-
-    @strictly_typed
-    def get_filter_all_cells(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
-                             given_elements: Optional[Iterable[Union[PolarNode, PGLink, PGMove]]] = None)\
-            -> set[Union[PolarNode, PGLink, PGMove]]:
-        if given_elements is None:
-            storage = getattr(self.base_polar_graph, self.dict_storage_attribute[element_type])
-        else:
-            assert all([issubclass(type(elt), element_type) for elt in given_elements]), 'Type <> type(elts)'
-            storage = given_elements
-        found_elements = set()
-        assert element_type in self.curr_context, 'Context not initialized for {}'.format(element_type)
-        context_set = self.curr_context[element_type]
-        assert len(context_set) == 1, 'More then 1 context in context set'
-        context = context_set.pop()
-        for element in storage:
-            context_result = self.get_elm_cell_by_context(element, context)
-            if context_result is None:
-                continue
-            func_value = self.filter_function(context_result)
-            if func_value:
-                found_elements.add(element)
-        return found_elements
-
-    @strictly_typed
-    def apply_sbg_content(self, element_type: Type[Union[PolarNode, PGLink, PGMove]],
-                          value: Any, subgraph: PolarGraph = None) -> None:
-        if not subgraph:
-            subgraph = self.base_polar_graph
-        storage: set[Union[PolarNode, PGLink, PGMove]] = getattr(subgraph, self.dict_storage_attribute[element_type])
-        assert self.curr_context[element_type], 'Context of {} not defined'.format(element_type)
-        assert len(self.curr_context[element_type]) == 1, 'More then 1 str_value of context {}'.format(element_type)
-        context = self.curr_context[element_type].pop()
-        for element in storage:
-            if (element not in self.cell_dicts) or (context not in self.cell_dicts[element]):
-                continue
-            cell = self.cell_dicts[element][context]
-            self.access_function(cell, value)
-
-    @strictly_typed
-    def extract_route_content(self, route: PGRoute) -> list[set[AttribCell]]:
-        result = []
-        for element in route.sequence:
-            element_result = set()
-            if (type(element) not in self.curr_context) or (element not in self.cell_dicts):
-                continue
-            contexts_set = self.curr_context[type(element)]
-            for context in contexts_set:
-                if context not in self.cell_dicts[element]:
-                    continue
-                element_result.add(self.cell_dicts[element][context])
-            result.append(element_result)
-        return result
+            self.bind_cell(cell, element)
 
 
 if __name__ == '__main__':
