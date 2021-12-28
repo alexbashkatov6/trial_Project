@@ -3,7 +3,7 @@ from copy import copy, deepcopy
 from collections import OrderedDict
 from itertools import combinations
 from functools import partial
-from cell import Cell
+from cell_object import Cell
 import time
 
 from nv_typing import *

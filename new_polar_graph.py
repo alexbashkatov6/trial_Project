@@ -3,7 +3,7 @@ from copy import copy, deepcopy
 from collections import OrderedDict
 from itertools import combinations
 from functools import partial
-from cell import Cell
+from cell_object import CellObject
 import time
 
 from nv_typing import *
@@ -13,6 +13,17 @@ from nv_bounded_string_set_class import bounded_string_set
 from nv_errors import CycleError
 
 End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
+
+
+class Element:
+    def __init__(self):
+        self._cell_objs: list[CellObject] = []
+
+    def append_cell_obj(self, cell_obj: CellObject):
+        self._cell_objs.append(cell_obj)
+
+    def remove_cell_obj(self, cell_obj: CellObject):
+        self._cell_objs.remove(cell_obj)
 
 
 class PGNodeInterface:
@@ -108,10 +119,11 @@ class PGNodeInterface:
             move_random.active = True
 
 
-class PGMove:
+class PGMove(Element):
 
     @strictly_typed
     def __init__(self, ni: PGNodeInterface, link: PGLink) -> None:
+        super().__init__()
         self._link = link
         self._ni = ni
         self._active = False
@@ -234,11 +246,12 @@ class PGLinkGroup:
         return self.count_of_links == 1
 
 
-class PGLink:
+class PGLink(Element):
 
     @strictly_typed
     def __init__(self, ni_1: PGNodeInterface, ni_2: PGNodeInterface,
                  is_stable: bool = False) -> None:
+        super().__init__()
         self.ni_s = (ni_1, ni_2)
         self.stable = is_stable
 
@@ -278,10 +291,11 @@ class PGLink:
         return (set(self.ni_s) - {given_ni}).pop()
 
 
-class PolarNode:
+class PolarNode(Element):
 
     @strictly_typed
     def __init__(self, bpg: BasePolarGraph) -> None:
+        super().__init__()
         self._base_polar_graph = bpg
         self._ni_negative_down, self._ni_positive_up = \
             PGNodeInterface(self, End('nd')), \
@@ -680,7 +694,7 @@ class BasePolarGraph(PolarGraph):
 
         self._physical_links = False
         self._link_groups = set()
-        self._am = AssociationsManager(self)
+        # self._am = AssociationsManager(self)
 
         self.border_ni_s = {self.inf_node_pu.ni_nd, self.inf_node_nd.ni_pu}
         self.connect_nodes(*self.border_ni_s)
@@ -691,15 +705,15 @@ class BasePolarGraph(PolarGraph):
         self._nodes.add(node)
         return node
 
-    @property
-    @strictly_typed
-    def am(self) -> AssociationsManager:
-        return self._am
-
-    @am.setter
-    @strictly_typed
-    def am(self, value: AssociationsManager) -> None:
-        self._am = value
+    # @property
+    # @strictly_typed
+    # def am(self) -> AssociationsManager:
+    #     return self._am
+    #
+    # @am.setter
+    # @strictly_typed
+    # def am(self, value: AssociationsManager) -> None:
+    #     self._am = value
 
     @property
     @strictly_typed
@@ -814,7 +828,7 @@ class BasePolarGraph(PolarGraph):
                                                                         ni_of_negative_down_node)
             if disconnect_result:
                 old_link, old_moves = disconnect_result
-                self.am.replace_link_after_split(old_link, old_moves, (pu_link, nd_link))
+                # self.am.replace_link_after_split(old_link, old_moves, (pu_link, nd_link))
         return insertion_node, pu_link, nd_link
 
     @strictly_typed
@@ -834,8 +848,8 @@ class BasePolarGraph(PolarGraph):
             link_nis_before[ni], old_moves[ni] = self.disconnect_nodes(*link.ni_s)
         for ni_for_reconnect in ni_s_for_reconnect:
             link_after = self.connect_nodes(ni_instead_necked, ni_for_reconnect)
-            self.am.replace_link_after_node_change(link_nis_before[ni_for_reconnect], old_moves[ni_for_reconnect],
-                                                   link_after)
+            # self.am.replace_link_after_node_change(link_nis_before[ni_for_reconnect], old_moves[ni_for_reconnect],
+            #                                        link_after)
         self.connect_nodes(insertion_node.opposite_ni(ni_instead_necked), ni_necked, make_between_stable)
         return insertion_node
 
@@ -861,18 +875,18 @@ class BasePolarGraph(PolarGraph):
             _, move_ni_s = insert_pg.disconnect_nodes(*old_link.ni_s)
             ni = old_link.opposite_ni(insert_pg.inf_node_pu.ni_nd)
             new_link = self.connect_nodes(ni, ni_for_pu_connect)
-            self.am.replace_link_after_node_change(old_link, move_ni_s, new_link, insert_pg.am)
+            # self.am.replace_link_after_node_change(old_link, move_ni_s, new_link, insert_pg.am)
         for old_link in old_links_nd_connection:
             _, move_ni_s = insert_pg.disconnect_nodes(*old_link.ni_s)
             ni = old_link.opposite_ni(insert_pg.inf_node_nd.ni_pu)
             new_link = self.connect_nodes(ni, ni_for_nd_connect)
-            self.am.replace_link_after_node_change(old_link, move_ni_s, new_link, insert_pg.am)
+            # self.am.replace_link_after_node_change(old_link, move_ni_s, new_link, insert_pg.am)
         self.links |= insert_pg.links
         self.link_groups |= insert_pg.link_groups
         self.moves |= insert_pg.moves
 
-        ins_am = insert_pg.am
-        self.am.aggregate_refresh_cells(ins_am, insert_pg.not_inf_nodes | insert_pg.not_inf_nodes | insert_pg.moves)
+        # ins_am = insert_pg.am
+        # self.am.aggregate_refresh_cells(ins_am, insert_pg.not_inf_nodes | insert_pg.not_inf_nodes | insert_pg.moves)
 
     @strictly_typed
     def remove_nodes(self, nodes: Iterable[PolarNode]) -> None:
@@ -896,7 +910,7 @@ class BasePolarGraph(PolarGraph):
                         self.connect_nodes(node.ni_nd, self.inf_node_nd.ni_pu)
                     if node.ni_pu.is_empty:
                         self.connect_nodes(node.ni_pu, self.inf_node_nd.ni_nd)
-            self.am.refresh_cells_unphysical_nodes_remove()
+            # self.am.refresh_cells_unphysical_nodes_remove()
 
     @strictly_typed
     def check_loops(self) -> bool:
@@ -964,37 +978,6 @@ class ContentAccess:
         """ one_expected = True -> find function """
         out_type = type(objs)
         return out_type(filter(f, objs))
-
-
-class AssociationsManager:
-
-    def __init__(self, bpg: BasePolarGraph) -> None:
-        self._base_polar_graph = bpg
-
-        self._cell_dict: dict[Union[PolarNode, PGLink, PGMove], list[Cell]] = {}
-        self._dict_storage_attribute = {PolarNode: 'nodes', PGLink: 'links', PGMove: 'moves'}
-
-    @property
-    def base_polar_graph(self) -> BasePolarGraph:
-        return self._base_polar_graph
-
-    @property
-    def cell_dict(self) -> dict[Union[PolarNode, PGLink, PGMove], list[Cell]]:
-        return copy(self._cell_dict)
-
-    def bind_cell(self, cell, element):
-        if element not in self.cell_dict:
-            self.cell_dict[element] = []
-        self.cell_dict[element].append(cell)
-
-    def unbind_cell(self, cell, element):
-        self.cell_dict[element].remove(cell)
-
-    def expand_cell(self, cell, old_element, elements, remove_old_bind=True):
-        if remove_old_bind:
-            self.unbind_cell(cell, old_element)
-        for element in elements:
-            self.bind_cell(cell, element)
 
 
 if __name__ == '__main__':
