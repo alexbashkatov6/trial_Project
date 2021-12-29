@@ -9,6 +9,7 @@ from nv_polar_graph import (BasePolarGraph,
                             # PGRoute,
                             # GraphStateSaver
                             )
+from image_attribute import ImageAttribute, TitleAttribute, SplitterAttribute, VirtualSplitterAttribute, FormAttribute
 
 
 def expand_splitters(graph_template_: BasePolarGraph):

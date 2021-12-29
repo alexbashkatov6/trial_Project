@@ -147,6 +147,8 @@ class AttribColumn(QWidget):
 
     @staticmethod
     def set_bool_color(le: QLineEdit, af: AttributeFormat):
+        # QFont
+        # le.setFont()
         if af.attr_value == '':
             le.setStyleSheet("background-color: white")
         elif af.status_check:

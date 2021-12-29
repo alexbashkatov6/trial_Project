@@ -1,41 +1,66 @@
 from __future__ import annotations
+from typing import Type
 
+from custom_enum import CustomEnum
 from cell_object import CellObject
 from view_properties import TextViewProperties, BackgroundViewProperties, Color
 
 
 class ImageAttribute(CellObject):
-    def __init__(self):
+    def __init__(self, name):
         super().__init__()
-        self.name = None
+        self.name = name
         self.name_view_props = TextViewProperties()
 
 
 class TitleAttribute(ImageAttribute):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name):
+        super().__init__(name)
 
 
 class SplitterAttribute(ImageAttribute):
-    def __init__(self):
-        super().__init__()
-        self.possible_values: list[str] = []
-        self.current_text = None
+    def __init__(self, name, cust_enum: Type[CustomEnum], init_text: str):
+        super().__init__(name)
+        self.possible_values: list[str] = cust_enum.possible_values
+        self.current_text = init_text
 
         self.text_view_props = TextViewProperties()
 
+    @property
+    def current_text(self):
+        return self._current_text
+
+    @current_text.setter
+    def current_text(self, val):
+        assert val in self.possible_values, "Value {} not possible".format(val)
+        self._current_text = val
+
+
+class VirtualSplitterAttribute(ImageAttribute):
+    def __init__(self, name):
+        super().__init__(name)
+
 
 class FormAttribute(ImageAttribute):
-    def __init__(self):
-        super().__init__()
-        self.current_text: str = ""
-        self.requirement = None
+    def __init__(self, name, str_requirement: str = ""):
+        super().__init__(name)
+        self._current_text: str = ""
+        self.last_valid_text: str = ""
+        self.str_requirement = str_requirement
         self.status_check: str = ""
         self.is_suggested: bool = False
         self.is_corrupted: bool = False
 
         self.text_view_props = TextViewProperties()
         self.background_props = BackgroundViewProperties()
+
+    @property
+    def current_text(self):
+        return self._current_text
+
+    @current_text.setter
+    def current_text(self, val):
+        self._current_text = val
 
     def select_background_color(self):
         if not self.current_text or self.current_text.isspace():
@@ -52,3 +77,18 @@ class FormAttribute(ImageAttribute):
             self.text_view_props.font_color = Color(Color.red)
         else:
             self.text_view_props.font_color = Color(Color.black)
+
+
+if __name__ == "__main__":
+    title_attr = TitleAttribute("Title")
+    print(title_attr.name)
+
+    class SampleEnum(CustomEnum):
+        first = 0
+        second = 1
+
+    split_attr = SplitterAttribute("Split", SampleEnum, "first")
+    print(split_attr.name)
+    print(split_attr.possible_values)
+    print(split_attr.current_text)
+
