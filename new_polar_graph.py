@@ -2,17 +2,18 @@ from __future__ import annotations
 from copy import copy, deepcopy
 from collections import OrderedDict
 from itertools import combinations
-from functools import partial
-from cell_object import CellObject
-import time
 
 from nv_typing import *
-from nv_bounded_string_set_class import bounded_string_set
-# from nv_associations import NodeAssociation, LinkAssociation, MoveAssociation
-# from nv_cell import AttribCell
 from nv_errors import CycleError
+from cell_object import CellObject
+from custom_enum import CustomEnum
 
-End = bounded_string_set('End', [['negative_down', 'nd'], ['positive_up', 'pu']])
+
+class End(CustomEnum):
+    negative_down = 0
+    nd = 0
+    positive_up = 1
+    pu = 1
 
 
 class Element:
@@ -331,6 +332,15 @@ class PolarNode(Element):
         return ({self.ni_nd, self.ni_pu} - {given_ni}).pop()
 
 
+class LocalDirection:
+    def __init__(self, pn_1: PolarNode, pn_2: PolarNode):
+        self.pn_1 = pn_1
+        self.pn_2 = pn_2
+
+    def __repr__(self):
+        return '{}({}, {})'.format(self.__class__.__name__, self.pn_1, self.pn_2)
+
+
 class PolarGraph:
 
     def __init__(self, bpg: Optional[BasePolarGraph] = None):
@@ -497,9 +507,9 @@ class PolarGraph:
         return found_routes, node_layers
 
     @strictly_typed
-    def find_node_coverage(self, start_ni_of_node: PGNodeInterface,
-                           additional_border_nodes: Optional[Iterable[PolarNode]] = None,
-                           cycles_assertion: bool = True, blind_nodes_assertion: bool = True) -> PolarGraph:
+    def find_node_ni_coverage(self, start_ni_of_node: PGNodeInterface,
+                              additional_border_nodes: Optional[Iterable[PolarNode]] = None,
+                              cycles_assertion: bool = True, blind_nodes_assertion: bool = True) -> PolarGraph:
         nodes_cov = set()
         links_cov = set()
         border_ni_s_cov = set()
@@ -559,7 +569,7 @@ class PolarGraph:
         else:
             sbg_links = self.links
             for border_ni in self.border_ni_s:
-                local_coverage: PolarGraph = self.find_node_coverage(border_ni, border_nodes)
+                local_coverage: PolarGraph = self.find_node_ni_coverage(border_ni, border_nodes)
                 sbg_links -= local_coverage.links
         assert sbg_links, 'Empty subgraph was found'
         for link in sbg_links:
@@ -612,15 +622,6 @@ class PolarGraph:
             self._moves_activate_by_ends(*link.ni_s)
 
 
-class LocalDirection:
-    def __init__(self, pn_1: PolarNode, pn_2: PolarNode):
-        self.pn_1 = pn_1
-        self.pn_2 = pn_2
-
-    def __repr__(self):
-        return '{}({}, {})'.format(self.__class__.__name__, self.pn_1, self.pn_2)
-
-
 class PGRoute(PolarGraph):
 
     @strictly_typed
@@ -641,6 +642,7 @@ class PGRoute(PolarGraph):
 
     @strictly_typed
     def compose(self, nodes: list[PolarNode], links: list[PGLink], moves: list[PGMove]) -> None:
+        # use collections.deque().popleft ?
         nodes_r = list(reversed(nodes))
         links_r = list(reversed(links))
         moves_r = list(reversed(moves))
@@ -680,7 +682,7 @@ class PGRoute(PolarGraph):
     def route_end(self, value: PGNodeInterface) -> None:
         self._route_end = value
 
-    def directionCheckLocal(self, ld: LocalDirection):
+    def direction_check_local(self, ld: LocalDirection) -> bool:
         pass
 
 
@@ -694,7 +696,6 @@ class BasePolarGraph(PolarGraph):
 
         self._physical_links = False
         self._link_groups = set()
-        # self._am = AssociationsManager(self)
 
         self.border_ni_s = {self.inf_node_pu.ni_nd, self.inf_node_nd.ni_pu}
         self.connect_nodes(*self.border_ni_s)
@@ -704,16 +705,6 @@ class BasePolarGraph(PolarGraph):
         node = PolarNode(self)
         self._nodes.add(node)
         return node
-
-    # @property
-    # @strictly_typed
-    # def am(self) -> AssociationsManager:
-    #     return self._am
-    #
-    # @am.setter
-    # @strictly_typed
-    # def am(self, value: AssociationsManager) -> None:
-    #     self._am = value
 
     @property
     @strictly_typed
@@ -1184,7 +1175,7 @@ if __name__ == '__main__':
         # print(pg_00.links)
         # print(len(pg_00.links))
         #
-        # sbg = pg_00.cut_subgraph([nod(3), nod(4), nod(5)], True)  # node(2), node(3),
+        # sbg = pg_00.links_between([nod(3), nod(4), nod(5)], True)  # node(2), node(3),
         # print(sbg.nodes)
         # print(len(sbg.links))
         # print(sbg.border_ni_s)
@@ -1234,7 +1225,7 @@ if __name__ == '__main__':
         # print(pg_10l)
         # print(len(pg_00.links))
 
-        # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
+        # subgraph_: PolarGraph = pg_00.links_between([nodes_00[2], nodes_00[3], nodes_00[1]])
         # print(pg_00.links)
         # pg_00.am.apply_sbg_content(PGLink, 'link_assoc', 0., subgraph_)
         # pg_00.am.apply_sbg_content(PolarNode, 'node_assoc', 100, subgraph_)
@@ -1269,7 +1260,7 @@ if __name__ == '__main__':
 
         # print(pg_00.associations.get_element_by_content_value(PolarNode, 'node_assoc', 5))
 
-        # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
+        # subgraph_: PolarGraph = pg_00.links_between([nodes_00[2], nodes_00[3], nodes_00[1]])
         # pg_00.associations.apply_sbg_content(PGLink, 'link_assoc', 0., subgraph_)
         # pg_00.associations.apply_sbg_content(PolarNode, 'node_assoc', 100, subgraph_)
         #
@@ -1286,8 +1277,8 @@ if __name__ == '__main__':
         #         print(move_.associations)
 
         # routes_ = pg_00.walk_to_borders(pg_00.inf_node_pu.ni_nd)
-        # cover_graph: PolarGraph = pg_00.find_node_coverage(nodes_00[1].ni_pu, [nodes_00[2], nodes_00[3]])
-        # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[4], nodes_00[5]])
+        # cover_graph: PolarGraph = pg_00.find_node_ni_coverage(nodes_00[1].ni_pu, [nodes_00[2], nodes_00[3]])
+        # subgraph_: PolarGraph = pg_00.links_between([nodes_00[2], nodes_00[3], nodes_00[4], nodes_00[5]])
         # routes_pn1_pn2_: set[PGRoute] = pg_00.find_routes(pg_00.inf_node_pu, nodes_00[1])
 
         # route_from_to_: PGRoute = pg_00.find_single_route(pg_00.inf_node_pu, pg_00.inf_node_nd,
@@ -1327,7 +1318,7 @@ if __name__ == '__main__':
 
         # lmn = LMNSequence([1, 2, 3])
 
-        # pg_00.find_node_coverage(pg_00.inf_node_nd.end_pu)
+        # pg_00.find_node_ni_coverage(pg_00.inf_node_nd.end_pu)
 
         # print('pg.inf_node_pu ', pg_00.inf_node_pu)
         # print('pg.inf_node_nd ', pg_00.inf_node_nd)

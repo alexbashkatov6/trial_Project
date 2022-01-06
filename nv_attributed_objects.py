@@ -730,8 +730,8 @@ class GlobalDataManager:
                 # print('after - len of not inf nodes', len(dg.not_inf_nodes))
                 # print('after - len of links', len(dg.links))
                 # for i, link in enumerate(dg.links):
-                #     print('link #{}'.format(i+1), 'between', [(a_m.get_elm_cell_by_context(ni.pn).name, ni.end)
-                #                                               for ni in link.ni_s if ni.pn not in dg.inf_nodes])
+                #     print('link #{}'.format(i+1), 'between', [(a_m.get_elm_cell_by_context(ni.element).name, ni.end)
+                #                                               for ni in link.ni_s if ni.element not in dg.inf_nodes])
                 if not dg.check_loops():
                     self._dependence_graph = GSS.reset_graph_state()
                     cell.status_check = 'Dependence cycle was found'

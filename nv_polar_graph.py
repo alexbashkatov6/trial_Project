@@ -1508,7 +1508,7 @@ if __name__ == '__main__':
         # print(pg_00.links)
         # print(len(pg_00.links))
         #
-        # sbg = pg_00.cut_subgraph([nod(3), nod(4), nod(5)], True)  # node(2), node(3),
+        # sbg = pg_00.links_between([nod(3), nod(4), nod(5)], True)  # node(2), node(3),
         # print(sbg.nodes)
         # print(len(sbg.links))
         # print(sbg.border_ni_s)
@@ -1558,7 +1558,7 @@ if __name__ == '__main__':
         # print(pg_10l)
         # print(len(pg_00.links))
 
-        # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
+        # subgraph_: PolarGraph = pg_00.links_between([nodes_00[2], nodes_00[3], nodes_00[1]])
         # print(pg_00.links)
         # pg_00.am.apply_sbg_content(PGLink, 'link_assoc', 0., subgraph_)
         # pg_00.am.apply_sbg_content(PolarNode, 'node_assoc', 100, subgraph_)
@@ -1593,7 +1593,7 @@ if __name__ == '__main__':
 
         # print(pg_00.associations.get_element_by_content_value(PolarNode, 'node_assoc', 5))
 
-        # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[1]])
+        # subgraph_: PolarGraph = pg_00.links_between([nodes_00[2], nodes_00[3], nodes_00[1]])
         # pg_00.associations.apply_sbg_content(PGLink, 'link_assoc', 0., subgraph_)
         # pg_00.associations.apply_sbg_content(PolarNode, 'node_assoc', 100, subgraph_)
         #
@@ -1610,8 +1610,8 @@ if __name__ == '__main__':
         #         print(move_.associations)
 
         # routes_ = pg_00.walk_to_borders(pg_00.inf_node_pu.ni_nd)
-        # cover_graph: PolarGraph = pg_00.find_node_coverage(nodes_00[1].ni_pu, [nodes_00[2], nodes_00[3]])
-        # subgraph_: PolarGraph = pg_00.cut_subgraph([nodes_00[2], nodes_00[3], nodes_00[4], nodes_00[5]])
+        # cover_graph: PolarGraph = pg_00.find_node_ni_coverage(nodes_00[1].ni_pu, [nodes_00[2], nodes_00[3]])
+        # subgraph_: PolarGraph = pg_00.links_between([nodes_00[2], nodes_00[3], nodes_00[4], nodes_00[5]])
         # routes_pn1_pn2_: set[PGRoute] = pg_00.find_routes(pg_00.inf_node_pu, nodes_00[1])
 
         # route_from_to_: PGRoute = pg_00.find_single_route(pg_00.inf_node_pu, pg_00.inf_node_nd,
@@ -1651,7 +1651,7 @@ if __name__ == '__main__':
 
         # lmn = LMNSequence([1, 2, 3])
 
-        # pg_00.find_node_coverage(pg_00.inf_node_nd.end_pu)
+        # pg_00.find_node_ni_coverage(pg_00.inf_node_nd.end_pu)
 
         # print('pg.inf_node_pu ', pg_00.inf_node_pu)
         # print('pg.inf_node_nd ', pg_00.inf_node_nd)

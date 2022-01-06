@@ -2,6 +2,10 @@ class CycleError(Exception):
     pass
 
 
+class ForkError(Exception):
+    pass
+
+
 class CellError(Exception):
     pass
 

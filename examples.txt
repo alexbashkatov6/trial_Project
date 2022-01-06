@@ -452,7 +452,7 @@ print(indent_right.__annotations__)
 ! File Graph
 from itertools import combinations
 from collections.abc import Callable
-from copy import deepcopy
+from copy_part import deepcopy
 from typing import Any
 
 # from __future__ import annotations
