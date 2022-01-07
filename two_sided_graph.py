@@ -299,7 +299,9 @@ class PolarGraph:
     def __init__(self):
         self._nodes: set[PolarNode] = set()
         self._links: set[Link] = set()
-        self._copy_mapping: dict[Element, Element] = {}
+        self._node_copy_mapping: dict[PolarNode, PolarNode] = {}
+        self._link_copy_mapping: dict[Link, Link] = {}
+        self._move_copy_mapping: dict[Move, Move] = {}
 
     @property
     def nodes(self) -> set[PolarNode]:
@@ -310,8 +312,16 @@ class PolarGraph:
         return copy(self._links)
 
     @property
-    def copy_mapping(self) -> dict[Element, Element]:
-        return copy(self._copy_mapping)
+    def node_copy_mapping(self) -> dict[PolarNode, PolarNode]:
+        return copy(self._node_copy_mapping)
+
+    @property
+    def link_copy_mapping(self) -> dict[Link, Link]:
+        return copy(self._link_copy_mapping)
+
+    @property
+    def move_copy_mapping(self) -> dict[Move, Move]:
+        return copy(self._move_copy_mapping)
 
     @property
     def border_ni_s(self) -> set[NodeInterface]:
@@ -357,8 +367,11 @@ class PolarGraph:
                 if len(links_need_to_check):
                     up_ni = last_out_ni.pn.opposite_ni(last_out_ni)
                     prev_ni = list(links_need_to_check.keys())[-1]
-                    link_to_pop = common_links_of_ni_s(up_ni, prev_ni).pop()
-                    links_need_to_check[prev_ni].remove(link_to_pop)
+                    common_links = common_links_of_ni_s(up_ni, prev_ni)
+                    for common_link in common_links:
+                        if common_link in links_need_to_check[prev_ni]:
+                            links_need_to_check[prev_ni].remove(common_link)
+                            break
             else:
                 if route_ends:
                     routes_.append(routes_[-1].get_slice(end_pn=last_out_ni.pn))
@@ -404,8 +417,15 @@ class PolarGraph:
             for link in links:
                 for ni in link.ni_s:
                     nodes.add(ni.pn)
-        new_pg = PolarGraph()
-        nodes_images: dict[PolarNode, PolarNode] = {node: new_pg.init_node() for node in nodes}
+        new_pg = self.__class__()
+        if isinstance(new_pg, OneComponentTwoSidedPG):
+            self: OneComponentTwoSidedPG
+            nodes_images: dict[PolarNode, PolarNode] = \
+                {node: new_pg.init_node() for node in nodes if node not in self.inf_nodes}
+            nodes_images[self.inf_nd] = new_pg.inf_nd
+            nodes_images[self.inf_pu] = new_pg.inf_pu
+        else:
+            nodes_images: dict[PolarNode, PolarNode] = {node: new_pg.init_node() for node in nodes}
         links_images: dict[Link, Link] = {}
         moves_images: dict[Move, Move] = {}
         for link in links:
@@ -431,9 +451,9 @@ class PolarGraph:
                 links_images[link].cell_objs = link.copy_cells(deep_copy)
             for move in moves_images:
                 moves_images[move].cell_objs = move.copy_cells(deep_copy)
-        new_pg._copy_mapping.update(nodes_images)
-        new_pg._copy_mapping.update(links_images)
-        new_pg._copy_mapping.update(moves_images)
+        new_pg._node_copy_mapping.update(nodes_images)
+        new_pg._link_copy_mapping.update(links_images)
+        new_pg._move_copy_mapping.update(moves_images)
         return new_pg
 
     def aggregate(self, insert_graph: PolarGraph,
@@ -643,8 +663,8 @@ if __name__ == '__main__':
     # pg_2.connect(pn_11.ni_nd, pn_12.ni_pu)
     # pg_2.connect(pn_12.ni_nd, pn_13.ni_pu)
     # pg_2_copy = pg_2.copy_part()
-    # pg.aggregate(pg_2_copy, [NodesMerge(pn_4.ni_nd, pg_2_copy.copy_mapping[pn_8].ni_pu, True),
-    #                                 NodesMerge(pn_6.ni_pu, pg_2_copy.copy_mapping[pn_13].ni_nd, True)])
+    # pg.aggregate(pg_2_copy, [NodesMerge(pn_4.ni_nd, pg_2_copy.node_copy_mapping[pn_8].ni_pu, True),
+    #                                 NodesMerge(pn_6.ni_pu, pg_2_copy.node_copy_mapping[pn_13].ni_nd, True)])
     # print(len(pg.nodes))
     # print(pg.nodes)
     # print(len(pg.links))

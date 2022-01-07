@@ -8,7 +8,7 @@ class PossibleValuesDescriptor:
 
     def __get__(self, instance, owner):
         if not hasattr(owner, "_possible_values"):
-            owner._possible_values = [item for item in owner.__dict__ if not item.startswith("__")]
+            owner._possible_values = [item for item in owner.__dict__ if not item.startswith("_")]
         return owner._possible_values
 
     def __set__(self, instance, value):
@@ -37,12 +37,12 @@ class CustomEnum:
 
     def __init__(self, value: Union[str, int]):
         if type(value) == str:
-            assert value in self.__class__.possible_values, "Str value {} not possible".format(value)
+            assert value in self.possible_values, "Str value {} not possible".format(value)
             self.str_value = value
             self.int_value = self.__class__.__dict__[value]
         elif type(value) == int:
-            assert value in self.__class__.reversed_dict, "Int value {} not possible".format(value)
-            self.str_value = self.__class__.reversed_dict[value].pop()
+            assert value in self.reversed_dict, "Int value {} not possible".format(value)
+            self.str_value = self.reversed_dict[value].pop()
             self.int_value = value
 
     def __repr__(self):

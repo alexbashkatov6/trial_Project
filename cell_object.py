@@ -3,8 +3,6 @@ from copy import copy, deepcopy
 
 
 class CellObject:
-    # def __init__(self):
-    #     pass
 
     def copy(self) -> CellObject:
         return deepcopy(self)

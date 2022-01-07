@@ -42,3 +42,5 @@ if __name__ == "__main__":
     print(Color.reversed_dict)
     print(c4.str_value)
     print(c4.are_in(["red", "blue"]))
+    t = TextViewProperties()
+    t2 = TextViewProperties()

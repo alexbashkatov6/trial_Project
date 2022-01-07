@@ -19,21 +19,31 @@ class TitleAttribute(ImageAttribute):
 
 
 class SplitterAttribute(ImageAttribute):
-    def __init__(self, name, cust_enum: Type[CustomEnum], init_text: str):
+    def __init__(self, name, custom_enum: CustomEnum):
         super().__init__(name)
-        self.possible_values: list[str] = cust_enum.possible_values
-        self.current_text = init_text
+        self._enum = custom_enum
 
         self.text_view_props = TextViewProperties()
 
     @property
+    def enum(self) -> CustomEnum:
+        return self._enum
+
+    @property
+    def possible_values(self) -> list[str]:
+        return self.enum.possible_values
+
+    @property
     def current_text(self):
-        return self._current_text
+        return self.enum.str_value
 
     @current_text.setter
     def current_text(self, val):
-        assert val in self.possible_values, "Value {} not possible".format(val)
-        self._current_text = val
+        self._enum = type(self.enum)(val)
+
+    @property
+    def current_value(self):
+        return self.enum.int_value
 
 
 class VirtualSplitterAttribute(ImageAttribute):
@@ -87,7 +97,7 @@ if __name__ == "__main__":
         first = 0
         second = 1
 
-    split_attr = SplitterAttribute("Split", SampleEnum, "first")
+    split_attr = SplitterAttribute("Split", SampleEnum("first"))
     print(split_attr.name)
     print(split_attr.possible_values)
     print(split_attr.current_text)

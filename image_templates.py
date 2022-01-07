@@ -1,192 +1,201 @@
 from __future__ import annotations
 
-from nv_associations import *
-from nv_cell import AttribCell, BSSAttribCellType
-from nv_polar_graph import (BasePolarGraph,
-                            # End,
-                            # PolarNode,
-                            PGMove,
-                            # PGRoute,
-                            # GraphStateSaver
-                            )
 from image_attribute import ImageAttribute, TitleAttribute, SplitterAttribute, VirtualSplitterAttribute, FormAttribute
+from two_sided_graph import OneComponentTwoSidedPG, PolarNode
+from custom_enum import CustomEnum
+from cell_object import CellObject
+
+COMMON_TEMPLATE = OneComponentTwoSidedPG()
+
+name_options = COMMON_TEMPLATE.insert_node()
+name_options.append_cell_obj(TitleAttribute("Name options"))
+build_options = COMMON_TEMPLATE.insert_node(name_options.ni_nd)
+build_options.append_cell_obj(TitleAttribute("Build options"))
+evaluate_options = COMMON_TEMPLATE.insert_node(build_options.ni_nd)
+evaluate_options.append_cell_obj(TitleAttribute("Evaluation options"))
+view_options = COMMON_TEMPLATE.insert_node(evaluate_options.ni_nd)
+view_options.append_cell_obj(TitleAttribute("View options"))
 
 
-def expand_splitters(graph_template_: BasePolarGraph):
-    for node, cell in get_splitter_nodes_cells(graph_template_):
-        cls = get_class_by_str(cell.str_req, True)
-        unique_values: list = cls.unique_values
-        need_count_of_links = len(unique_values)
-        existing_count_of_links = len(node.ni_nd.links)
-        if need_count_of_links == existing_count_of_links:
-            continue
-        assert existing_count_of_links == 1, 'Found situation not fully expanded splitter with <> 1 count links'
-        link = node.ni_nd.links.pop()
-        for _ in range(need_count_of_links - existing_count_of_links):
-            graph_template_.connect_nodes(*link.ni_s)
-        for link_ in node.ni_nd.links:
-            move_ = node.ni_nd.get_move(link_)
-            unique_value = unique_values.pop()
-            graph_template_.am.bind_cell(move_, AttribCell(unique_value))
+class SplitterMove(CellObject):
+    def __init__(self, int_value: int):
+        super().__init__()
+        self._int_value = int_value
+
+    @property
+    def int_value(self):
+        return self._int_value
 
 
-def init_splitter_move_activation(graph_template_: BasePolarGraph):
-    am = graph_template_.am
-    for node, cell in get_splitter_nodes_cells(graph_template_):
-        if cell.str_value:
-            move_for_init_active = am.get_single_elm_by_cell_content(PGMove, cell.str_value, node.ni_nd.moves)
-            node.ni_nd.choice_move_activate(move_for_init_active)
+class CEDependence(CustomEnum):
+    dependent = 0
+    independent = 1
 
 
-class AttribBuildGraphTemplateDescriptor:
+class CEBool(CustomEnum):
+    false = 0
+    true = 1
 
-    def __get__(self, instance, owner=None):
-        if instance is None:
-            return self
-        if hasattr(instance, '_graph_build_template'):
-            return instance._graph_build_template
 
-        g_b_t = BasePolarGraph()
-        a_m = g_b_t.am
-        a_m.node_assoc_class = AttribNodeAssociation
-        a_m.move_assoc_class = AttribMoveAssociation
-        a_m.auto_set_curr_context()
+class CEAxisCreationMethod(CustomEnum):
+    translational = 0
+    rotational = 1
 
-        if owner == CoordinateSystem:
-            node_rel_cs, _, _ = g_b_t.insert_node_single_link()
-            node_check_dependence, _, _ = g_b_t.insert_node_single_link(node_rel_cs.ni_nd)
-            node_x, link_up_x, _ = g_b_t.insert_node_single_link(node_check_dependence.ni_nd)
-            move_to_x = node_check_dependence.ni_nd.get_move(link_up_x)
-            node_y, _, _ = g_b_t.insert_node_single_link(node_x.ni_nd)
-            node_alpha, link_up_alpha, _ = g_b_t.insert_node_single_link(node_check_dependence.ni_nd)
-            move_to_alpha = node_check_dependence.ni_nd.get_move(link_up_alpha)
-            node_connect_polarity, _, _ = g_b_t.insert_node_single_link(node_alpha.ni_nd)
-            node_co_x = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
-            node_co_y = g_b_t.insert_node_neck(g_b_t.inf_node_nd.ni_pu)
 
-            a_m.bind_cell(node_rel_cs, AttribCell('cs_relative_to', 'CoordinateSystem'))
-            a_m.bind_cell(node_check_dependence,
-                          AttribCell('dependence', 'BSSDependency', 'independent', BSSAttribCellType('common_splitter')))
-            a_m.bind_cell(node_x, AttribCell('x', 'int'))
-            a_m.bind_cell(move_to_x, AttribCell('dependent'))
-            a_m.bind_cell(node_y, AttribCell('y', 'int'))
-            a_m.bind_cell(node_alpha, AttribCell('alpha', 'int'))
-            a_m.bind_cell(move_to_alpha, AttribCell('independent'))
-            a_m.bind_cell(node_connect_polarity,
-                          AttribCell('connection_polarity', 'End', 'negative_down', BSSAttribCellType('common_splitter')))
-            a_m.bind_cell(node_co_x, AttribCell('co_x', 'BSSBool', 'True', BSSAttribCellType('bool_splitter')))
-            a_m.bind_cell(node_co_y, AttribCell('co_y', 'BSSBool', 'True', BSSAttribCellType('bool_splitter')))
+class CEAxisOrLine(CustomEnum):
+    axis = 0
+    line = 1
 
-        if owner == GroundLine:
-            node_rel_cs, _, _ = g_b_t.insert_node_single_link()
-            node_translate_or_rotate, _, _ = g_b_t.insert_node_single_link(node_rel_cs.ni_nd)
-            node_y, link_up_translate, _ = g_b_t.insert_node_single_link(node_translate_or_rotate.ni_nd)
-            move_to_translate = node_translate_or_rotate.ni_nd.get_move(link_up_translate)
-            node_center_point, link_up_rotate, _ = g_b_t.insert_node_single_link(node_translate_or_rotate.ni_nd)
-            move_to_rotate = node_translate_or_rotate.ni_nd.get_move(link_up_rotate)
-            node_alpha, _, _ = g_b_t.insert_node_single_link(node_center_point.ni_nd)
 
-            a_m.bind_cell(node_rel_cs, AttribCell('cs_relative_to', 'CoordinateSystem'))
-            a_m.bind_cell(node_translate_or_rotate,
-                          AttribCell('move_method', 'BSSMoveMethod', 'translational', BSSAttribCellType('common_splitter')))
-            a_m.bind_cell(move_to_translate, AttribCell('translational'))
-            a_m.bind_cell(move_to_rotate, AttribCell('rotational'))
-            a_m.bind_cell(node_y, AttribCell('y', 'int'))
-            a_m.bind_cell(node_center_point, AttribCell('center_point', 'Point'))
-            a_m.bind_cell(node_alpha, AttribCell('alpha', 'int'))
+def splitter_nodes(graph: OneComponentTwoSidedPG) -> set[tuple[PolarNode, SplitterAttribute]]:
+    nodes_splitters = set()
+    for node in graph.nodes:
+        if node.cell_objs:
+            co = node.cell_objs[0]
+            if isinstance(co, SplitterAttribute):
+                nodes_splitters.add((node, co))
+    return nodes_splitters
 
-        if owner == Point:
-            node_rel_cs, _, _ = g_b_t.insert_node_single_link()
-            node_x, _, _ = g_b_t.insert_node_single_link(node_rel_cs.ni_nd)
-            node_gl_or_line, _, _ = g_b_t.insert_node_single_link(node_x.ni_nd)
-            node_gl, link_gl, _ = g_b_t.insert_node_single_link(node_gl_or_line.ni_nd)
-            move_to_gl = node_gl_or_line.ni_nd.get_move(link_gl)
-            node_line, link_line, _ = g_b_t.insert_node_single_link(node_gl_or_line.ni_nd)
-            move_to_line = node_gl_or_line.ni_nd.get_move(link_line)
 
-            a_m.bind_cell(node_rel_cs, AttribCell('cs_relative_to', 'CoordinateSystem'))
-            a_m.bind_cell(node_x, AttribCell('x', 'int'))
-            a_m.bind_cell(node_gl_or_line,
-                          AttribCell('on_line_or_ground_line', 'BSSGroundLineOrLine',
-                               'ground_line', BSSAttribCellType('common_splitter')))
-            a_m.bind_cell(move_to_gl, AttribCell('ground_line'))
-            a_m.bind_cell(move_to_line, AttribCell('line'))
-            a_m.bind_cell(node_gl, AttribCell('ground_line', 'GroundLine'))
-            a_m.bind_cell(node_line, AttribCell('line', 'Line'))
+def auto_expand_splitters(graph: OneComponentTwoSidedPG):
+    nodes_splitters = splitter_nodes(graph)
+    for nodes_splitter in nodes_splitters:
+        node, splitter = nodes_splitter
+        count_links_needed = len(splitter.possible_values)
+        count_links_current = len(node.ni_nd.links)
+        if count_links_current < count_links_needed:
+            assert count_links_current == 1, "More then 1 link in auto splitter"
+            link = node.ni_nd.links[0]
+            for _ in range(count_links_needed-count_links_current):
+                graph.connect(*link.ni_s)
+            for i, move in enumerate(node.ni_nd.moves):
+                move.append_cell_obj(SplitterMove(i))
 
-        if owner == Line:
-            node_first_point, _, _ = g_b_t.insert_node_single_link()
-            node_second_point, _, _ = g_b_t.insert_node_single_link(node_first_point.ni_nd)
 
-            a_m.bind_cell(node_first_point, AttribCell('first_point', 'Point'))
-            a_m.bind_cell(node_second_point, AttribCell('second_point', 'Point'))
+def splitter_moves_activation(graph: OneComponentTwoSidedPG):
+    nodes_splitters = splitter_nodes(graph)
+    for nodes_splitter in nodes_splitters:
+        node, splitter = nodes_splitter
+        found = False
+        for move in node.ni_nd.moves:
+            if splitter.current_value == move.cell_objs[0].int_value:
+                node.ni_nd.choice_move_activate(move)
+                found = True
+                break
+        assert found, "Not found"
 
-        expand_splitters(g_b_t)
-        instance._graph_build_template = g_b_t
-        return g_b_t
+
+class TemplateDescriptor:
+
+    def __get__(self, instance, owner):
+        if not hasattr(owner, "_template"):
+            g = COMMON_TEMPLATE.copy_part()
+            name = g.insert_node(g.node_copy_mapping[name_options].ni_nd, g.node_copy_mapping[build_options].ni_pu)
+            name.append_cell_obj(FormAttribute("name", "{}_name".format(owner.__name__)))
+            ni_pu_eval_opt = g.node_copy_mapping[evaluate_options].ni_pu
+
+            if owner == CoordinateSystem:
+                rel_cs = g.insert_node(g.node_copy_mapping[build_options].ni_nd, ni_pu_eval_opt)
+                rel_cs.append_cell_obj(FormAttribute('cs_relative_to', 'CoordinateSystem'))
+                dep = g.insert_node(rel_cs.ni_nd, ni_pu_eval_opt)
+                dep.append_cell_obj(SplitterAttribute('dependence', CEDependence(CEDependence.dependent)))
+                x = g.insert_node(dep.ni_nd, ni_pu_eval_opt)
+                move_x = dep.ni_nd.get_move_by_link(x.ni_pu.links[0])
+                x.append_cell_obj(FormAttribute('x', 'int'))
+                move_x.append_cell_obj(SplitterMove(CEDependence.dependent))
+                y = g.insert_node(x.ni_nd, ni_pu_eval_opt)
+                y.append_cell_obj(FormAttribute('y', 'int'))
+                alpha = g.insert_node(dep.ni_nd, ni_pu_eval_opt)
+                move_alpha = dep.ni_nd.get_move_by_link(alpha.ni_pu.links[0])
+                alpha.append_cell_obj(FormAttribute('alpha', 'int'))
+                move_alpha.append_cell_obj(SplitterMove(CEDependence.independent))
+                node_co_x = g.insert_node_neck(ni_pu_eval_opt)
+                node_co_x.append_cell_obj(SplitterAttribute('co_x', CEBool(CEBool.true)))
+                node_co_y = g.insert_node_neck(ni_pu_eval_opt)
+                node_co_y.append_cell_obj(SplitterAttribute('co_y', CEBool(CEBool.true)))
+
+            if owner == Axis:
+                rel_cs = g.insert_node(g.node_copy_mapping[build_options].ni_nd, ni_pu_eval_opt)
+                rel_cs.append_cell_obj(FormAttribute('cs_relative_to', 'CoordinateSystem'))
+                cr_m = g.insert_node(rel_cs.ni_nd, ni_pu_eval_opt)
+                cr_m.append_cell_obj(SplitterAttribute('move_method',
+                                                       CEAxisCreationMethod(CEAxisCreationMethod.translational)))
+                y = g.insert_node(cr_m.ni_nd, ni_pu_eval_opt)
+                move_y = cr_m.ni_nd.get_move_by_link(y.ni_pu.links[0])
+                y.append_cell_obj(FormAttribute('y', 'int'))
+                move_y.append_cell_obj(SplitterMove(CEAxisCreationMethod.translational))
+                pnt = g.insert_node(cr_m.ni_nd, ni_pu_eval_opt)
+                move_pnt = cr_m.ni_nd.get_move_by_link(pnt.ni_pu.links[0])
+                pnt.append_cell_obj(FormAttribute('center_point', 'Point'))
+                move_pnt.append_cell_obj(SplitterMove(CEAxisCreationMethod.rotational))
+                alpha = g.insert_node(pnt.ni_nd, ni_pu_eval_opt)
+                alpha.append_cell_obj(FormAttribute('alpha', 'int'))
+
+            if owner == Point:
+                rel_cs = g.insert_node(g.node_copy_mapping[build_options].ni_nd, ni_pu_eval_opt)
+                rel_cs.append_cell_obj(FormAttribute('cs_relative_to', 'CoordinateSystem'))
+                x = g.insert_node(rel_cs.ni_nd, ni_pu_eval_opt)
+                x.append_cell_obj(FormAttribute('x', 'int'))
+                cr_m = g.insert_node(x.ni_nd, ni_pu_eval_opt)
+                cr_m.append_cell_obj(SplitterAttribute('on_axis_or_line',
+                                                       CEAxisOrLine(CEAxisOrLine.axis)))
+                axis = g.insert_node(cr_m.ni_nd, ni_pu_eval_opt)
+                move_axis = cr_m.ni_nd.get_move_by_link(axis.ni_pu.links[0])
+                axis.append_cell_obj(FormAttribute('axis', 'Axis'))
+                move_axis.append_cell_obj(SplitterMove(CEAxisOrLine.axis))
+                line = g.insert_node(cr_m.ni_nd, ni_pu_eval_opt)
+                move_line = cr_m.ni_nd.get_move_by_link(line.ni_pu.links[0])
+                line.append_cell_obj(FormAttribute('line', 'Line'))
+                move_line.append_cell_obj(SplitterMove(CEAxisOrLine.line))
+
+            if owner == Line:
+                pnt_1 = g.insert_node(g.node_copy_mapping[build_options].ni_nd, ni_pu_eval_opt)
+                pnt_1.append_cell_obj(FormAttribute('first_point', 'Point'))
+                pnt_2 = g.insert_node(pnt_1.ni_nd, ni_pu_eval_opt)
+                pnt_2.append_cell_obj(FormAttribute('second_point', 'Point'))
+
+            auto_expand_splitters(g)
+            splitter_moves_activation(g)
+            owner._template = g
+        if not hasattr(instance, "_template_"):
+            instance._template_ = owner._template.copy_part()
+        return instance._template_
 
     def __set__(self, instance, value):
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
 
 
-class AttribCommonGraphTemplateDescriptor:
-
-    def __get__(self, instance, owner=None):
-        if instance is None:
-            return self
-        if hasattr(instance, '_graph_template'):
-            return instance._graph_template
-
-        g_t = BasePolarGraph()
-        a_m = g_t.am
-        a_m.node_assoc_class = AttribNodeAssociation
-        a_m.move_assoc_class = AttribMoveAssociation
-        a_m.auto_set_curr_context()
-
-        node_name_title, _, _ = g_t.insert_node_single_link()
-        node_name, _, _ = g_t.insert_node_single_link(node_name_title.ni_nd)
-        node_build_title, _, _ = g_t.insert_node_single_link(node_name.ni_nd)
-        node_evaluate_title, _, _ = g_t.insert_node_single_link(node_build_title.ni_nd)
-        node_view_title, _, _ = g_t.insert_node_single_link(node_evaluate_title.ni_nd)
-
-        a_m.bind_cell(node_name_title, AttribCell('Name options'))
-        a_m.bind_cell(node_name, AttribCell('name', owner.__name__, cell_type=BSSAttribCellType('name')))
-        a_m.bind_cell(node_build_title, AttribCell('Build options'))
-        a_m.bind_cell(node_evaluate_title, AttribCell('Evaluation options'))
-        a_m.bind_cell(node_view_title, AttribCell('View options'))
-
-        gbt = instance.graph_build_template
-        g_t.aggregate(gbt, node_build_title.ni_nd, node_evaluate_title.ni_pu)
-
-        init_splitter_move_activation(g_t)
-        instance._graph_template = g_t
-        return g_t
-
-    def __set__(self, instance, value):
-        raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
+class ImageObject:
+    template = TemplateDescriptor()
 
 
-class AttrControlObject:
-    graph_build_template = AttribBuildGraphTemplateDescriptor()
-    graph_template = AttribCommonGraphTemplateDescriptor()
-
-    def __init__(self):
-        pass
-        # self.pick_status = BSSPickObjectStatus('p_default')
-        # self.corrupt_status = BSSCorruptObjectStatus('c_default')
-
-
-class CoordinateSystem(AttrControlObject):
+class CoordinateSystem(ImageObject):
     pass
 
 
-class Point(AttrControlObject):
+class Axis(ImageObject):
     pass
 
 
-class Line(AttrControlObject):
+class Point(ImageObject):
     pass
 
 
-class GroundLine(AttrControlObject):
+class Line(ImageObject):
     pass
+
+
+if __name__ == "__main__":
+    # print(len(COMMON_TEMPLATE.nodes))
+    cs = Line()  # CoordinateSystem Axis Point
+    tmpl = cs.template
+    print(len(tmpl.nodes))
+    print(len(tmpl.links))
+    print(tmpl.nodes)
+    print(tmpl.inf_nodes)
+    print(tmpl.layered_representation())
+    print(tmpl.free_roll().nodes)
+    for node_ in tmpl.free_roll().nodes:
+        if node_.cell_objs:
+            cell = node_.cell_objs[0]
+            print(cell.name)
