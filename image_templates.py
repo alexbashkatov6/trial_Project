@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from image_attribute import ImageAttribute, TitleAttribute, SplitterAttribute, VirtualSplitterAttribute, FormAttribute
-from two_sided_graph import OneComponentTwoSidedPG, PolarNode
+from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Move
 from custom_enum import CustomEnum
 from cell_object import CellObject
 
@@ -72,17 +72,19 @@ def auto_expand_splitters(graph: OneComponentTwoSidedPG):
                 move.append_cell_obj(SplitterMove(i))
 
 
+def move_by_int(node: PolarNode, value: int) -> Move:
+    for move in node.ni_nd.moves:
+        if value == move.cell_objs[0].int_value:
+            return move
+    assert False, "Not found"
+
+
 def splitter_moves_activation(graph: OneComponentTwoSidedPG):
     nodes_splitters = splitter_nodes(graph)
     for nodes_splitter in nodes_splitters:
         node, splitter = nodes_splitter
-        found = False
-        for move in node.ni_nd.moves:
-            if splitter.current_value == move.cell_objs[0].int_value:
-                node.ni_nd.choice_move_activate(move)
-                found = True
-                break
-        assert found, "Not found"
+        move = move_by_int(node, splitter.current_value)
+        node.ni_nd.choice_move_activate(move)
 
 
 class TemplateDescriptor:
@@ -168,6 +170,21 @@ class TemplateDescriptor:
 class ImageObject:
     template = TemplateDescriptor()
 
+    def get_attributes(self) -> list[ImageAttribute]:
+        return [node.cell_objs[0] for node in self.template.free_roll().nodes if node.cell_objs]
+
+    def switch_splitter(self, splitter_name: str, new_text: str):
+        node_splitters = splitter_nodes(self.template)
+        found = False
+        for node_splitter in node_splitters:
+            node, splitter = node_splitter
+            if splitter.name == splitter_name:
+                found = True
+                splitter.current_text = new_text
+                move = move_by_int(node, splitter.current_value)
+                node.ni_nd.choice_move_activate(move)
+        assert found, "Splitter name not found"
+
 
 class CoordinateSystem(ImageObject):
     pass
@@ -187,7 +204,7 @@ class Line(ImageObject):
 
 if __name__ == "__main__":
     # print(len(COMMON_TEMPLATE.nodes))
-    cs = Line()  # CoordinateSystem Axis Point
+    cs = CoordinateSystem()  # CoordinateSystem Axis Point Line
     tmpl = cs.template
     print(len(tmpl.nodes))
     print(len(tmpl.links))
@@ -199,3 +216,7 @@ if __name__ == "__main__":
         if node_.cell_objs:
             cell = node_.cell_objs[0]
             print(cell.name)
+    cs.switch_splitter("dependence", "independent")
+    print([attrib.name for attrib in cs.get_attributes()])
+    cs.switch_splitter("dependence", "dependent")
+    print([attrib.name for attrib in cs.get_attributes()])
