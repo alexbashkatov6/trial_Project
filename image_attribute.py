@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Type
 
 from custom_enum import CustomEnum
 from cell_object import CellObject
@@ -49,6 +48,15 @@ class SplitterAttribute(ImageAttribute):
 class VirtualSplitterAttribute(ImageAttribute):
     def __init__(self, name):
         super().__init__(name)
+        self._active = False
+
+    @property
+    def active(self) -> bool:
+        return self._active
+
+    @active.setter
+    def active(self, value: bool):
+        self._active = value
 
 
 class FormAttribute(ImageAttribute):
@@ -101,4 +109,3 @@ if __name__ == "__main__":
     print(split_attr.name)
     print(split_attr.possible_values)
     print(split_attr.current_text)
-

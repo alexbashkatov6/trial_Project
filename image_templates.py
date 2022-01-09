@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Union
 
 from image_attribute import ImageAttribute, TitleAttribute, SplitterAttribute, VirtualSplitterAttribute, FormAttribute
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Move
@@ -47,13 +48,18 @@ class CEAxisOrLine(CustomEnum):
     line = 1
 
 
-def splitter_nodes(graph: OneComponentTwoSidedPG) -> set[tuple[PolarNode, SplitterAttribute]]:
+def splitter_nodes(graph: OneComponentTwoSidedPG, virtual: bool = False) \
+        -> set[tuple[PolarNode, Union[SplitterAttribute, VirtualSplitterAttribute]]]:
     nodes_splitters = set()
     for node in graph.nodes:
         if node.cell_objs:
             co = node.cell_objs[0]
-            if isinstance(co, SplitterAttribute):
-                nodes_splitters.add((node, co))
+            if virtual:
+                if isinstance(co, VirtualSplitterAttribute):
+                    nodes_splitters.add((node, co))
+            else:
+                if isinstance(co, SplitterAttribute):
+                    nodes_splitters.add((node, co))
     return nodes_splitters
 
 
@@ -173,15 +179,19 @@ class ImageObject:
     def get_attributes(self) -> list[ImageAttribute]:
         return [node.cell_objs[0] for node in self.template.free_roll().nodes if node.cell_objs]
 
-    def switch_splitter(self, splitter_name: str, new_text: str):
-        node_splitters = splitter_nodes(self.template)
+    def switch_splitter(self, splitter_name: str, new_str_or_bool: Union[str, bool], virtual: bool = False):
+        node_splitters = splitter_nodes(self.template, virtual)
         found = False
         for node_splitter in node_splitters:
             node, splitter = node_splitter
             if splitter.name == splitter_name:
                 found = True
-                splitter.current_text = new_text
-                move = move_by_int(node, splitter.current_value)
+                if virtual:
+                    splitter.active = new_str_or_bool
+                    move = move_by_int(node, splitter.active)
+                else:
+                    splitter.current_text = new_str_or_bool
+                    move = move_by_int(node, splitter.current_value)
                 node.ni_nd.choice_move_activate(move)
         assert found, "Splitter name not found"
 
