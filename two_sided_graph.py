@@ -154,12 +154,10 @@ class CountDescriptor:
     def __get__(self, instance, owner):
         if not hasattr(owner, "_i"):
             owner._i = 0
-        if hasattr(instance, "ii"):
-            return instance.ii
-        else:
+        if not hasattr(instance, "_ii"):
             owner._i += 1
-            instance.ii = owner._i
-            return owner._i
+            instance._ii = owner._i
+        return instance._ii
 
     def __set__(self, instance, value):
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
@@ -684,3 +682,9 @@ if __name__ == '__main__':
     pn_13 = pg_3.insert_node_neck()
     print(pg_3.layered_representation())
     # print(pg_3.free_roll().nodes)
+
+    # pg = OneComponentTwoSidedPG()
+    # node = pg.insert_node()
+    #
+    # pg_3.aggregate(pg, [NodesMerge(pn_3.ni_nd, pg.inf_pu.ni_pu),
+    #                     NodesMerge(pn_6.ni_pu, pg.inf_nd.ni_nd)])

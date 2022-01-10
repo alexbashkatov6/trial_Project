@@ -40,3 +40,10 @@ print(g)
 for i in range(1):
     print("hello")
 print(0 in {})
+class A:
+    a = 0
+    def __init__(self):
+        pass
+        # self.a = 1
+p = A()
+print(p.a)
