@@ -3,8 +3,9 @@ from typing import Union
 
 from image_attribute import ImageAttribute, TitleAttribute, SplitterAttribute, VirtualSplitterAttribute, FormAttribute
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Move, NodesMerge
-from custom_enum import CustomEnum
 from cell_object import CellObject
+from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightType, CELightColor, \
+    CEBorderType
 
 COMMON_TEMPLATE = OneComponentTwoSidedPG()
 
@@ -28,45 +29,6 @@ class SplitterMove(CellObject):
         return self._int_value
 
 
-class CEDependence(CustomEnum):
-    dependent = 0
-    independent = 1
-
-
-class CEBool(CustomEnum):
-    false = 0
-    true = 1
-
-
-class CEAxisCreationMethod(CustomEnum):
-    translational = 0
-    rotational = 1
-
-
-class CEAxisOrLine(CustomEnum):
-    axis = 0
-    line = 1
-
-
-class CELightType(CustomEnum):
-    train = 0
-    shunt = 1
-
-
-class CELightColor(CustomEnum):
-    red = 0
-    blue = 1
-    white = 2
-    yellow = 3
-    green = 4
-
-
-class CEBorderType(CustomEnum):
-    standoff = 0
-    ab = 1
-    pab = 2
-
-
 def splitter_nodes(graph: OneComponentTwoSidedPG, virtual: bool = False) \
         -> set[tuple[PolarNode, Union[SplitterAttribute, VirtualSplitterAttribute]]]:
     nodes_splitters = set()
@@ -80,21 +42,6 @@ def splitter_nodes(graph: OneComponentTwoSidedPG, virtual: bool = False) \
                 if isinstance(co, SplitterAttribute):
                     nodes_splitters.add((node, co))
     return nodes_splitters
-
-
-# def auto_expand_splitters(graph: OneComponentTwoSidedPG):
-#     nodes_splitters = splitter_nodes(graph)
-#     for nodes_splitter in nodes_splitters:
-#         node, splitter = nodes_splitter
-#         count_links_needed = len(splitter.possible_values)
-#         count_links_current = len(node.ni_nd.links)
-#         if count_links_current < count_links_needed:
-#             assert count_links_current == 1, "More then 1 link in auto splitter"
-#             link = node.ni_nd.links[0]
-#             for _ in range(count_links_needed-count_links_current):
-#                 graph.connect(*link.ni_s)
-#             for i, move in enumerate(node.ni_nd.moves):
-#                 move.append_cell_obj(SplitterMove(i))
 
 
 def move_by_int(node: PolarNode, value: int) -> Move:
@@ -240,7 +187,6 @@ class BuildTemplateDescriptor:
                 pnt = g.insert_node()
                 pnt.append_cell_obj(FormAttribute('point', 'Point'))
 
-            # auto_expand_splitters(g)
             splitter_moves_activation(g)
             owner._build_template = g
         if not hasattr(instance, "_i_build_template"):

@@ -166,7 +166,7 @@ class CastEvaluations:
                 out_value = eval(in_value)
             else:
                 out_value = in_value
-            assert out_value in enum_of_value.possibleValues, 'Value {} not in possb. enum vals. {}'.format(out_value,
+            assert out_value in enum_of_value.possibleValues, 'Value {} not in possb. base_enum vals. {}'.format(out_value,
                                                                                                             enum_of_value.possibleValues)
             return out_value
         else:
@@ -182,7 +182,7 @@ class CastEvaluations:
                 out_value = in_value
             assert type(out_value) == need_iterable_type, 'Need type of iterable is {}'.format(need_iterable_type)
             assert all(map(lambda i: i in enum_of_each_value.possibleValues,
-                           out_value)), 'Not all elements is enum vals {} : {}'.format(enum_of_each_value,
+                           out_value)), 'Not all elements is base_enum vals {} : {}'.format(enum_of_each_value,
                                                                                        out_value)
             if not need_count is None:
                 assert type(need_count) == int, 'Need_count need to be int, given str_value is {}'.format(need_count)

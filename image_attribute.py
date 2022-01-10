@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Iterable
 
 from custom_enum import CustomEnum
 from cell_object import CellObject
@@ -18,31 +19,61 @@ class TitleAttribute(ImageAttribute):
 
 
 class SplitterAttribute(ImageAttribute):
-    def __init__(self, name, custom_enum: CustomEnum):
+    def __init__(self, name, custom_enum: CustomEnum, excepted_values: Iterable[str] = None,
+                 with_default: bool = False):
         super().__init__(name)
-        self._enum = custom_enum
+        self._base_enum = custom_enum
+        if not excepted_values:
+            self.excepted_values = []
+        else:
+            self.excepted_values = excepted_values
+        self.with_default = with_default
+        self._current_text = None
 
         self.text_view_props = TextViewProperties()
 
     @property
-    def enum(self) -> CustomEnum:
-        return self._enum
+    def base_enum(self) -> CustomEnum:
+        return self._base_enum
 
     @property
     def possible_values(self) -> list[str]:
-        return self.enum.possible_values
+        p_values = self.base_enum.possible_values
+        if self.with_default:
+            p_values.append("no_value")
+        return [p_value for p_value in p_values if p_value not in self.excepted_values]
+
+    @property
+    def excepted_values(self):
+        return self._excepted_values
+
+    @excepted_values.setter
+    def excepted_values(self, val: Iterable[str]):
+        self._excepted_values = list(val)
+
+    @property
+    def with_default(self):
+        return self._with_default
+
+    @with_default.setter
+    def with_default(self, val: bool):
+        self._with_default = val
 
     @property
     def current_text(self):
-        return self.enum.str_value
+        return self._current_text
 
     @current_text.setter
-    def current_text(self, val):
-        self._enum = type(self.enum)(val)
+    def current_text(self, val: str):
+        if val != "no_value":
+            self._base_enum = type(self.base_enum)(val)
+        self._current_text = val
 
     @property
-    def current_value(self):
-        return self.enum.int_value
+    def current_value(self) -> int:
+        if self._current_text == "no_value":
+            return -1
+        return self.base_enum.int_value
 
 
 class VirtualSplitterAttribute(ImageAttribute):
