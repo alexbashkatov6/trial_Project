@@ -3,6 +3,7 @@ from typing import Union
 
 from image_attribute import ImageAttribute, TitleAttribute, SplitterAttribute, VirtualSplitterAttribute, FormAttribute
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Move, NodesMerge
+from graph_access_operations import get_node_by_name
 from cell_object import CellObject
 from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightType, CELightColor, \
     CEBorderType
@@ -168,8 +169,10 @@ class BuildTemplateDescriptor:
                 pnt.append_cell_obj(FormAttribute('point', 'Point'))
                 dir_pnt = g.insert_node(pnt.ni_nd)
                 dir_pnt.append_cell_obj(FormAttribute('direction_point', 'Point'))
-                l_color = g.insert_node(dir_pnt.ni_nd)
-                l_color.append_cell_obj(SplitterAttribute('color', CELightColor(CELightColor.red)))
+                l_color_1 = g.insert_node(dir_pnt.ni_nd)
+                l_color_1.append_cell_obj(SplitterAttribute('color_1', CELightColor(CELightColor.red)))
+                l_color_2 = g.insert_node(l_color_1.ni_nd)
+                l_color_2.append_cell_obj(SplitterAttribute('color_2', CELightColor(CELightColor.white)))
 
             if owner == RailPoint:
                 pnt = g.insert_node()
@@ -184,8 +187,8 @@ class BuildTemplateDescriptor:
                 b_type.append_cell_obj(SplitterAttribute('type', CEBorderType(CEBorderType.standoff)))
 
             if owner == Section:
-                pnt = g.insert_node()
-                pnt.append_cell_obj(FormAttribute('point', 'Point'))
+                pnt_1 = g.insert_node()
+                pnt_1.append_cell_obj(FormAttribute('point_1', 'Point'))
 
             splitter_moves_activation(g)
             owner._build_template = g
@@ -220,6 +223,9 @@ class ImageObject:
                     move = move_by_int(node, splitter.current_value)
                 node.ni_nd.choice_move_activate(move)
         assert found, "Splitter name not found"
+
+    def insert_new_attrib(self, attr_before_name: str, new_attr: ImageAttribute):
+        get_node_by_name()
 
 
 class CoordinateSystem(ImageObject):

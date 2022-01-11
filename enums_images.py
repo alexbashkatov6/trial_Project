@@ -27,11 +27,12 @@ class CELightType(CustomEnum):
 
 
 class CELightColor(CustomEnum):
-    red = 0
-    blue = 1
-    white = 2
-    yellow = 3
-    green = 4
+    dark = 0
+    red = 1
+    blue = 2
+    white = 3
+    yellow = 4
+    green = 5
 
 
 class CEBorderType(CustomEnum):
