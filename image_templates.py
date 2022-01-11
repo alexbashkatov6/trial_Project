@@ -3,7 +3,7 @@ from typing import Union
 
 from image_attribute import ImageAttribute, TitleAttribute, SplitterAttribute, VirtualSplitterAttribute, FormAttribute
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Move, NodesMerge
-from graph_access_operations import get_node_by_name
+from extended_itertools import get_node_by_name
 from cell_object import CellObject
 from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightType, CELightColor, \
     CEBorderType

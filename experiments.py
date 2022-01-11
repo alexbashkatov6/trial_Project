@@ -47,3 +47,10 @@ class A:
         # self.a = 1
 p = A()
 print(p.a)
+
+
+def fun(x):
+    return x+1
+
+
+print(list(map(fun, (0, 1, 2, 3))))
