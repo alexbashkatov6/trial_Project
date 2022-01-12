@@ -65,3 +65,12 @@ class MyDescriptor:
 class MyClass:
     field1 = MyDescriptor()
     field2 = MyDescriptor()
+
+
+a = [1, 2, 3]
+b = [*a, 4, 5]
+print(b)
+
+eval(int("sdsd"))
+from typing import Type
+print(isinstance(list[str], Type))
