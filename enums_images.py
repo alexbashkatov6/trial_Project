@@ -21,9 +21,14 @@ class CEAxisOrLine(CustomEnum):
     line = 1
 
 
-class CELightType(CustomEnum):
+class CELightRouteType(CustomEnum):
     train = 0
     shunt = 1
+
+
+class CELightStickType(CustomEnum):
+    mast = 0
+    dwarf = 1
 
 
 class CELightColor(CustomEnum):

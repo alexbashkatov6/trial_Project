@@ -54,3 +54,14 @@ def fun(x):
 
 
 print(list(map(fun, (0, 1, 2, 3))))
+
+
+class MyDescriptor:
+
+    def __set_name__(self, owner, name):
+        print('Атрибут %s' % name)
+
+
+class MyClass:
+    field1 = MyDescriptor()
+    field2 = MyDescriptor()

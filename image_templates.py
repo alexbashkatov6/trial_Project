@@ -3,9 +3,9 @@ from typing import Union
 
 from image_attribute import ImageAttribute, TitleAttribute, SplitterAttribute, VirtualSplitterAttribute, FormAttribute
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Move, NodesMerge
-from extended_itertools import get_node_by_name
+# from extended_itertools import get_node_by_name
 from cell_object import CellObject
-from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightType, CELightColor, \
+from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CELightColor, \
     CEBorderType
 
 COMMON_TEMPLATE = OneComponentTwoSidedPG()
@@ -164,7 +164,7 @@ class BuildTemplateDescriptor:
 
             if owner == Light:
                 l_type = g.insert_node()
-                l_type.append_cell_obj(SplitterAttribute('type', CELightType(CELightType.train)))
+                l_type.append_cell_obj(SplitterAttribute('type', CELightRouteType(CELightRouteType.train)))
                 pnt = g.insert_node(l_type.ni_nd)
                 pnt.append_cell_obj(FormAttribute('point', 'Point'))
                 dir_pnt = g.insert_node(pnt.ni_nd)
@@ -224,8 +224,8 @@ class ImageObject:
                 node.ni_nd.choice_move_activate(move)
         assert found, "Splitter name not found"
 
-    def insert_new_attrib(self, attr_before_name: str, new_attr: ImageAttribute):
-        get_node_by_name()
+    # def insert_new_attrib(self, attr_before_name: str, new_attr: ImageAttribute):
+    #     get_node_by_name()
 
 
 class CoordinateSystem(ImageObject):

@@ -200,7 +200,7 @@ class PolarNode(Element):
         return 2 - self.ni_nd.is_empty - self.ni_pu.is_empty
 
     @property
-    def not_empty_ni(self) -> NodeInterface:
+    def only_1_not_empty_ni(self) -> NodeInterface:
         assert self.count_side_connected <= 1, "More then 1 side connected"
         assert self.count_side_connected >= 1, "Less then 1 side connected"
         if self.ni_nd.is_empty:
@@ -323,7 +323,7 @@ class PolarGraph:
 
     @property
     def border_ni_s(self) -> set[NodeInterface]:
-        return {pn.not_empty_ni for pn in self.nodes if pn.count_side_connected == 1}
+        return {pn.only_1_not_empty_ni for pn in self.nodes if pn.count_side_connected == 1}
 
     def init_node(self) -> PolarNode:
         pn = PolarNode()
