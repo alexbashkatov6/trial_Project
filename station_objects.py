@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Type
 
 from custom_enum import CustomEnum
 
@@ -154,7 +153,7 @@ class SoListValues:
 class SoName:
     def __get__(self, instance, owner):
         assert instance, "Only for instance"
-        return instance._name
+        return getattr(instance, "_name")
 
     def __set__(self, instance, value: str):
         if value in SOS.name_to_object:
@@ -171,15 +170,7 @@ class BaseAttrDescriptor:
             if isinstance(expected_type_or_enum, CustomEnum):
                 self.enum = expected_type_or_enum
             else:
-                if expected_type_or_enum == "complex_type":
-                    self.expected_type = "complex_type"
-                else:
-                    """ because class cannot contain its name, eval needs """
-                    expected_type_or_enum = eval(expected_type_or_enum)
-                    assert issubclass(expected_type_or_enum, StationObject) or \
-                           (expected_type_or_enum in [str, int, float]), \
-                           "StationObject type or str, int, float expected"
-                    self.expected_type: Type = expected_type_or_enum
+                self.expected_type: str = expected_type_or_enum
 
     def __get__(self, instance, owner):
         if not instance:
@@ -195,41 +186,53 @@ class BaseAttrDescriptor:
     def __set_name__(self, owner, name):
         self.name = name
 
-    def __set__(self, instance, value: str):
+    def __set__(self, instance: StationObject, value: str):
+        assert self.name in instance.active_attrs, "Attribute for set should be active"
         if self.enum:
             inst_enum: CustomEnum = getattr(instance, self.name)
             setattr(instance, "_" + self.name, type(inst_enum)(value))
         elif self.expected_type:
             if self.expected_type == "complex_type":
                 return
-            if issubclass(self.expected_type, StationObject):
+            else:
+                """ because class cannot contain its name, eval needs """
+                expected_type = eval(self.expected_type)
+
+            if issubclass(expected_type, StationObject):
                 if value in SOS.name_to_object:
                     obj = SOS.name_to_object[value]
-                    if isinstance(obj, self.expected_type):
+                    if isinstance(obj, expected_type):
                         setattr(instance, "_pre_" + self.name, obj)
                     else:
                         raise TypeCoError("Type of given object {} not satisfy type requirement {}"
-                                          .format(value, self.expected_type))
+                                          .format(value, expected_type))
                 else:
                     raise TypeCoError("Type of given object {} not satisfy type requirement {}"
-                                      .format(value, self.expected_type))
-            else:
+                                      .format(value, expected_type))
+            elif expected_type in [str, int, float]:
                 try:
-                    val = self.expected_type(value)
+                    val = expected_type(value)
                 except ValueError:
                     raise TypeCoError("Type of given object {} not satisfy type requirement {}"
-                                      .format(value, self.expected_type))
+                                      .format(value, expected_type))
                 setattr(instance, "_pre_" + self.name, val)
-            if getattr(self, "__set__") == BaseAttrDescriptor.__set__:
-                setattr(instance, "_" + self.name, getattr(instance, "_pre_" + self.name))
+            else:
+                assert False, "StationObject type or str, int, float expected"
+
+            if self.__class__.__set__ is BaseAttrDescriptor.__set__:
+                self.push_pre_to_value(instance)
         else:
             assert False, "No requirements found"
 
+    def get_pre_value(self, instance: StationObject):
+        return getattr(instance, "_pre_" + self.name)
+
+    def push_pre_to_value(self, instance: StationObject):
+        setattr(instance, "_" + self.name, getattr(instance, "_pre_" + self.name))
+
 
 class CsCsRelTo(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class CsDepend(BaseAttrDescriptor):
@@ -237,21 +240,15 @@ class CsDepend(BaseAttrDescriptor):
 
 
 class CsX(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class CsY(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class CsAlpha(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class CsCoX(BaseAttrDescriptor):
@@ -263,9 +260,7 @@ class CsCoY(BaseAttrDescriptor):
 
 
 class AxCsRelTo(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class AxCrtMethod(BaseAttrDescriptor):
@@ -273,21 +268,22 @@ class AxCrtMethod(BaseAttrDescriptor):
 
 
 class AxY(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class AxCenterPoint(BaseAttrDescriptor):
 
     def __set__(self, instance, value):
-        pass
+        super().__set__(instance, value)
+        point: Point = self.get_pre_value(instance)
+        if point.on != "axis":
+            raise SemanticCoError("Center point should be on Axis")
+        else:
+            self.push_pre_to_value(instance)
 
 
 class AxAlpha(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class PntOn(BaseAttrDescriptor):
@@ -295,9 +291,7 @@ class PntOn(BaseAttrDescriptor):
 
 
 class PntX(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class LinePoints(BaseAttrDescriptor):
@@ -421,25 +415,53 @@ class StationObjectsStorage:
     def __init__(self):
         self.name_to_object: dict[str, StationObject] = {}
         self.class_objects = dict.fromkeys([cls.__name__ for cls in StationObject.__subclasses__()], [])
+        self.add_new_object(CoordinateSystem(), "GlobalCS")
 
-    def add_new_object(self, obj: StationObject):
-        self.class_objects[obj.__class__.__name__].append(obj.name)
-        self.name_to_object[obj.name] = obj
+    def add_new_object(self, obj: StationObject, name: str = None):
+        if name:
+            assert isinstance(obj, CoordinateSystem) and (name == "GlobalCS"), "Parameter only for GCS"
+        else:
+            name = obj.name
+        self.class_objects[obj.__class__.__name__].append(name)
+        self.name_to_object[name] = obj
 
 
 SOS = StationObjectsStorage()
 
 if __name__ == "__main__":
-    cs = CoordinateSystem()
-    print(cs.attr_sequence_template)
-    print(cs.dependence)
-    print(cs.active_attrs)
-    cs.dependence = "independent"
-    print()
-    print(cs.active_attrs)
-    cs.dependence = "dependent"
-    print()
-    print(cs.active_attrs)
-    print(SOS.class_objects)
-    print(getattr(CsDepend, "__set__") == BaseAttrDescriptor.__set__)
-    print(getattr(RailPDirMinusPoint, "__set__") == BaseAttrDescriptor.__set__)
+    test_1 = False
+    if test_1:
+        cs = CoordinateSystem()
+        print(cs.attr_sequence_template)
+        print(cs.dependence)
+        print(cs.active_attrs)
+        cs.dependence = "independent"
+        print()
+        print(cs.active_attrs)
+        cs.dependence = "dependent"
+        print()
+        print(cs.active_attrs)
+        print(SOS.class_objects)
+        print(getattr(CsDepend, "__set__") == BaseAttrDescriptor.__set__)
+        print(getattr(RailPDirMinusPoint, "__set__") == BaseAttrDescriptor.__set__)
+        cs.cs_relative_to = "GlobalCS"
+        cs.x = "35"
+        cs.co_x = "false"
+
+        for attr in cs.active_attrs:
+            print(getattr(cs, attr))
+
+    test_2 = False
+    if test_2:
+        pnt = Point()
+        pnt.name = "Point"
+        pnt.on = "line"
+        SOS.add_new_object(pnt)
+        for attr in pnt.active_attrs:
+            print(getattr(pnt, attr))
+        ax = Axis()
+        ax.creation_method = "rotational"
+        print()
+        ax.center_point = "Point"
+        for attr in ax.active_attrs:
+            print(getattr(ax, attr))

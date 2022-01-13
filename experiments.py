@@ -71,6 +71,9 @@ a = [1, 2, 3]
 b = [*a, 4, 5]
 print(b)
 
-eval(int("sdsd"))
+# eval(int("sdsd"))
 from typing import Type
 print(isinstance(list[str], Type))
+
+a = [1, 2, 3, [4]]
+print(4 in a)
