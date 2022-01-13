@@ -177,7 +177,7 @@ class ImgDependenceGraph:
 
 class ImagesManager:
     def __init__(self):
-        self.tree_view = ImgBuilder(self)
+        self.tree_view = ImgTreeView(self)
         self.attrib_view = ImgAttribView(self)
 
         self.builder = ImgBuilder(self)

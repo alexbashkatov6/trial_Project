@@ -18,6 +18,10 @@ class GeometryException(Exception):
     pass
 
 
+class EquivalentLinesException(GeometryException):
+    pass
+
+
 class ParallelLinesException(GeometryException):
     pass
 
@@ -28,7 +32,7 @@ class PointsEqualException(GeometryException):
 
 def cut_optimization(func, *args, borders: tuple[Real, Real], maxormin: BSSMaxMin = BSSMaxMin('min'),
                      precision: float = ANGLE_EQUAL_EVAL_PRECISION) -> tuple[float, float]:
-    """CUT 1D optimization for convex functions"""
+    """ CUT 1D optimization for convex functions """
     curr_borders = (min(borders), max(borders))
     curr_region_size = curr_borders[1] - curr_borders[0]
     if maxormin == 'min':
@@ -60,7 +64,7 @@ def coord_equality(coord_1: float, coord_2: float, coord_precision: float = None
 
 
 def evaluate_vector(pnt_1: Point2D, pnt_2: Point2D) -> (Angle, bool):
-    """returns angle and if direction from pnt_1 to pnt_2 is positive"""
+    """ returns angle and if direction from pnt_1 to pnt_2 is positive """
     coord_eq_prec = COORD_EQUAL_PRECISION
     max_cycle_count = 5
     while True:
@@ -91,6 +95,8 @@ def rotate_operation(center: Point2D, point: Point2D, angle: Angle) -> Point2D:
 
 def lines_intersection(line_1: Line2D, line_2: Line2D) -> Point2D:
     if line_1.angle == line_2.angle:
+        if coord_equality(line_1.c, line_2.c):
+            raise EquivalentLinesException('Lines {}, {} are equal'.format(line_1, line_2))
         raise ParallelLinesException('Angles of lines {}, {} are equal'.format(line_1, line_2))
     result = np.linalg.solve(np.array([[line_1.a, line_1.b], [line_2.a, line_2.b]]), np.array([-line_1.c, -line_2.c]))
     return Point2D(result[0], result[1])
@@ -108,7 +114,7 @@ def pnt_between(pnt: Point2D, pnt_1: Point2D, pnt_2: Point2D) -> bool:
 
 
 def bezier_curvature(t: Real, pnt_1: Point2D, pnt_2: Point2D, pnt_control: Point2D):
-    """t is float between 0 and 1"""
+    """ t is float between 0 and 1 """
     x1, y1 = pnt_1.coords
     x2, y2 = pnt_2.coords
     x3, y3 = pnt_control.coords
@@ -144,7 +150,7 @@ class Point2D:
 
 
 class Angle:
-    """angle is measured clockwise"""
+    """ angle is measured clockwise """
     def __init__(self, free_angle: Real):
         self.free_angle = float(free_angle)
 
@@ -172,30 +178,30 @@ class Angle:
 
     @property
     def angle_0_2pi(self):
-        """radian value in interval [0, 2pi)"""
+        """ radian value in interval [0, 2pi) """
         positive_angle = self.free_angle % (2 * math.pi)
         return positive_angle
 
     @property
     def deg_angle_0_360(self):
-        """degree value in interval [0, 360)"""
+        """ degree value in interval [0, 360) """
         return self.angle_0_2pi * 180 / math.pi
 
     @property
     def angle_mpi2_ppi2(self):
-        """radian value in interval (-pi/2, pi/2]"""
+        """ radian value in interval (-pi/2, pi/2] """
         positive_angle = self.free_angle % math.pi
         return positive_angle - math.pi if positive_angle > math.pi / 2 else positive_angle
 
     @property
     def deg_angle_m90_p90(self):
-        """degree value in interval (-90, 90]"""
+        """ degree value in interval (-90, 90] """
         return self.angle_mpi2_ppi2 * 180 / math.pi
 
 
 class Line2D:
     def __init__(self, pnt_1: Point2D, pnt_2: Point2D = None, angle: Angle = None):
-        """Line is solution of equation a*x + b*y + c = 0"""
+        """ Line is solution of equation a*x + b*y + c = 0 """
         assert not (pnt_2 is None) or not (angle is None), 'Not complete input data'
         self.pnt = pnt_1
         if angle:
@@ -342,7 +348,7 @@ class Ellipse(GeometryPrimitive):
 class FrameCS:
     def __init__(self, base_cs: FrameCS = None, center_pnt_in_base: Point2D = Point2D(0, 0),
                  scale_in_base_x: Real = 1, scale_in_base_y: Real = 1):
-        """scale > 1 means that ticks more often"""
+        """ scale > 1 means that ticks more often """
         self._base_cs = base_cs
         self._center_pnt_in_base = center_pnt_in_base
         self._scale_in_base_x = scale_in_base_x

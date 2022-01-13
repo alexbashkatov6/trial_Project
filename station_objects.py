@@ -1,6 +1,12 @@
 from __future__ import annotations
+from collections import OrderedDict
+from copy import copy
 
 from custom_enum import CustomEnum
+
+
+class NotImplementedCoError(Exception):
+    pass
 
 
 class ExistingNameCoError(Exception):
@@ -117,7 +123,7 @@ class SoAttrSeqTemplate:
 class SoActiveAttrs:
     def __get__(self, instance, owner):
         assert instance, "Only for instance"
-        instance: StationObject
+        instance: StationObjectImage
         instance._active_attrs = instance.attr_sequence_template
 
         if owner == CoordinateSystem:
@@ -186,7 +192,7 @@ class BaseAttrDescriptor:
     def __set_name__(self, owner, name):
         self.name = name
 
-    def __set__(self, instance: StationObject, value: str):
+    def __set__(self, instance: StationObjectImage, value: str):
         assert self.name in instance.active_attrs, "Attribute for set should be active"
         if self.enum:
             inst_enum: CustomEnum = getattr(instance, self.name)
@@ -198,7 +204,7 @@ class BaseAttrDescriptor:
                 """ because class cannot contain its name, eval needs """
                 expected_type = eval(self.expected_type)
 
-            if issubclass(expected_type, StationObject):
+            if issubclass(expected_type, StationObjectImage):
                 if value in SOS.name_to_object:
                     obj = SOS.name_to_object[value]
                     if isinstance(obj, expected_type):
@@ -224,10 +230,10 @@ class BaseAttrDescriptor:
         else:
             assert False, "No requirements found"
 
-    def get_pre_value(self, instance: StationObject):
+    def get_pre_value(self, instance: StationObjectImage):
         return getattr(instance, "_pre_" + self.name)
 
-    def push_pre_to_value(self, instance: StationObject):
+    def push_pre_to_value(self, instance: StationObjectImage):
         setattr(instance, "_" + self.name, getattr(instance, "_pre_" + self.name))
 
 
@@ -248,7 +254,8 @@ class CsY(BaseAttrDescriptor):
 
 
 class CsAlpha(BaseAttrDescriptor):
-    pass
+    def __set__(self, instance, value):
+        raise NotImplementedCoError
 
 
 class CsCoX(BaseAttrDescriptor):
@@ -296,7 +303,7 @@ class PntX(BaseAttrDescriptor):
 
 class LinePoints(BaseAttrDescriptor):
 
-    def __set__(self, instance, value):
+    def __set__(self, instance, value: tuple[str, str]):
         pass
 
 
@@ -354,7 +361,7 @@ class SectBorderPoints(BaseAttrDescriptor):
         pass
 
 
-class StationObject:
+class StationObjectImage:
     attr_sequence_template = SoAttrSeqTemplate()
     active_attrs = SoActiveAttrs()
     list_possible_values = SoListPossibleValues()
@@ -362,7 +369,7 @@ class StationObject:
     name = SoName()
 
 
-class CoordinateSystem(StationObject):
+class CoordinateSystem(StationObjectImage):
     cs_relative_to = CsCsRelTo("CoordinateSystem")
     dependence = CsDepend(CEDependence(CEDependence.dependent))
     x = CsX("int")
@@ -372,7 +379,7 @@ class CoordinateSystem(StationObject):
     co_y = CsCoY(CEBool(CEBool.true))
 
 
-class Axis(StationObject):
+class Axis(StationObjectImage):
     cs_relative_to = AxCsRelTo("CoordinateSystem")
     creation_method = AxCrtMethod(CEAxisCreationMethod(CEAxisCreationMethod.translational))
     y = AxY("int")
@@ -380,16 +387,16 @@ class Axis(StationObject):
     alpha = AxAlpha("int")
 
 
-class Point(StationObject):
+class Point(StationObjectImage):
     on = PntOn(CEAxisOrLine(CEAxisOrLine.axis))
     x = PntX("int")
 
 
-class Line(StationObject):
+class Line(StationObjectImage):
     points = LinePoints("complex_type")
 
 
-class Light(StationObject):
+class Light(StationObjectImage):
     light_route_type = LightRouteType(CELightRouteType(CELightRouteType.train))
     light_stick_type = LightStickType(CELightStickType(CELightStickType.mast))
     center_point = LightCenterPoint("Point")
@@ -397,27 +404,29 @@ class Light(StationObject):
     colors = LightColors("complex_type")
 
 
-class RailPoint(StationObject):
+class RailPoint(StationObjectImage):
     center_point = RailPCenterPoint("Point")
     dir_plus_point = RailPDirPlusPoint("Point")
     dir_minus_point = RailPDirMinusPoint("Point")
 
 
-class Border(StationObject):
+class Border(StationObjectImage):
     border_type = BorderType(CEBorderType(CEBorderType.standoff))
 
 
-class Section(StationObject):
+class Section(StationObjectImage):
     border_points = SectBorderPoints("complex_type")
 
 
 class StationObjectsStorage:
     def __init__(self):
-        self.name_to_object: dict[str, StationObject] = {}
-        self.class_objects = dict.fromkeys([cls.__name__ for cls in StationObject.__subclasses__()], [])
+        """ reimplement for OrderedDict[str, OrderedDict[str, SO]] """
+        self.name_to_object: OrderedDict[str, StationObjectImage] = OrderedDict()
+        self.class_objects = OrderedDict.fromkeys([cls.__name__ for cls in StationObjectImage.__subclasses__()], copy([]))
+
         self.add_new_object(CoordinateSystem(), "GlobalCS")
 
-    def add_new_object(self, obj: StationObject, name: str = None):
+    def add_new_object(self, obj: StationObjectImage, name: str = None):
         if name:
             assert isinstance(obj, CoordinateSystem) and (name == "GlobalCS"), "Parameter only for GCS"
         else:
@@ -429,7 +438,7 @@ class StationObjectsStorage:
 SOS = StationObjectsStorage()
 
 if __name__ == "__main__":
-    test_1 = False
+    test_1 = True
     if test_1:
         cs = CoordinateSystem()
         print(cs.attr_sequence_template)
@@ -451,7 +460,7 @@ if __name__ == "__main__":
         for attr in cs.active_attrs:
             print(getattr(cs, attr))
 
-    test_2 = False
+    test_2 = True
     if test_2:
         pnt = Point()
         pnt.name = "Point"
