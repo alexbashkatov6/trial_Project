@@ -171,9 +171,15 @@ class BaseAttrDescriptor:
             if isinstance(expected_type_or_enum, CustomEnum):
                 self.enum = expected_type_or_enum
             else:
-                assert issubclass(expected_type_or_enum, StationObject) or \
-                       (expected_type_or_enum in [str, int, float]), "StationObject type or str, int, float expected"
-                self.expected_type: Type = expected_type_or_enum
+                if expected_type_or_enum == "complex_type":
+                    self.expected_type = "complex_type"
+                else:
+                    """ because class cannot contain its name, eval needs """
+                    expected_type_or_enum = eval(expected_type_or_enum)
+                    assert issubclass(expected_type_or_enum, StationObject) or \
+                           (expected_type_or_enum in [str, int, float]), \
+                           "StationObject type or str, int, float expected"
+                    self.expected_type: Type = expected_type_or_enum
 
     def __get__(self, instance, owner):
         if not instance:
@@ -190,16 +196,34 @@ class BaseAttrDescriptor:
         self.name = name
 
     def __set__(self, instance, value: str):
-        """ ! implement pre-set - before semantic check """
         if self.enum:
             inst_enum: CustomEnum = getattr(instance, self.name)
             setattr(instance, "_" + self.name, type(inst_enum)(value))
         elif self.expected_type:
+            if self.expected_type == "complex_type":
+                return
             if issubclass(self.expected_type, StationObject):
                 if value in SOS.name_to_object:
-                    setattr(instance, "_" + self.name, SOS.name_to_object[value])
+                    obj = SOS.name_to_object[value]
+                    if isinstance(obj, self.expected_type):
+                        setattr(instance, "_pre_" + self.name, obj)
+                    else:
+                        raise TypeCoError("Type of given object {} not satisfy type requirement {}"
+                                          .format(value, self.expected_type))
+                else:
+                    raise TypeCoError("Type of given object {} not satisfy type requirement {}"
+                                      .format(value, self.expected_type))
             else:
-                setattr(instance, "_" + self.name, self.expected_type(value))
+                try:
+                    val = self.expected_type(value)
+                except ValueError:
+                    raise TypeCoError("Type of given object {} not satisfy type requirement {}"
+                                      .format(value, self.expected_type))
+                setattr(instance, "_pre_" + self.name, val)
+            if getattr(self, "__set__") == BaseAttrDescriptor.__set__:
+                setattr(instance, "_" + self.name, getattr(instance, "_pre_" + self.name))
+        else:
+            assert False, "No requirements found"
 
 
 class CsCsRelTo(BaseAttrDescriptor):
@@ -345,44 +369,44 @@ class StationObject:
 
 
 class CoordinateSystem(StationObject):
-    cs_relative_to = CsCsRelTo()
+    cs_relative_to = CsCsRelTo("CoordinateSystem")
     dependence = CsDepend(CEDependence(CEDependence.dependent))
-    x = CsX()
-    y = CsY()
-    alpha = CsAlpha()
+    x = CsX("int")
+    y = CsY("int")
+    alpha = CsAlpha("int")
     co_x = CsCoX(CEBool(CEBool.true))
     co_y = CsCoY(CEBool(CEBool.true))
 
 
 class Axis(StationObject):
-    cs_relative_to = AxCsRelTo()
+    cs_relative_to = AxCsRelTo("CoordinateSystem")
     creation_method = AxCrtMethod(CEAxisCreationMethod(CEAxisCreationMethod.translational))
-    y = AxY()
-    center_point = AxCenterPoint()
-    alpha = AxAlpha()
+    y = AxY("int")
+    center_point = AxCenterPoint("Point")
+    alpha = AxAlpha("int")
 
 
 class Point(StationObject):
     on = PntOn(CEAxisOrLine(CEAxisOrLine.axis))
-    x = PntX()
+    x = PntX("int")
 
 
 class Line(StationObject):
-    points = LinePoints()
+    points = LinePoints("complex_type")
 
 
 class Light(StationObject):
     light_route_type = LightRouteType(CELightRouteType(CELightRouteType.train))
     light_stick_type = LightStickType(CELightStickType(CELightStickType.mast))
-    center_point = LightCenterPoint()
-    direct_point = LightDirectionPoint()
-    colors = LightColors()
+    center_point = LightCenterPoint("Point")
+    direct_point = LightDirectionPoint("Point")
+    colors = LightColors("complex_type")
 
 
 class RailPoint(StationObject):
-    center_point = RailPCenterPoint()
-    dir_plus_point = RailPDirPlusPoint()
-    dir_minus_point = RailPDirMinusPoint()
+    center_point = RailPCenterPoint("Point")
+    dir_plus_point = RailPDirPlusPoint("Point")
+    dir_minus_point = RailPDirMinusPoint("Point")
 
 
 class Border(StationObject):
@@ -390,7 +414,7 @@ class Border(StationObject):
 
 
 class Section(StationObject):
-    border_points = SectBorderPoints()
+    border_points = SectBorderPoints("complex_type")
 
 
 class StationObjectsStorage:
@@ -417,3 +441,5 @@ if __name__ == "__main__":
     print()
     print(cs.active_attrs)
     print(SOS.class_objects)
+    print(getattr(CsDepend, "__set__") == BaseAttrDescriptor.__set__)
+    print(getattr(RailPDirMinusPoint, "__set__") == BaseAttrDescriptor.__set__)
