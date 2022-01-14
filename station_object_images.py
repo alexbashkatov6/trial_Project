@@ -105,6 +105,8 @@ class SOIAttrSeqTemplate:
 
         if owner == PointSOI:
             return [PointSOI.on,
+                    PointSOI.axis,
+                    PointSOI.line,
                     PointSOI.x]
 
         if owner == LineSOI:
@@ -151,6 +153,13 @@ class SOIActiveAttrs:
             else:
                 instance._active_attrs.remove(AxisSOI.alpha)
                 instance._active_attrs.remove(AxisSOI.center_point)
+
+        if owner == PointSOI:
+            instance: PointSOI
+            if instance.on == CEAxisOrLine.axis:
+                instance._active_attrs.remove(PointSOI.line)
+            else:
+                instance._active_attrs.remove(PointSOI.axis)
 
         return instance._active_attrs
 
@@ -334,6 +343,14 @@ class PntOn(BaseAttrDescriptor):
     pass
 
 
+class PntAxis(BaseAttrDescriptor):
+    pass
+
+
+class PntLine(BaseAttrDescriptor):
+    pass
+
+
 class PntX(BaseAttrDescriptor):
 
     def __set__(self, instance, value):
@@ -444,6 +461,8 @@ class AxisSOI(StationObjectImage):
 
 class PointSOI(StationObjectImage):
     on = PntOn(CEAxisOrLine(CEAxisOrLine.axis))
+    axis = PntAxis("AxisSOI")
+    line = PntAxis("LineSOI")
     x = PntX("str")
 
 
@@ -539,6 +558,7 @@ class SOIRectifier:
 
 
 def make_xlsx_templates(dir_name: str):
+    """ ! implement splitter values write """
     folder = os.path.join(os.getcwd(), dir_name)
     for cls in StationObjectImage.__subclasses__():
         name_soi = cls.__name__
