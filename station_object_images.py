@@ -114,8 +114,10 @@ class SOIAttrSeqTemplate:
 
         if owner == LightSOI:
             return [LightSOI.light_route_type,
-                    LightSOI.light_stick_type,
-                    LightSOI.colors]
+                    LightSOI.center_point,
+                    LightSOI.direct_point,
+                    LightSOI.colors,
+                    LightSOI.light_stick_type]
 
         if owner == RailPointSOI:
             return [RailPointSOI.center_point,
