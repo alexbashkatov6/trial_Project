@@ -6,7 +6,9 @@ import pandas as pd
 import os
 
 from custom_enum import CustomEnum
-from two_sided_graph import OneComponentTwoSidedPG
+from two_sided_graph import OneComponentTwoSidedPG, PolarNode
+from cell_object import CellObject
+from extended_itertools import single_element, recursive_map
 
 GLOBAL_CS_NAME = "GlobalCS"
 STATION_OUT_CONFIG_FOLDER = "station_out_config"
@@ -132,7 +134,8 @@ class SOIAttrSeqTemplate:
 
         if owner == BorderSOI:
             return [x.name for x in
-                    [BorderSOI.border_type]]
+                    [BorderSOI.point,
+                     BorderSOI.border_type]]
 
         if owner == SectionSOI:
             return [x.name for x in
@@ -475,6 +478,10 @@ class RailPDirMinusPoint(BaseAttrDescriptor):
     pass
 
 
+class BorderPoint(BaseAttrDescriptor):
+    pass
+
+
 class BorderType(BaseAttrDescriptor):
     pass
 
@@ -536,6 +543,7 @@ class RailPointSOI(StationObjectImage):
 
 class BorderSOI(StationObjectImage):
     border_type = BorderType(CEBorderType(CEBorderType.standoff))
+    point = BorderPoint("PointSOI")
 
 
 class SectionSOI(StationObjectImage):
@@ -601,10 +609,46 @@ class SOISelector:
         return self.current_object.dict_values
 
 
+class ImageNameCell(CellObject):
+    def __init__(self, name: str):
+        self.name = name
+
+
 class SOIRectifier:
     """ objects sequence getter """
     def __init__(self):
         self.dg = OneComponentTwoSidedPG()  # dependence graph
+        gcs_node = self.dg.insert_node()
+        gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
+
+    def build_dg(self, obj_list: list[StationObjectImage]) -> None:
+        names_list: list[str] = [GLOBAL_CS_NAME]
+        for obj in obj_list:
+            if obj.name in names_list:
+                raise ExistingNameCoError("Name {} already exist".format(obj.name))
+            node = self.dg.insert_node()
+            node.append_cell_obj(ImageNameCell(obj.name))
+            names_list.append(obj.name)
+        for obj in obj_list:
+            for attr_name in obj.active_attrs:
+                if not getattr(obj.__class__, attr_name).enum:
+                    attr_value: str = getattr(obj, attr_name)
+                    for name in names_list:
+                        if name.isdigit():  # for rail points
+                            continue
+                        if " " in attr_value:
+                            split_names = attr_value.split(" ")
+                        else:
+                            split_names = [attr_value]
+                        for split_name in split_names:
+                            if name == split_name:
+                                node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == obj.name, self.dg.not_inf_nodes)
+                                node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name, self.dg.not_inf_nodes)
+                                # print("node {} under node {}".format(node_self.cell_objs[0].name, node_parent.cell_objs[0].name))
+                                self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
+
+
+SOIR = SOIRectifier()
 
 
 def make_xlsx_templates(dir_name: str):
@@ -784,13 +828,24 @@ if __name__ == "__main__":
     if test_6:
         objs = read_station_config(STATION_IN_CONFIG_FOLDER)
         pnt = get_object_by_name("Point_16", objs)
-        print(pnt.active_attrs)
-        for attr_ in pnt.active_attrs:
-            print(getattr(pnt, attr_))
+        # print(pnt.active_attrs)
+        # for attr_ in pnt.active_attrs:
+        #     print(getattr(pnt, attr_))
+        SOIR.build_dg(objs)
+        print(SOIR.dg.layered_representation())
+        print(recursive_map(lambda x: x.cell_objs[0].name, SOIR.dg.layered_representation()))
+        node_15: PolarNode = single_element(lambda x: x.cell_objs[0].name == "Point_15", SOIR.dg.not_inf_nodes)
+        node_4SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "4SP", SOIR.dg.not_inf_nodes)
+        node_6SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "6SP", SOIR.dg.not_inf_nodes)
+        print(node_15)
+        print(node_15.ni_nd.links)
+        print(node_4SP)
+        print(node_4SP.ni_pu.links)
+        print(node_6SP)
+        print(node_6SP.ni_pu.links)
 
     test_7 = False
     if test_7:
         pnt = PointSOI()
         pnt.x = "PK_12+34"
         print(pnt.x)
-

@@ -530,6 +530,10 @@ class OneComponentTwoSidedPG(PolarGraph):
     def inf_nodes(self):
         return self.inf_pu, self.inf_nd
 
+    @property
+    def not_inf_nodes(self):
+        return self.nodes - set(self.inf_nodes)
+
     def insert_node(self, ni_pu: NodeInterface = None, ni_nd: NodeInterface = None,
                     remove_exist_link: bool = True) -> PolarNode:
         if ni_pu is None:
