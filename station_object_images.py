@@ -226,6 +226,32 @@ class SOIName:
         instance._name = value
 
 
+# class StrDescriptor:
+#
+#     def __init__(self, default_attr_name: str = None):
+#         self.default_attr_name = default_attr_name
+#
+#     def __get__(self, instance, owner):
+#         assert instance, "Only for instance"
+#         return getattr(instance, "_str_"+self.default_attr_name)
+#
+#     def __set__(self, instance, value):
+#         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
+#
+#
+# class PreDescriptor:
+#
+#     def __init__(self, default_attr_name: str = None):
+#         self.default_attr_name = default_attr_name
+#
+#     def __get__(self, instance, owner):
+#         assert instance, "Only for instance"
+#         return getattr(instance, "_pre_"+self.default_attr_name)
+#
+#     def __set__(self, instance, value):
+#         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
+
+
 class BaseAttrDescriptor:
 
     def __init__(self, expected_type_or_enum: str = None):
@@ -240,6 +266,8 @@ class BaseAttrDescriptor:
     def __get__(self, instance, owner):
         if not instance:
             return self
+        elif hasattr(instance, "_no_eval_mode_"+self.name):
+            return getattr(instance, "_str_"+self.name)
         elif hasattr(instance, "_"+self.name):
             return getattr(instance, "_"+self.name)
         elif self.enum:
@@ -253,15 +281,24 @@ class BaseAttrDescriptor:
 
     def __set__(self, instance: StationObjectImage, value: str):
         value = value.strip()
-        """ for file reading """
+
+        # if not hasattr(instance.__class__, "str_"+self.name):
+        #     setattr(instance.__class__, "str_"+self.name, StrDescriptor(self.name))
+        # if not hasattr(instance.__class__, "pre_"+self.name):
+        #     setattr(instance.__class__, "pre_"+self.name, PreDescriptor(self.name))
+        setattr(instance, "_str_"+self.name, value.replace("_str_", ""))
+
+        """ for stage building DG - no evaluations """
         if value.startswith("_str_") and value.endswith("_str_"):
-            setattr(instance, "_str_mode_" + self.name, True)
+            setattr(instance, "_no_eval_mode_" + self.name, True)
             setattr(instance, "_" + self.name, value.replace("_str_", ""))
-            # print("here", "_" + self.name, value.replace("_str_", ""))
             return
-        if hasattr(instance, "_str_mode_" + self.name):
-            delattr(instance, "_str_mode_" + self.name)
+        if hasattr(instance, "_no_eval_mode_" + self.name):
+            delattr(instance, "_no_eval_mode_" + self.name)
+
         assert self.name in instance.active_attrs, "Attribute for set should be active"
+
+        """ for enum values """
         if self.enum:
             inst_enum: CustomEnum = getattr(instance, self.name)
             setattr(instance, "_" + self.name, type(inst_enum)(value))
@@ -269,7 +306,7 @@ class BaseAttrDescriptor:
             if self.expected_type == "complex_type":
                 return
             else:
-                """ because class cannot contain its name, eval needs """
+                """ because class in Python cannot directly contain its name, eval needs """
                 expected_type = eval(self.expected_type)
 
             if issubclass(expected_type, StationObjectImage):
@@ -297,6 +334,9 @@ class BaseAttrDescriptor:
                 self.push_pre_to_value(instance)
         else:
             assert False, "No requirements found"
+
+    def get_str_value(self, instance: StationObjectImage):
+        return getattr(instance, "_str_" + self.name)
 
     def get_pre_value(self, instance: StationObjectImage):
         return getattr(instance, "_pre_" + self.name)
@@ -350,7 +390,7 @@ class AxCenterPoint(BaseAttrDescriptor):
 
     def __set__(self, instance, value):
         super().__set__(instance, value)
-        if hasattr(instance, "_str_mode_" + self.name):
+        if hasattr(instance, "_no_eval_mode_" + self.name):
             return
         point: PointSOI = self.get_pre_value(instance)
         if point.on != "axis":
@@ -379,9 +419,9 @@ class PntX(BaseAttrDescriptor):
 
     def __set__(self, instance, value):
         super().__set__(instance, value)
-        if hasattr(instance, "_str_mode_" + self.name):
+        if hasattr(instance, "_no_eval_mode_" + self.name):
             return
-        x: str = self.get_pre_value(instance)
+        x: str = self.get_str_value(instance)
         if x.startswith("PK"):
             try:
                 hund_meters = x[x.index("_")+1:x.index("+")]
@@ -473,7 +513,7 @@ class PointSOI(StationObjectImage):
     on = PntOn(CEAxisOrLine(CEAxisOrLine.axis))
     axis = PntAxis("AxisSOI")
     line = PntAxis("LineSOI")
-    x = PntX("str")
+    x = PntX("complex_type")
 
 
 class LineSOI(StationObjectImage):
@@ -743,9 +783,14 @@ if __name__ == "__main__":
     test_6 = True
     if test_6:
         objs = read_station_config(STATION_IN_CONFIG_FOLDER)
-        # print(len(objs))
-        cur_obj = objs[0]
-        # for attr_ in cur_obj.active_attrs:
-        #     print(getattr(cur_obj, attr_))
         pnt = get_object_by_name("Point_16", objs)
         print(pnt.active_attrs)
+        for attr_ in pnt.active_attrs:
+            print(getattr(pnt, attr_))
+
+    test_7 = False
+    if test_7:
+        pnt = PointSOI()
+        pnt.x = "PK_12+34"
+        print(pnt.x)
+
