@@ -88,47 +88,55 @@ class SOIAttrSeqTemplate:
     def __get__(self, instance, owner) -> list[str]:
 
         if owner == CoordinateSystemSOI:
-            return [CoordinateSystemSOI.cs_relative_to,
-                    CoordinateSystemSOI.dependence,
-                    CoordinateSystemSOI.x,
-                    CoordinateSystemSOI.y,
-                    CoordinateSystemSOI.alpha,
-                    CoordinateSystemSOI.co_x,
-                    CoordinateSystemSOI.co_y]
+            return [x.name for x in
+                    [CoordinateSystemSOI.cs_relative_to,
+                     CoordinateSystemSOI.dependence,
+                     CoordinateSystemSOI.x,
+                     CoordinateSystemSOI.y,
+                     CoordinateSystemSOI.alpha,
+                     CoordinateSystemSOI.co_x,
+                     CoordinateSystemSOI.co_y]]
 
         if owner == AxisSOI:
-            return [AxisSOI.cs_relative_to,
-                    AxisSOI.creation_method,
-                    AxisSOI.y,
-                    AxisSOI.center_point,
-                    AxisSOI.alpha]
+            return [x.name for x in
+                    [AxisSOI.cs_relative_to,
+                     AxisSOI.creation_method,
+                     AxisSOI.y,
+                     AxisSOI.center_point,
+                     AxisSOI.alpha]]
 
         if owner == PointSOI:
-            return [PointSOI.on,
-                    PointSOI.axis,
-                    PointSOI.line,
-                    PointSOI.x]
+            return [x.name for x in
+                    [PointSOI.on,
+                     PointSOI.axis,
+                     PointSOI.line,
+                     PointSOI.x]]
 
         if owner == LineSOI:
-            return [LineSOI.points]
+            return [x.name for x in
+                    [LineSOI.points]]
 
         if owner == LightSOI:
-            return [LightSOI.light_route_type,
-                    LightSOI.center_point,
-                    LightSOI.direct_point,
-                    LightSOI.colors,
-                    LightSOI.light_stick_type]
+            return [x.name for x in
+                    [LightSOI.light_route_type,
+                     LightSOI.center_point,
+                     LightSOI.direct_point,
+                     LightSOI.colors,
+                     LightSOI.light_stick_type]]
 
         if owner == RailPointSOI:
-            return [RailPointSOI.center_point,
-                    RailPointSOI.dir_plus_point,
-                    RailPointSOI.dir_minus_point]
+            return [x.name for x in
+                    [RailPointSOI.center_point,
+                     RailPointSOI.dir_plus_point,
+                     RailPointSOI.dir_minus_point]]
 
         if owner == BorderSOI:
-            return [BorderSOI.border_type]
+            return [x.name for x in
+                    [BorderSOI.border_type]]
 
         if owner == SectionSOI:
-            return [SectionSOI.border_points]
+            return [x.name for x in
+                    [SectionSOI.border_points]]
 
     def __set__(self, instance, value):
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
@@ -143,25 +151,25 @@ class SOIActiveAttrs:
         if owner == CoordinateSystemSOI:
             instance: CoordinateSystemSOI
             if instance.dependence == CEDependence.dependent:
-                instance._active_attrs.remove(CoordinateSystemSOI.alpha)
+                instance._active_attrs.remove(CoordinateSystemSOI.alpha.name)
             else:
-                instance._active_attrs.remove(CoordinateSystemSOI.x)
-                instance._active_attrs.remove(CoordinateSystemSOI.y)
+                instance._active_attrs.remove(CoordinateSystemSOI.x.name)
+                instance._active_attrs.remove(CoordinateSystemSOI.y.name)
 
         if owner == AxisSOI:
             instance: AxisSOI
             if instance.creation_method == CEAxisCreationMethod.rotational:
-                instance._active_attrs.remove(AxisSOI.y)
+                instance._active_attrs.remove(AxisSOI.y.name)
             else:
-                instance._active_attrs.remove(AxisSOI.alpha)
-                instance._active_attrs.remove(AxisSOI.center_point)
+                instance._active_attrs.remove(AxisSOI.alpha.name)
+                instance._active_attrs.remove(AxisSOI.center_point.name)
 
         if owner == PointSOI:
             instance: PointSOI
             if instance.on == CEAxisOrLine.axis:
-                instance._active_attrs.remove(PointSOI.line)
+                instance._active_attrs.remove(PointSOI.line.name)
             else:
-                instance._active_attrs.remove(PointSOI.axis)
+                instance._active_attrs.remove(PointSOI.axis.name)
 
         return instance._active_attrs
 
@@ -171,15 +179,23 @@ class SOIActiveAttrs:
 
 class SOIListPossibleValues:
     def __get__(self, instance, owner):
-        assert instance, "Only for instance"
-        instance: StationObjectImage
-        result = OrderedDict()
-        for active_attr in instance.active_attrs:
-            attrib = getattr(instance, active_attr)
-            if isinstance(attrib, CustomEnum):
-                result[active_attr] = attrib.possible_values
-            else:
-                result[active_attr] = None
+        if instance is None:
+            result = OrderedDict()
+            for attr_ in owner.attr_sequence_template:
+                attrib = getattr(owner, attr_)
+                if attrib.enum:
+                    result[attr_] = attrib.enum.possible_values
+                else:
+                    result[attr_] = []
+        else:
+            instance: StationObjectImage
+            result = OrderedDict()
+            for active_attr in instance.active_attrs:
+                attrib = getattr(instance, active_attr)
+                if isinstance(attrib, CustomEnum):
+                    result[active_attr] = attrib.possible_values
+                else:
+                    result[active_attr] = []
         return result
 
     def __set__(self, instance, value):
@@ -223,7 +239,7 @@ class BaseAttrDescriptor:
 
     def __get__(self, instance, owner):
         if not instance:
-            return self.name
+            return self
         elif hasattr(instance, "_"+self.name):
             return getattr(instance, "_"+self.name)
         elif self.enum:
@@ -566,8 +582,15 @@ def make_xlsx_templates(dir_name: str):
         name_soi = cls.__name__
         name_del_soi = name_soi.replace("SOI", "")
         file = os.path.join(folder, "{}.xlsx".format(name_del_soi))
-        od = OrderedDict([("name", [])])
-        od.update(OrderedDict.fromkeys(cls.attr_sequence_template))
+        max_possible_values_length = 0
+        for val_list in cls.dict_possible_values.values():
+            l_ = len(val_list)
+            if l_ > max_possible_values_length:
+                max_possible_values_length = l_
+        od = OrderedDict([("name", [""]*max_possible_values_length)])
+        for key, val_list in cls.dict_possible_values.items():
+            val_list.extend([""]*(max_possible_values_length-len(val_list)))
+            od[key] = val_list
         df = pd.DataFrame(data=od)
         df.to_excel(file, index=False)
 
@@ -674,11 +697,20 @@ if __name__ == "__main__":
         for attr in ax.active_attrs:
             print(getattr(ax, attr))
 
-    test_3 = True
+    test_3 = False
     if test_3:
         pnt = PointSOI()
         pnt.x = "PK_12+34"
         print(type(pnt.x))
         print(pnt.x)
         print(PointSOI.attr_sequence_template)
+
+    test_4 = False
+    if test_4:
         make_xlsx_templates(STATION_OUT_CONFIG_FOLDER)
+
+    test_5 = False
+    if test_5:
+        cs = CoordinateSystemSOI()
+        print(CoordinateSystemSOI.dict_possible_values)
+        print(cs.dict_possible_values)
