@@ -599,28 +599,27 @@ class OneComponentTwoSidedPG(PolarGraph):
         return route
 
     def layered_representation(self, start_ni: NodeInterface = None) -> list[list[PolarNode]]:
-        """ not the best implementation """
         if not start_ni:
             start_ni = self.inf_pu.ni_nd
+        last_ni_s: list[NodeInterface] = [start_ni]
         layers: list[list[PolarNode]] = []
-        routes = self.walk(start_ni)
-        for route in routes:
-            nodes = [node for node in route.nodes if node not in self.inf_nodes]
-            # print(nodes)
-            for _ in range(len(nodes) - len(layers)):
-                layers.append([])
-            for i, node in enumerate(nodes):
-                if node not in layers[i]:  # flatten(layers)
-                    layers[i].append(node)
-        nodes = set()
-        for i in range(len(layers)):
-            layers[i] = [node for node in layers[i] if node not in nodes]
-            nodes |= set(layers[i])
-        while True:
-            if not layers[-1]:
-                layers.pop()
-            else:
-                break
+        if start_ni.pn not in self.inf_nodes:
+            layers.append([start_ni.pn])
+        while last_ni_s:
+            new_last_ni_s = []
+            layers.append([])
+            for last_ni in last_ni_s:
+                for link in last_ni.links:
+                    opposite_ni = link.opposite_ni(last_ni)
+                    pn = opposite_ni.pn
+                    if pn in self.inf_nodes:
+                        continue
+                    if pn not in flatten(layers):
+                        layers[-1].append(pn)
+                        new_last_ni_s.append(pn.opposite_ni(opposite_ni))
+            last_ni_s = new_last_ni_s
+        if not layers[-1]:
+            layers.pop()
         return layers
 
 
@@ -695,9 +694,9 @@ if __name__ == '__main__':
     pn_10 = pg_3.insert_node(pn_5.ni_nd)
     pn_11 = pg_3.insert_node(pn_5.ni_nd)
     pn_12 = pg_3.insert_node_neck()
-    # pg_3.connect(pn_5.ni_nd, pn_12.ni_pu)
+    pg_3.connect(pn_5.ni_nd, pn_12.ni_pu)
     # pn_13 = pg_3.insert_node_neck()
-    print(pg_3.layered_representation(pn_5.ni_nd))
+    print(pg_3.layered_representation())
     # print(pg_3.free_roll().nodes)
 
     # pg = OneComponentTwoSidedPG()
