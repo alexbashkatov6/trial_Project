@@ -255,8 +255,12 @@ class BaseAttrDescriptor:
         value = value.strip()
         """ for file reading """
         if value.startswith("_str_") and value.endswith("_str_"):
+            setattr(instance, "_str_mode_" + self.name, True)
             setattr(instance, "_" + self.name, value.replace("_str_", ""))
+            # print("here", "_" + self.name, value.replace("_str_", ""))
             return
+        if hasattr(instance, "_str_mode_" + self.name):
+            delattr(instance, "_str_mode_" + self.name)
         assert self.name in instance.active_attrs, "Attribute for set should be active"
         if self.enum:
             inst_enum: CustomEnum = getattr(instance, self.name)
@@ -346,6 +350,8 @@ class AxCenterPoint(BaseAttrDescriptor):
 
     def __set__(self, instance, value):
         super().__set__(instance, value)
+        if hasattr(instance, "_str_mode_" + self.name):
+            return
         point: PointSOI = self.get_pre_value(instance)
         if point.on != "axis":
             raise SemanticCoError("Center point should be on Axis")
@@ -373,6 +379,8 @@ class PntX(BaseAttrDescriptor):
 
     def __set__(self, instance, value):
         super().__set__(instance, value)
+        if hasattr(instance, "_str_mode_" + self.name):
+            return
         x: str = self.get_pre_value(instance)
         if x.startswith("PK"):
             try:
@@ -392,9 +400,7 @@ class PntX(BaseAttrDescriptor):
 
 
 class LinePoints(BaseAttrDescriptor):
-
-    def __set__(self, instance, value: tuple[str, str]):
-        pass
+    pass
 
 
 class LightRouteType(BaseAttrDescriptor):
@@ -406,39 +412,27 @@ class LightStickType(BaseAttrDescriptor):
 
 
 class LightCenterPoint(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class LightDirectionPoint(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class LightColors(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class RailPCenterPoint(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class RailPDirPlusPoint(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class RailPDirMinusPoint(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class BorderType(BaseAttrDescriptor):
@@ -446,9 +440,7 @@ class BorderType(BaseAttrDescriptor):
 
 
 class SectBorderPoints(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        pass
+    pass
 
 
 class StationObjectImage:
@@ -576,7 +568,6 @@ class SOIRectifier:
 
 
 def make_xlsx_templates(dir_name: str):
-    """ ! implement splitter values write """
     folder = os.path.join(os.getcwd(), dir_name)
     for cls in StationObjectImage.__subclasses__():
         name_soi = cls.__name__
@@ -593,6 +584,40 @@ def make_xlsx_templates(dir_name: str):
             od[key] = val_list
         df = pd.DataFrame(data=od)
         df.to_excel(file, index=False)
+
+
+def read_station_config(dir_name: str) -> list[StationObjectImage]:
+    folder = os.path.join(os.getcwd(), dir_name)
+    objs = []
+    for cls in StationObjectImage.__subclasses__():
+        name_soi = cls.__name__
+        name_del_soi = name_soi.replace("SOI", "")
+        file = os.path.join(folder, "{}.xlsx".format(name_del_soi))
+        df: pd.DataFrame = pd.read_excel(file, dtype=str, keep_default_na=False)
+        obj_dict_list: list[OrderedDict] = df.to_dict('records', OrderedDict)
+        for obj_dict in obj_dict_list:
+            new_obj = cls()
+            for attr_name, attr_val in obj_dict.items():
+                attr_name: str
+                attr_val: str
+                attr_name = attr_name.strip()
+                attr_val = attr_val.strip()
+                if attr_name == "name":
+                    setattr(new_obj, attr_name, attr_val)
+                    continue
+                if getattr(cls, attr_name).enum:
+                    setattr(new_obj, attr_name, attr_val)
+                else:
+                    setattr(new_obj, attr_name, "_str_{}_str_".format(attr_val))
+            objs.append(new_obj)
+    return objs
+
+
+def get_object_by_name(name, obj_list) -> StationObjectImage:
+    for obj in obj_list:
+        if obj.name == name:
+            return obj
+    assert False, "Name not found"
 
 # -------------------------        MODEL CLASSES           -------------------- #
 
@@ -707,10 +732,20 @@ if __name__ == "__main__":
 
     test_4 = False
     if test_4:
-        make_xlsx_templates(STATION_OUT_CONFIG_FOLDER)
-
-    test_5 = False
-    if test_5:
         cs = CoordinateSystemSOI()
         print(CoordinateSystemSOI.dict_possible_values)
         print(cs.dict_possible_values)
+
+    test_5 = False
+    if test_5:
+        make_xlsx_templates(STATION_OUT_CONFIG_FOLDER)
+
+    test_6 = True
+    if test_6:
+        objs = read_station_config(STATION_IN_CONFIG_FOLDER)
+        # print(len(objs))
+        cur_obj = objs[0]
+        # for attr_ in cur_obj.active_attrs:
+        #     print(getattr(cur_obj, attr_))
+        pnt = get_object_by_name("Point_16", objs)
+        print(pnt.active_attrs)
