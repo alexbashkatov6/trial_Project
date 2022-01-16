@@ -598,7 +598,7 @@ class OneComponentTwoSidedPG(PolarGraph):
             current_ni = node.opposite_ni(opposite_ni)
         return route
 
-    def layered_representation(self, start_ni: NodeInterface = None) -> list[list[PolarNode]]:
+    def shortest_coverage(self, start_ni: NodeInterface = None) -> list[list[PolarNode]]:
         if not start_ni:
             start_ni = self.inf_pu.ni_nd
         last_ni_s: list[NodeInterface] = [start_ni]
@@ -620,6 +620,29 @@ class OneComponentTwoSidedPG(PolarGraph):
             last_ni_s = new_last_ni_s
         if not layers[-1]:
             layers.pop()
+        return layers
+
+    def longest_coverage(self, start_ni: NodeInterface = None) -> list[list[PolarNode]]:
+        if not start_ni:
+            start_ni = self.inf_pu.ni_nd
+        routes = self.walk(start_ni)
+        layers: list[list[PolarNode]] = []
+        for route in routes:
+            i = 0
+            for node in route.nodes:
+                if node in self.inf_nodes:
+                    continue
+                i += 1
+                if len(layers) < i:
+                    layers.append([])
+                if node not in layers[i-1]:
+                    layers[i-1].append(node)
+        nodes = set()
+        for i, rev_layer in enumerate(list(reversed(layers))):
+            for node in rev_layer:
+                if node in nodes:
+                    layers[-1-i].remove(node)
+            nodes |= set(rev_layer)
         return layers
 
 
@@ -696,7 +719,8 @@ if __name__ == '__main__':
     pn_12 = pg_3.insert_node_neck()
     pg_3.connect(pn_5.ni_nd, pn_12.ni_pu)
     # pn_13 = pg_3.insert_node_neck()
-    print(pg_3.layered_representation())
+    print(pg_3.shortest_coverage())
+    print(pg_3.longest_coverage())
     # print(pg_3.free_roll().nodes)
 
     # pg = OneComponentTwoSidedPG()

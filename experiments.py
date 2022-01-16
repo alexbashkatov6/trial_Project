@@ -1,2 +1,4 @@
-print([""]*9)
-print("ccccc".replace("a", "b"))
+a = [1, 2, 3]
+b = list(reversed(a))
+b[0] = 5
+print(a)

@@ -1550,10 +1550,10 @@ if __name__ == '__main__':
         # print(len(pg_00.links))
 
         # pg_10 = deepcopy(pg_00)
-        # print(pg_10.layered_representation(pg_10.inf_node_pu.ni_nd))
+        # print(pg_10.shortest_coverage(pg_10.inf_node_pu.ni_nd))
         # pg_00.aggregate(pg_10)
-        # pg_00l = pg_00.layered_representation(pg_00.inf_node_pu.ni_nd)
-        # pg_10l = pg_10.layered_representation(pg_10.inf_node_pu.ni_nd)
+        # pg_00l = pg_00.shortest_coverage(pg_00.inf_node_pu.ni_nd)
+        # pg_10l = pg_10.shortest_coverage(pg_10.inf_node_pu.ni_nd)
         # print(pg_00l)
         # print(pg_10l)
         # print(len(pg_00.links))

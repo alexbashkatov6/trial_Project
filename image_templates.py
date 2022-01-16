@@ -268,7 +268,7 @@ if __name__ == "__main__":
     print(len(tmpl.links))
     print(tmpl.nodes)
     print(tmpl.inf_nodes)
-    print(tmpl.layered_representation())
+    print(tmpl.shortest_coverage())
     print(tmpl.free_roll().nodes)
     for node_ in tmpl.free_roll().nodes:
         if node_.cell_objs:

@@ -8,7 +8,7 @@ import os
 from custom_enum import CustomEnum
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode
 from cell_object import CellObject
-from extended_itertools import single_element, recursive_map
+from extended_itertools import single_element, recursive_map, flatten
 
 GLOBAL_CS_NAME = "GlobalCS"
 STATION_OUT_CONFIG_FOLDER = "station_out_config"
@@ -644,8 +644,10 @@ class SOIRectifier:
                             if name == split_name:
                                 node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == obj.name, self.dg.not_inf_nodes)
                                 node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name, self.dg.not_inf_nodes)
-                                # print("node {} under node {}".format(node_self.cell_objs[0].name, node_parent.cell_objs[0].name))
                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
+
+    def rectified_object_list(self) -> list[StationObjectImage]:
+        return list(flatten(self.dg.longest_coverage()))[1:]
 
 
 SOIR = SOIRectifier()
@@ -832,17 +834,17 @@ if __name__ == "__main__":
         # for attr_ in pnt.active_attrs:
         #     print(getattr(pnt, attr_))
         SOIR.build_dg(objs)
-        print(SOIR.dg.layered_representation())
-        print(recursive_map(lambda x: x.cell_objs[0].name, SOIR.dg.layered_representation()))
-        node_15: PolarNode = single_element(lambda x: x.cell_objs[0].name == "Point_15", SOIR.dg.not_inf_nodes)
-        node_4SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "4SP", SOIR.dg.not_inf_nodes)
-        node_6SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "6SP", SOIR.dg.not_inf_nodes)
-        print(node_15)
-        print(node_15.ni_nd.links)
-        print(node_4SP)
-        print(node_4SP.ni_pu.links)
-        print(node_6SP)
-        print(node_6SP.ni_pu.links)
+        # print(SOIR.dg.shortest_coverage())
+        print(recursive_map(lambda x: x.cell_objs[0].name, SOIR.rectified_object_list()))
+        # node_15: PolarNode = single_element(lambda x: x.cell_objs[0].name == "Point_15", SOIR.dg.not_inf_nodes)
+        # node_4SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "4SP", SOIR.dg.not_inf_nodes)
+        # node_6SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "6SP", SOIR.dg.not_inf_nodes)
+        # print(node_15)
+        # print(node_15.ni_nd.links)
+        # print(node_4SP)
+        # print(node_4SP.ni_pu.links)
+        # print(node_6SP)
+        # print(node_6SP.ni_pu.links)
 
     test_7 = False
     if test_7:
