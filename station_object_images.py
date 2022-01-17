@@ -646,6 +646,12 @@ class SOIRectifier:
                                 node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name, self.dg.not_inf_nodes)
                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
 
+    def check_cycle(self):
+        dg = self.dg
+        routes = dg.walk(dg.inf_pu.ni_nd)
+        if any([route.is_cycle for route in routes]):
+            raise CycleError("Cycle in dependences was found")
+
     def rectified_object_list(self) -> list[StationObjectImage]:
         return list(flatten(self.dg.longest_coverage()))[1:]
 
@@ -834,17 +840,21 @@ if __name__ == "__main__":
         # for attr_ in pnt.active_attrs:
         #     print(getattr(pnt, attr_))
         SOIR.build_dg(objs)
+        SOIR.check_cycle()
         # print(SOIR.dg.shortest_coverage())
         print(recursive_map(lambda x: x.cell_objs[0].name, SOIR.rectified_object_list()))
-        # node_15: PolarNode = single_element(lambda x: x.cell_objs[0].name == "Point_15", SOIR.dg.not_inf_nodes)
+        node_15: PolarNode = single_element(lambda x: x.cell_objs[0].name == "Point_15", SOIR.dg.not_inf_nodes)
         # node_4SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "4SP", SOIR.dg.not_inf_nodes)
         # node_6SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "6SP", SOIR.dg.not_inf_nodes)
-        # print(node_15)
-        # print(node_15.ni_nd.links)
+        print(node_15)
+        print(node_15.ni_nd.links)
         # print(node_4SP)
         # print(node_4SP.ni_pu.links)
         # print(node_6SP)
         # print(node_6SP.ni_pu.links)
+        print(len(SOIR.dg.walk(SOIR.dg.inf_pu.ni_nd)))
+        for route in SOIR.dg.walk(SOIR.dg.inf_pu.ni_nd):
+            print(route.nodes)
 
     test_7 = False
     if test_7:

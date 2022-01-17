@@ -225,28 +225,28 @@ def common_links_of_ni_s(ni_1: NodeInterface, ni_2: NodeInterface) -> set[Link]:
 
 class Route:
 
-    def __init__(self, start_ni: NodeInterface, elements: list[Union[PolarNode, Link]] = None):
+    def __init__(self, start_ni: NodeInterface, nodes_links: list[Union[PolarNode, Link]] = None):
         self._start_ni = start_ni
-        if elements is None:
-            self._elements: list[Union[PolarNode, Link]] = [start_ni.pn]
+        if nodes_links is None:
+            self._nodes_links: list[Union[PolarNode, Link]] = [start_ni.pn]
         else:
-            self._elements = elements
+            self._nodes_links = nodes_links
 
     @property
     def nodes(self) -> list[PolarNode]:
-        return self._elements[::2]
+        return self._nodes_links[::2]
 
     @property
     def links(self) -> list[Link]:
-        return self._elements[1::2]
+        return self._nodes_links[1::2]
 
     @property
-    def elements(self) -> list[Union[PolarNode, Link]]:
-        return copy(self._elements)
+    def nodes_links(self) -> list[Union[PolarNode, Link]]:
+        return copy(self._nodes_links)
 
     def append_element(self, element: Union[Link, PolarNode]):
-        assert not isinstance(element, type(self._elements[-1])), "Type should alternate"
-        self._elements.append(element)
+        assert not isinstance(element, type(self._nodes_links[-1])), "Type should alternate"
+        self._nodes_links.append(element)
 
     @property
     def start_ni(self) -> NodeInterface:
@@ -254,30 +254,26 @@ class Route:
 
     @property
     def end_ni(self) -> NodeInterface:
-        link, node = self._elements[-2:]
+        link, node = self._nodes_links[-2:]
         return common_ni_of_node_link(node, link)
 
     @property
     def is_one_node(self) -> bool:
-        return len(self._elements) == 1
+        return len(self._nodes_links) == 1
 
     @property
     def is_cycle(self) -> bool:
         end_pn = self.end_ni.pn
-        return end_pn in self.elements[:-1]
-
-    @property
-    def is_repeating_cycle(self) -> bool:
-        return True
+        return end_pn in self.nodes_links[:-1]
 
     def get_slice(self, start_pn: PolarNode = None, end_pn: PolarNode = None) -> Route:
         if start_pn is None:
             start_pn = self.start_ni.pn
         if end_pn is None:
             end_pn = self.end_ni.pn
-        start_link = self._elements[self._elements.index(start_pn)+1]
+        start_link = self._nodes_links[self._nodes_links.index(start_pn) + 1]
         start_ni = common_ni_of_node_link(start_pn, start_link)
-        return Route(start_ni, self._elements[self._elements.index(start_pn):self._elements.index(end_pn)+1])
+        return Route(start_ni, self._nodes_links[self._nodes_links.index(start_pn):self._nodes_links.index(end_pn) + 1])
 
 
 def route_activation(route: Route):
@@ -381,7 +377,7 @@ class PolarGraph:
                 routes_[-1].append_element(link)
                 routes_[-1].append_element(enter_node)
                 if (enter_node in stop_nodes) or (enter_ni in self.border_ni_s) or \
-                        (enter_node in routes_[-1].elements[:-2]):
+                        (enter_node in routes_[-1].nodes_links[:-2]):
                     links_need_to_check[last_out_ni].remove(link)
                     route_ends = True
                 else:
