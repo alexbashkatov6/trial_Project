@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, Optional
+from typing import Type, Optional, Union
 from collections import OrderedDict
 from copy import copy
 import pandas as pd
@@ -16,6 +16,8 @@ STATION_IN_CONFIG_FOLDER = "station_in_config"
 
 # -------------------------        OBJECT IMAGES CLASSES        ------------------------- #
 
+
+# ------------        EXCEPTIONS        ------------ #
 
 class NotImplementedCoError(Exception):
     pass
@@ -39,6 +41,9 @@ class SemanticCoError(Exception):
 
 class CycleError(Exception):
     pass
+
+
+# ------------        ENUMS        ------------ #
 
 
 class CEDependence(CustomEnum):
@@ -84,6 +89,9 @@ class CEBorderType(CustomEnum):
     standoff = 0
     ab = 1
     pab = 2
+
+
+# ------------        IMAGES COMMON AGGREGATE ATTRS        ------------ #
 
 
 class SOIAttrSeqTemplate:
@@ -229,35 +237,12 @@ class SOIName:
         instance._name = value
 
 
-# class StrDescriptor:
-#
-#     def __init__(self, default_attr_name: str = None):
-#         self.default_attr_name = default_attr_name
-#
-#     def __get__(self, instance, owner):
-#         assert instance, "Only for instance"
-#         return getattr(instance, "_str_"+self.default_attr_name)
-#
-#     def __set__(self, instance, value):
-#         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
-#
-#
-# class PreDescriptor:
-#
-#     def __init__(self, default_attr_name: str = None):
-#         self.default_attr_name = default_attr_name
-#
-#     def __get__(self, instance, owner):
-#         assert instance, "Only for instance"
-#         return getattr(instance, "_pre_"+self.default_attr_name)
-#
-#     def __set__(self, instance, value):
-#         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
+# ------------        BASE ATTRIBUTE DESCRIPTOR        ------------ #
 
 
 class BaseAttrDescriptor:
 
-    def __init__(self, expected_type_or_enum: str = None):
+    def __init__(self, expected_type_or_enum: Union[str, CustomEnum] = None):
         self.enum = None
         self.expected_type = None
         if expected_type_or_enum:
@@ -284,11 +269,6 @@ class BaseAttrDescriptor:
 
     def __set__(self, instance: StationObjectImage, value: str):
         value = value.strip()
-
-        # if not hasattr(instance.__class__, "str_"+self.name):
-        #     setattr(instance.__class__, "str_"+self.name, StrDescriptor(self.name))
-        # if not hasattr(instance.__class__, "pre_"+self.name):
-        #     setattr(instance.__class__, "pre_"+self.name, PreDescriptor(self.name))
         setattr(instance, "_str_"+self.name, value.replace("_str_", ""))
 
         """ for stage building DG - no evaluations """
@@ -309,8 +289,7 @@ class BaseAttrDescriptor:
             if self.expected_type == "complex_type":
                 return
             else:
-                """ because class in Python cannot directly contain its name, eval needs """
-                expected_type = eval(self.expected_type)
+                expected_type = eval(self.expected_type)  # eval because Py-class cannot directly contain its name
 
             if issubclass(expected_type, StationObjectImage):
                 if value in SOIS.names_list:
@@ -346,6 +325,9 @@ class BaseAttrDescriptor:
 
     def push_pre_to_value(self, instance: StationObjectImage):
         setattr(instance, "_" + self.name, getattr(instance, "_pre_" + self.name))
+
+
+# ------------        PARTIAL ATTRIBUTE DESCRIPTORS        ------------ #
 
 
 class CsCsRelTo(BaseAttrDescriptor):
@@ -490,6 +472,9 @@ class SectBorderPoints(BaseAttrDescriptor):
     pass
 
 
+# ------------        IMAGE OBJECTS CLASSES        ------------ #
+
+
 class StationObjectImage:
     attr_sequence_template = SOIAttrSeqTemplate()
     active_attrs = SOIActiveAttrs()
@@ -548,6 +533,13 @@ class BorderSOI(StationObjectImage):
 
 class SectionSOI(StationObjectImage):
     border_points = SectBorderPoints("complex_type")
+
+
+# ------------        OTHER IMAGE CLASSES        ------------ #
+
+
+class SOIEventHandler:
+    pass
 
 
 class SOIStorage:
@@ -642,15 +634,17 @@ class SOIRectifier:
                             split_names = [attr_value]
                         for split_name in split_names:
                             if name == split_name:
-                                node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == obj.name, self.dg.not_inf_nodes)
-                                node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name, self.dg.not_inf_nodes)
+                                node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == obj.name,
+                                                                      self.dg.not_inf_nodes)
+                                node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name,
+                                                                        self.dg.not_inf_nodes)
                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
 
     def check_cycle(self):
         dg = self.dg
         routes = dg.walk(dg.inf_pu.ni_nd)
-        if any([route.is_cycle for route in routes]):
-            raise CycleError("Cycle in dependences was found")
+        if any([route_.is_cycle for route_ in routes]):
+            raise CycleError("Cycle in dependencies was found")
 
     def rectified_object_list(self) -> list[StationObjectImage]:
         return list(flatten(self.dg.longest_coverage()))[1:]
@@ -680,7 +674,7 @@ def make_xlsx_templates(dir_name: str):
 
 def read_station_config(dir_name: str) -> list[StationObjectImage]:
     folder = os.path.join(os.getcwd(), dir_name)
-    objs = []
+    objs_ = []
     for cls in StationObjectImage.__subclasses__():
         name_soi = cls.__name__
         name_del_soi = name_soi.replace("SOI", "")
@@ -701,8 +695,8 @@ def read_station_config(dir_name: str) -> list[StationObjectImage]:
                     setattr(new_obj, attr_name, attr_val)
                 else:
                     setattr(new_obj, attr_name, "_str_{}_str_".format(attr_val))
-            objs.append(new_obj)
-    return objs
+            objs_.append(new_obj)
+    return objs_
 
 
 def get_object_by_name(name, obj_list) -> StationObjectImage:
@@ -725,16 +719,14 @@ class CoordinateSystemMO(ModelObject):
         self._in_base_x = x
         self._in_base_co_x = co_x
 
-        self._absolute_x = 0
-        self._absolute_co_x = True
-        self.eval_absolute_parameters()
-
     @property
-    def is_base(self):
+    def is_base(self) -> bool:
         return self._is_base
 
     @property
-    def base_cs(self):
+    def base_cs(self) -> CoordinateSystemMO:
+        if self.is_base:
+            return self
         return self._base_cs
 
     @property
@@ -747,16 +739,15 @@ class CoordinateSystemMO(ModelObject):
 
     @property
     def absolute_x(self) -> int:
-        return self._absolute_x
+        if self.is_base:
+            return self.in_base_x
+        return self.base_cs.absolute_x + self.in_base_x
 
     @property
     def absolute_co_x(self) -> bool:
-        return self._absolute_co_x
-
-    def eval_absolute_parameters(self):
-        if not self.is_base:
-            self._absolute_x = self.base_cs.absolute_x + self.in_base_x
-            self._absolute_co_x = self.base_cs.absolute_co_x == self.in_base_co_x
+        if self.is_base:
+            return self.in_base_co_x
+        return self.base_cs.absolute_co_x == self.in_base_co_x
 
 
 class MOStorage:
@@ -843,18 +834,18 @@ if __name__ == "__main__":
         SOIR.check_cycle()
         # print(SOIR.dg.shortest_coverage())
         print(recursive_map(lambda x: x.cell_objs[0].name, SOIR.rectified_object_list()))
-        node_15: PolarNode = single_element(lambda x: x.cell_objs[0].name == "Point_15", SOIR.dg.not_inf_nodes)
+        # node_15: PolarNode = single_element(lambda x: x.cell_objs[0].name == "Point_15", SOIR.dg.not_inf_nodes)
         # node_4SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "4SP", SOIR.dg.not_inf_nodes)
         # node_6SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "6SP", SOIR.dg.not_inf_nodes)
-        print(node_15)
-        print(node_15.ni_nd.links)
+        # print(node_15)
+        # print(node_15.ni_nd.links)
         # print(node_4SP)
         # print(node_4SP.ni_pu.links)
         # print(node_6SP)
         # print(node_6SP.ni_pu.links)
-        print(len(SOIR.dg.walk(SOIR.dg.inf_pu.ni_nd)))
-        for route in SOIR.dg.walk(SOIR.dg.inf_pu.ni_nd):
-            print(route.nodes)
+        # print(len(SOIR.dg.walk(SOIR.dg.inf_pu.ni_nd)))
+        # for route in SOIR.dg.walk(SOIR.dg.inf_pu.ni_nd):
+        #     print(route.nodes)
 
     test_7 = False
     if test_7:
