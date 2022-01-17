@@ -225,61 +225,85 @@ def common_links_of_ni_s(ni_1: NodeInterface, ni_2: NodeInterface) -> set[Link]:
 
 class Route:
 
-    def __init__(self, start_ni: NodeInterface, nodes_links: list[Union[PolarNode, Link]] = None):
+    def __init__(self, start_ni: NodeInterface, links: list[Link] = None):
         self._start_ni = start_ni
-        if nodes_links is None:
-            self._nodes_links: list[Union[PolarNode, Link]] = [start_ni.pn]
+        if links is None:
+            self._links: list[Link] = []
         else:
-            self._nodes_links = nodes_links
-
-    @property
-    def nodes(self) -> list[PolarNode]:
-        return self._nodes_links[::2]
-
-    @property
-    def links(self) -> list[Link]:
-        return self._nodes_links[1::2]
-
-    @property
-    def nodes_links(self) -> list[Union[PolarNode, Link]]:
-        return copy(self._nodes_links)
-
-    def append_element(self, element: Union[Link, PolarNode]):
-        assert not isinstance(element, type(self._nodes_links[-1])), "Type should alternate"
-        self._nodes_links.append(element)
+            self._links = links
 
     @property
     def start_ni(self) -> NodeInterface:
         return self._start_ni
 
     @property
-    def end_ni(self) -> NodeInterface:
-        link, node = self._nodes_links[-2:]
-        return common_ni_of_node_link(node, link)
+    def links(self) -> list[Link]:
+        return copy(self._links)
 
     @property
-    def is_one_node(self) -> bool:
-        return len(self._nodes_links) == 1
+    def is_empty(self) -> bool:
+        return not self.links
+
+    @property
+    def outer_ni_s(self) -> list[NodeInterface]:
+        result: list[NodeInterface] = [self.start_ni]
+        if self.links:
+            for link in self.links[:-1]:
+                opposite_link_ni = link.opposite_ni(result[-1])
+                result.append(opposite_link_ni.pn.opposite_ni(opposite_link_ni))
+        return result
+
+    @property
+    def enter_ni_s(self) -> list[NodeInterface]:
+        assert not self.is_empty, "Empty link list, no enter ni-s"
+        result: list[NodeInterface] = []
+        outer_ni_s = self.outer_ni_s
+        for i, link in enumerate(self.links):
+            result.append(link.opposite_ni(outer_ni_s[i]))
+        return result
+
+    @property
+    def nodes(self) -> list[PolarNode]:
+        """ not most effective implementation """
+        outer_nodes = [ni.pn for ni in self.outer_ni_s]
+        outer_nodes.append(self.enter_ni_s[-1].pn)  # ...because this
+        return outer_nodes
+
+    def append_link(self, link: Link):
+        self._links.append(link)
+
+    @property
+    def end_outer_ni(self) -> NodeInterface:
+        return self.outer_ni_s[-1]
+
+    @property
+    def end_enter_ni(self) -> NodeInterface:
+        return self.enter_ni_s[-1]
 
     @property
     def is_cycle(self) -> bool:
-        end_pn = self.end_ni.pn
-        return end_pn in self.nodes_links[:-1]
+        end_pn = self.end_enter_ni.pn
+        return end_pn in self.nodes[:-1]
 
-    def get_slice(self, start_pn: PolarNode = None, end_pn: PolarNode = None) -> Route:
-        if start_pn is None:
-            start_pn = self.start_ni.pn
-        if end_pn is None:
-            end_pn = self.end_ni.pn
-        start_link = self._nodes_links[self._nodes_links.index(start_pn) + 1]
-        start_ni = common_ni_of_node_link(start_pn, start_link)
-        return Route(start_ni, self._nodes_links[self._nodes_links.index(start_pn):self._nodes_links.index(end_pn) + 1])
+    def get_slice(self, start_ni: NodeInterface = None, end_enter_ni: NodeInterface = None) -> Route:
+        if start_ni is None:
+            start_ni = self.start_ni
+        if end_enter_ni is None:
+            end_enter_ni = self.end_enter_ni
+        first_link_index = self.outer_ni_s.index(start_ni)
+        try:
+            last_link_index = self.enter_ni_s.index(end_enter_ni)
+        except ValueError as ve:
+            if end_enter_ni.pn is start_ni.pn:
+                return Route(start_ni)
+            else:
+                raise ve
+        return Route(start_ni, self.links[first_link_index:last_link_index+1])
 
-
-def route_activation(route: Route):
-    for link in route.links:
-        for ni in link.ni_s:
-            ni.choice_move_activate(ni.get_move_by_link(link))
+    def activate(self):
+        for link in self.links:
+            for ni in link.ni_s:
+                ni.choice_move_activate(ni.get_move_by_link(link))
 
 
 class NodesMerge:
@@ -369,15 +393,15 @@ class PolarGraph:
                             break
             else:
                 if route_ends:
-                    routes_.append(routes_[-1].get_slice(end_pn=last_out_ni.pn))
+                    end_enter_ni = last_out_ni.pn.opposite_ni(last_out_ni)
+                    routes_.append(routes_[-1].get_slice(end_enter_ni=end_enter_ni))
                     route_ends = False
                 link = links_need_to_check[last_out_ni][0]
                 enter_ni = link.opposite_ni(last_out_ni)
                 enter_node = enter_ni.pn
-                routes_[-1].append_element(link)
-                routes_[-1].append_element(enter_node)
+                routes_[-1].append_link(link)
                 if (enter_node in stop_nodes) or (enter_ni in self.border_ni_s) or \
-                        (enter_node in routes_[-1].nodes_links[:-2]):
+                        (enter_node in routes_[-1].nodes[:-1]):
                     links_need_to_check[last_out_ni].remove(link)
                     route_ends = True
                 else:
@@ -391,7 +415,7 @@ class PolarGraph:
         for border_node in border_nodes:
             for ni in border_node.ni_s:
                 ni_routes = self.walk(ni, border_nodes)
-                routes_ |= {route_ for route_ in ni_routes if route_.end_ni.pn in border_nodes}
+                routes_ |= {route_ for route_ in ni_routes if route_.end_enter_ni.pn in border_nodes}
         internal_links: set[Link] = set()
         internal_nodes: set[PolarNode] = set()
         for route_ in routes_:
@@ -472,14 +496,14 @@ class PolarGraph:
         for ni_base in nis_base:
             routes_in_base = self.walk(ni_base, merge_nodes_base)
             for route_in_base in routes_in_base:
-                if route_in_base.end_ni in nis_base:
-                    ni_end_base = route_in_base.end_ni
+                if route_in_base.end_enter_ni in nis_base:
+                    ni_end_base = route_in_base.end_enter_ni
                     ni_end_insert = nis_base[ni_end_base].ni_insert
                     ni_insert = nis_base[ni_base].ni_insert
                     ni_opposite_end_insert = ni_end_insert.pn.opposite_ni(ni_end_insert)
                     ni_opposite_insert = ni_insert.pn.opposite_ni(ni_insert)
                     routes_in_insert = insert_graph.walk(ni_opposite_insert, merge_nodes_insert)
-                    assert any([route_in_insert.end_ni is ni_opposite_end_insert
+                    assert any([route_in_insert.end_enter_ni is ni_opposite_end_insert
                                 for route_in_insert in routes_in_insert]), \
                         "Requirement 2 not satisfied"
 
@@ -555,7 +579,7 @@ class OneComponentTwoSidedPG(PolarGraph):
         inf_dict: dict[NodeInterface, NodeInterface] = {}
         for ni in ni_1, ni_2:
             routes = self.walk(ni)
-            ni_inf_found = {route.end_ni for route in routes}
+            ni_inf_found = {route.end_enter_ni for route in routes}
             assert len(ni_inf_found) == 1, "Walk leads to different inf nodes"
             ni_inf = ni_inf_found.pop()
             assert ni_inf in self.inf_ni_s, "Ni inf not in graph inf ni_s"
@@ -589,8 +613,8 @@ class OneComponentTwoSidedPG(PolarGraph):
             link = current_ni.active_move.link
             opposite_ni = link.opposite_ni(current_ni)
             node = opposite_ni.pn
-            route.append_element(link)
-            route.append_element(node)
+            route.append_ni_or_link(link)
+            route.append_ni_or_link(node)
             current_ni = node.opposite_ni(opposite_ni)
         return route
 
@@ -713,10 +737,15 @@ if __name__ == '__main__':
     pn_10 = pg_3.insert_node(pn_5.ni_nd)
     pn_11 = pg_3.insert_node(pn_5.ni_nd)
     pn_12 = pg_3.insert_node_neck()
-    pg_3.connect(pn_5.ni_nd, pn_12.ni_pu)
+    # pg_3.connect(pn_5.ni_nd, pn_12.ni_pu)
     # pn_13 = pg_3.insert_node_neck()
-    print(pg_3.shortest_coverage())
-    print(pg_3.longest_coverage())
+
+    # print(pg_3.shortest_coverage())
+    # print(pg_3.longest_coverage())
+    routs = pg_3.walk(pg_3.inf_pu.ni_nd)
+    print(len(routs))
+    print(routs)
+
     # print(pg_3.free_roll().nodes)
 
     # pg = OneComponentTwoSidedPG()
