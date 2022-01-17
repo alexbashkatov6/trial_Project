@@ -23,6 +23,10 @@ class NotImplementedCoError(Exception):
     pass
 
 
+class NoNameCoError(Exception):
+    pass
+
+
 class ExistingNameCoError(Exception):
     pass
 
@@ -226,6 +230,16 @@ class SOIListValues:
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
 
 
+def predict_name(instance: StationObjectImage) -> str:
+    i = 0
+    cls_name = instance.__class__.__name__
+    while True:
+        i += 1
+        predicted_name = "{}_{}".format(cls_name, i)
+        if predicted_name not in SOIS.names_list:
+            return predicted_name
+
+
 class SOIName:
     def __get__(self, instance, owner):
         assert instance, "Only for instance"
@@ -242,25 +256,33 @@ class SOIName:
 
 class BaseAttrDescriptor:
 
-    def __init__(self, expected_type_or_enum: Union[str, CustomEnum] = None):
+    def __init__(self, expected_type_or_enum: Union[str, CustomEnum, tuple[str, str]] = None):
         self.enum = None
         self.expected_type = None
+        self.default_value = None
         if expected_type_or_enum:
             if isinstance(expected_type_or_enum, CustomEnum):
                 self.enum = expected_type_or_enum
+            elif isinstance(expected_type_or_enum, tuple):
+                self.expected_type: str = expected_type_or_enum[0]
+                self.default_value: str = expected_type_or_enum[1]
             else:
                 self.expected_type: str = expected_type_or_enum
 
     def __get__(self, instance, owner):
         if not instance:
             return self
-        elif hasattr(instance, "_no_eval_mode_"+self.name):
+        elif hasattr(instance, "_no_eval_mode_"+self.name):  # str-value
             return getattr(instance, "_str_"+self.name)
         elif hasattr(instance, "_"+self.name):
             return getattr(instance, "_"+self.name)
         elif self.enum:
             setattr(instance, "_"+self.name, self.enum)
             return getattr(instance, "_"+self.name)
+        elif hasattr(instance, "predicted_"+self.name):  # predicted
+            return getattr(instance, "_predicted_"+self.name)
+        # elif self.default_value:  # default
+        #     return self.default_value
         else:
             return None
 
@@ -295,7 +317,7 @@ class BaseAttrDescriptor:
                 if value in SOIS.names_list:
                     obj = SOIS.get_object(value)
                     if isinstance(obj, expected_type):
-                        setattr(instance, "_pre_" + self.name, obj)
+                        setattr(instance, "_eval_" + self.name, obj)
                     else:
                         raise TypeCoError("Type of given object {} not satisfy type requirement {}"
                                           .format(value, expected_type))
@@ -308,23 +330,23 @@ class BaseAttrDescriptor:
                 except ValueError:
                     raise TypeCoError("Type of given object {} not satisfy type requirement {}"
                                       .format(value, expected_type))
-                setattr(instance, "_pre_" + self.name, val)
+                setattr(instance, "_eval_" + self.name, val)
             else:
                 assert False, "StationObject type or str, int, float expected"
 
             if self.__class__.__set__ is BaseAttrDescriptor.__set__:
-                self.push_pre_to_value(instance)
+                self.push_eval_to_value(instance)
         else:
             assert False, "No requirements found"
 
     def get_str_value(self, instance: StationObjectImage):
         return getattr(instance, "_str_" + self.name)
 
-    def get_pre_value(self, instance: StationObjectImage):
-        return getattr(instance, "_pre_" + self.name)
+    def get_eval_value(self, instance: StationObjectImage):
+        return getattr(instance, "_eval_" + self.name)
 
-    def push_pre_to_value(self, instance: StationObjectImage):
-        setattr(instance, "_" + self.name, getattr(instance, "_pre_" + self.name))
+    def push_eval_to_value(self, instance: StationObjectImage):
+        setattr(instance, "_" + self.name, getattr(instance, "_eval_" + self.name))
 
 
 # ------------        PARTIAL ATTRIBUTE DESCRIPTORS        ------------ #
@@ -377,11 +399,11 @@ class AxCenterPoint(BaseAttrDescriptor):
         super().__set__(instance, value)
         if hasattr(instance, "_no_eval_mode_" + self.name):
             return
-        point: PointSOI = self.get_pre_value(instance)
+        point: PointSOI = self.get_eval_value(instance)
         if point.on != "axis":
             raise SemanticCoError("Center point should be on Axis")
         else:
-            self.push_pre_to_value(instance)
+            self.push_eval_to_value(instance)
 
 
 class AxAlpha(BaseAttrDescriptor):
@@ -755,13 +777,53 @@ class MOStorage:
         self.objects = []
 
 
-class EvaluationKernel:
+GLOBAL_CS_MO = CoordinateSystemMO()
+
+
+def build_model(images: list[StationObjectImage], current_object: StationObjectImage, file_read_mode: False):
+    """ gets Images with str attribute values and builds model """
+    names = OrderedDict()
+    names[GLOBAL_CS_NAME] = GLOBAL_CS_MO
+
+    """ names registration """
+    for image in images:
+        if not image.name:
+            """ !!! ADD AUTO NAMING !!! """
+            setattr(image, "_check_status_name", "Name for object not defined")
+            return
+        if image.name in names:
+            setattr(image, "_check_status_name", "Name {} already exists".format(image.name))
+            return
+        names[image.name] = image
+
+    """ attributes evaluation """
+    for image in images:
+        if isinstance(image, CoordinateSystemSOI):
+            setattr(image, "_cs_relative_to", None)
+            str_cs_relative_to = getattr(image, "_str_cs_relative_to")
+            if not getattr(image, "_str_cs_relative_to"):
+                setattr(image, "_predicted_cs_relative_to", GLOBAL_CS_NAME)
+            else:
+                if str_cs_relative_to not in names:
+                    setattr(image, "_check_status_cs_relative_to", "CS {} not found".format(str_cs_relative_to))
+                    return
+                else:
+                    cs_relative_to = names[str_cs_relative_to]
+                    if not isinstance(cs_relative_to, CoordinateSystemSOI):
+                        setattr(image, "_check_status_cs_relative_to", "Object {} is not CS".format(str_cs_relative_to))
+                        return
+                    setattr(image, "_cs_relative_to", names[str_cs_relative_to])
+
+
+class ModelProcessor:
     def __init__(self):
         pass
 
-    def build_model(self, sois: list[StationObjectImage]) -> str:
-        """ returns success status """
+    def predict_attributes(self, soi: StationObjectImage):
         pass
+
+
+MODEL = ModelProcessor()
 
 
 if __name__ == "__main__":
