@@ -409,13 +409,14 @@ class PolarGraph:
                     links_need_to_check[opposite_ni] = opposite_ni.links
         return routes_
 
-    def links_between(self, border_nodes: Iterable[PolarNode], internal_node: PolarNode = None) -> set[Link]:
+    def route_links_between(self, border_nodes: Iterable[PolarNode], internal_node: PolarNode = None) -> set[Link]:
         border_nodes = set(border_nodes)
         routes_: set[Route] = set()
         for border_node in border_nodes:
             for ni in border_node.ni_s:
                 ni_routes = self.walk(ni, border_nodes)
-                routes_ |= {route_ for route_ in ni_routes if route_.end_enter_ni.pn in border_nodes}
+                routes_ |= {route_ for route_ in ni_routes
+                            if (not route_.is_empty) and (route_.end_enter_ni.pn in border_nodes)}
         internal_links: set[Link] = set()
         internal_nodes: set[PolarNode] = set()
         for route_ in routes_:
@@ -613,8 +614,7 @@ class OneComponentTwoSidedPG(PolarGraph):
             link = current_ni.active_move.link
             opposite_ni = link.opposite_ni(current_ni)
             node = opposite_ni.pn
-            route.append_ni_or_link(link)
-            route.append_ni_or_link(node)
+            route.append_link(link)
             current_ni = node.opposite_ni(opposite_ni)
         return route
 
@@ -664,6 +664,18 @@ class OneComponentTwoSidedPG(PolarGraph):
                     layers[-1-i].remove(node)
             nodes |= set(rev_layer)
         return layers
+
+    def closed_links(self, border_nodes: Iterable[PolarNode]) -> set[Link]:
+        border_nodes = set(border_nodes)
+        route_links = self.route_links_between(border_nodes)
+        for link in route_links:
+            for ni in link.ni_s:
+                if ni.pn in border_nodes:
+                    continue
+                routes = self.walk(ni, border_nodes)
+                if any([route.end_enter_ni in self.inf_ni_s for route in routes]):
+                    return set()
+        return route_links
 
 
 if __name__ == '__main__':
@@ -737,14 +749,24 @@ if __name__ == '__main__':
     pn_10 = pg_3.insert_node(pn_5.ni_nd)
     pn_11 = pg_3.insert_node(pn_5.ni_nd)
     pn_12 = pg_3.insert_node_neck()
-    # pg_3.connect(pn_5.ni_nd, pn_12.ni_pu)
+    pn_13 = pg_3.insert_node_neck(pg_3.inf_pu.ni_nd)
+    pg_3.connect(pn_5.ni_nd, pn_12.ni_pu)
     # pn_13 = pg_3.insert_node_neck()
 
     # print(pg_3.shortest_coverage())
     # print(pg_3.longest_coverage())
-    routs = pg_3.walk(pg_3.inf_pu.ni_nd)
-    print(len(routs))
-    print(routs)
+    # routs = pg_3.walk(pg_3.inf_pu.ni_nd)
+    # print(len(routs))
+    # print(routs)
+    # lb = pg_3.route_links_between([pn_5])
+    # print(len(lb))
+    # print(lb)
+    #
+    # print(pg_3.free_roll().nodes)
+
+    cl = pg_3.closed_links([pn_8, pn_13])
+    print(len(cl))
+    print(cl)
 
     # print(pg_3.free_roll().nodes)
 
