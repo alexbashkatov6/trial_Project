@@ -23,6 +23,10 @@ class NotImplementedCoError(Exception):
     pass
 
 
+class LineDefinitionByPointsCOError(Exception):
+    pass
+
+
 class RequiredAttributeNotDefinedCOError(Exception):
     pass
 
@@ -899,6 +903,35 @@ class ModelProcessor:
                             raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
                         else:
                             setattr(image, "_{}".format(attr_name), PicketCoordinate(str_attr_value).value)
+
+                if isinstance(image, LineSOI):
+                    attr_name = "points"
+                    if attr_name in image.active_attrs:
+                        setattr(image, "_{}".format(attr_name), None)
+                        str_attr_value: str = getattr(image, "_str_{}".format(attr_name))
+                        if not getattr(image, "_str_{}".format(attr_name)):
+                            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+                        else:
+                            str_points = str_attr_value.split(" ")
+                            if len(str_points) < 2:
+                                raise LineDefinitionByPointsCOError("Count of points should be 2, given count <2")
+                            if len(str_points) > 2:
+                                raise LineDefinitionByPointsCOError("Count of points should be 2, given count >2")
+                            str_points: list[str]
+                            if str_points[0] == str_points[1]:
+                                raise LineDefinitionByPointsCOError("Given points are equal, cannot build line")
+                            pnts_list = []
+                            for str_value in str_points:
+                                if str_value not in self.names_so:
+                                    raise ObjectNotFoundCoError("Object {} not found".format(str_value))
+                                rel_image = self.names_so[str_value]
+                                if not isinstance(rel_image, PointSOI):
+                                    raise TypeCoError("Object {} not satisfy required type {}"
+                                                      .format(str_value, "PointSOI"))
+                                pnts_list.append(rel_image)
+                            setattr(image, "_{}".format(attr_name), pnts_list)
+
+                            # setattr(image, "_{}".format(attr_name), PicketCoordinate(str_attr_value).value)
         else:
             assert False, "evaluate_attributes not from file - not implemented"
 
