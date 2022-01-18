@@ -676,11 +676,15 @@ class ModelObject:
 
 
 class CoordinateSystemMO(ModelObject):
-    def __init__(self, base_cs: CoordinateSystemMO = None, co_x: bool = True, x: int = 0):
+    def __init__(self, base_cs: CoordinateSystemMO = None,
+                 x: int = 0, y: int = 0,
+                 co_x: bool = True, co_y: bool = True):
         self._base_cs = base_cs
         self._is_base = base_cs is None
         self._in_base_x = x
         self._in_base_co_x = co_x
+        self._in_base_y = y
+        self._in_base_co_y = co_y
 
     @property
     def is_base(self) -> bool:
@@ -704,7 +708,7 @@ class CoordinateSystemMO(ModelObject):
     def absolute_x(self) -> int:
         if self.is_base:
             return self.in_base_x
-        return self.base_cs.absolute_x + self.in_base_x
+        return int(self.base_cs.absolute_x + self.in_base_x * (-0.5 + int(self.base_cs.absolute_co_x)) * 2)
 
     @property
     def absolute_co_x(self) -> bool:
@@ -712,14 +716,59 @@ class CoordinateSystemMO(ModelObject):
             return self.in_base_co_x
         return self.base_cs.absolute_co_x == self.in_base_co_x
 
+    @property
+    def in_base_y(self) -> int:
+        return self._in_base_y
 
-class MOStorage:
-    def __init__(self):
-        self.objects = []
+    @property
+    def in_base_co_y(self) -> bool:
+        return self._in_base_co_y
+
+    @property
+    def absolute_y(self) -> int:
+        if self.is_base:
+            return self.in_base_y
+        return int(self.base_cs.absolute_y + self.in_base_y * (-0.5 + int(self.base_cs.absolute_co_y)) * 2)
+
+    @property
+    def absolute_co_y(self) -> bool:
+        if self.is_base:
+            return self.in_base_co_y
+        return self.base_cs.absolute_co_y == self.in_base_co_y
+
+
+class AxisMO:
+    pass
+
+
+class PointMO:
+    pass
+
+
+class LineMO:
+    pass
+
+
+class LightMO:
+    pass
+
+
+class RailPointMO:
+    pass
+
+
+class BorderMO:
+    pass
+
+
+class SectionMO:
+    pass
 
 
 GLOBAL_CS_SO = CoordinateSystemSOI()
+GLOBAL_CS_SO._name = GLOBAL_CS_NAME
 GLOBAL_CS_MO = CoordinateSystemMO()
+GLOBAL_CS_MO._name = GLOBAL_CS_NAME
 
 
 def check_expected_type(str_value: str, attr_name: str, image_object: StationObjectImage, names_dict: OrderedDict):
@@ -739,11 +788,6 @@ def check_expected_type(str_value: str, attr_name: str, image_object: StationObj
         if not isinstance(result, attr_descr.expected_type):
             raise TypeCoError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
         setattr(image_object, "_{}".format(attr_name), result)
-
-# setattr(image_object, "_check_status_{}".format(attr_name), "Object {} not found".format(str_value))
-# return
-# setattr(image_object, "_check_status_{}".format(attr_name), "Object {} is not CS".format(str_value))
-# return
 
 
 def default_attrib_evaluation(attr_name: str, image: StationObjectImage, names_dict: OrderedDict):
@@ -819,40 +863,41 @@ def execute_commands(commands: list[Command]):
             MODEL.check_cycle_dg()
             MODEL.rectify_dg()
             MODEL.evaluate_attributes(True)
+            MODEL.build_model()
 
 
 class ModelProcessor:
     def __init__(self):
-        self.names_so = None
+        self.names_soi = None
         self.names_mo = None
         self.rect_so = None
-        self.refresh_names()
+        self.refresh_storages()
 
         self.dg = OneComponentTwoSidedPG()
         gcs_node = self.dg.insert_node()
         gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
 
-    def refresh_names(self):
-        self.names_so: OrderedDict[str, Optional[StationObjectImage]] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_SO})
+    def refresh_storages(self):
+        self.names_soi: OrderedDict[str, Optional[StationObjectImage]] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_SO})
         self.names_mo: OrderedDict[str, ModelObject] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_MO})
         self.rect_so: list[str] = []
 
     def build_dg(self, images: list[StationObjectImage], from_file: bool = False) -> None:
         if from_file:
-            self.refresh_names()
+            self.refresh_storages()  # when refresh ?
             for image in images:
                 if not image.name:
                     raise NoNameCoError("Name of object in class {} already exist".format(image.__class__.__name__))
-                if image.name in self.names_so:
+                if image.name in self.names_soi:
                     raise ExistingNameCoError("Name {} already exist".format(image.name))
                 node = self.dg.insert_node()
                 node.append_cell_obj(ImageNameCell(image.name))
-                self.names_so[image.name] = image
+                self.names_soi[image.name] = image
             for image in images:
                 for attr_name in image.active_attrs:
                     if not getattr(image.__class__, attr_name).enum:
                         attr_value: str = getattr(image, "_str_{}".format(attr_name))
-                        for name in self.names_so:
+                        for name in self.names_soi:
                             if name.isdigit():  # for rail points
                                 continue
                             if " " in attr_value:
@@ -882,23 +927,23 @@ class ModelProcessor:
     def evaluate_attributes(self, from_file: bool = False):
         if from_file:
             for image_name in self.rect_so:
-                image = self.names_so[image_name]
+                image = self.names_soi[image_name]
 
                 if isinstance(image, CoordinateSystemSOI):
-                    default_attrib_evaluation("cs_relative_to", image, self.names_so)
-                    default_attrib_evaluation("x", image, self.names_so)
-                    default_attrib_evaluation("y", image, self.names_so)
-                    default_attrib_evaluation("alpha", image, self.names_so)
+                    default_attrib_evaluation("cs_relative_to", image, self.names_soi)
+                    default_attrib_evaluation("x", image, self.names_soi)
+                    default_attrib_evaluation("y", image, self.names_soi)
+                    default_attrib_evaluation("alpha", image, self.names_soi)
 
                 if isinstance(image, AxisSOI):
-                    default_attrib_evaluation("cs_relative_to", image, self.names_so)
-                    default_attrib_evaluation("y", image, self.names_so)
-                    default_attrib_evaluation("center_point", image, self.names_so)
-                    default_attrib_evaluation("alpha", image, self.names_so)
+                    default_attrib_evaluation("cs_relative_to", image, self.names_soi)
+                    default_attrib_evaluation("y", image, self.names_soi)
+                    default_attrib_evaluation("center_point", image, self.names_soi)
+                    default_attrib_evaluation("alpha", image, self.names_soi)
 
                 if isinstance(image, PointSOI):
-                    default_attrib_evaluation("axis", image, self.names_so)
-                    default_attrib_evaluation("line", image, self.names_so)
+                    default_attrib_evaluation("axis", image, self.names_soi)
+                    default_attrib_evaluation("line", image, self.names_soi)
                     attr_name = "x"
                     if attr_name in image.active_attrs:
                         setattr(image, "_{}".format(attr_name), None)
@@ -926,9 +971,9 @@ class ModelProcessor:
                                 raise LineDefinitionByPointsCOError("Given points are equal, cannot build line")
                             pnts_list = []
                             for str_value in str_points:
-                                if str_value not in self.names_so:
+                                if str_value not in self.names_soi:
                                     raise ObjectNotFoundCoError("Object {} not found".format(str_value))
-                                rel_image = self.names_so[str_value]
+                                rel_image = self.names_soi[str_value]
                                 if not isinstance(rel_image, PointSOI):
                                     raise TypeCoError("Object {} not satisfy required type {}"
                                                       .format(str_value, "PointSOI"))
@@ -936,8 +981,8 @@ class ModelProcessor:
                             setattr(image, "_{}".format(attr_name), pnts_list)
 
                 if isinstance(image, LightSOI):
-                    default_attrib_evaluation("center_point", image, self.names_so)
-                    default_attrib_evaluation("direct_point", image, self.names_so)
+                    default_attrib_evaluation("center_point", image, self.names_soi)
+                    default_attrib_evaluation("direct_point", image, self.names_soi)
                     attr_name = "colors"
                     if attr_name in image.active_attrs:
                         setattr(image, "_{}".format(attr_name), None)
@@ -955,12 +1000,12 @@ class ModelProcessor:
                             setattr(image, "_{}".format(attr_name), str_colors)
 
                 if isinstance(image, RailPointSOI):
-                    default_attrib_evaluation("center_point", image, self.names_so)
-                    default_attrib_evaluation("dir_plus_point", image, self.names_so)
-                    default_attrib_evaluation("dir_minus_point", image, self.names_so)
+                    default_attrib_evaluation("center_point", image, self.names_soi)
+                    default_attrib_evaluation("dir_plus_point", image, self.names_soi)
+                    default_attrib_evaluation("dir_minus_point", image, self.names_soi)
 
                 if isinstance(image, BorderSOI):
-                    default_attrib_evaluation("point", image, self.names_so)
+                    default_attrib_evaluation("point", image, self.names_soi)
 
                 if isinstance(image, SectionSOI):
                     attr_name = "border_points"
@@ -975,9 +1020,9 @@ class ModelProcessor:
                                 raise RepeatingPointsCOError("Points in section border repeating")
                             pnts_list = []
                             for str_value in str_points:
-                                if str_value not in self.names_so:
+                                if str_value not in self.names_soi:
                                     raise ObjectNotFoundCoError("Object {} not found".format(str_value))
-                                rel_image = self.names_so[str_value]
+                                rel_image = self.names_soi[str_value]
                                 if not isinstance(rel_image, PointSOI):
                                     raise TypeCoError("Object {} not satisfy required type {}"
                                                       .format(str_value, "PointSOI"))
@@ -987,7 +1032,15 @@ class ModelProcessor:
             assert False, "evaluate_attributes not from file - not implemented"
 
     def build_model(self):
-        pass
+        # refresh smth ?
+
+        for image_name in self.rect_so:
+            image = self.names_soi[image_name]
+            if isinstance(image, CoordinateSystemSOI):
+                model_object = CoordinateSystemMO(self.names_mo[image.cs_relative_to.name],
+                                                  image.x, image.y,
+                                                  image.co_x == "true", image.co_y == "true")
+                self.names_mo[image_name] = model_object
 
 
 MODEL = ModelProcessor()
@@ -1098,4 +1151,21 @@ if __name__ == "__main__":
     test_9 = True
     if test_9:
         execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
-        print(MODEL.rect_so)
+        print(MODEL.names_mo)
+        cs_1: CoordinateSystemMO = MODEL.names_mo['CS_1']
+        print(cs_1.absolute_x)
+        print(cs_1.absolute_y)
+        print(cs_1.absolute_co_x)
+        print(cs_1.absolute_co_y)
+        if 'CS_2' in MODEL.names_mo:
+            cs_2 = MODEL.names_mo['CS_2']
+            print(cs_2.absolute_x)
+            print(cs_2.absolute_y)
+            print(cs_2.absolute_co_x)
+            print(cs_2.absolute_co_y)
+        if 'CS_3' in MODEL.names_mo:
+            cs_3 = MODEL.names_mo['CS_3']
+            print(cs_3.absolute_x)
+            print(cs_3.absolute_y)
+            print(cs_3.absolute_co_x)
+            print(cs_3.absolute_co_y)
