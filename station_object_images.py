@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Type, Optional, Union
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 from copy import copy
 import pandas as pd
 import os
@@ -20,6 +20,10 @@ STATION_IN_CONFIG_FOLDER = "station_in_config"
 # ------------        EXCEPTIONS        ------------ #
 
 class NotImplementedCoError(Exception):
+    pass
+
+
+class RepeatingPointsCOError(Exception):
     pass
 
 
@@ -567,55 +571,55 @@ class ImageNameCell(CellObject):
         self.name = name
 
 
-class SOIRectifier:
-    """ objects sequence getter """
-    def __init__(self):
-        self.dg = OneComponentTwoSidedPG()  # dependence graph
-        self.object_names: OrderedDict[str, Optional[StationObjectImage]] = OrderedDict()
-        self.object_names[GLOBAL_CS_NAME] = None
-        gcs_node = self.dg.insert_node()
-        gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
-
-    def build_dg(self, obj_list: list[StationObjectImage]) -> None:
-        for obj in obj_list:
-            # if not obj.name in self.object_names:
-            #     raise ExistingNameCoError("Name {} already exist".format(obj.name))
-            if obj.name in self.object_names:
-                raise ExistingNameCoError("Name {} already exist".format(obj.name))
-            node = self.dg.insert_node()
-            node.append_cell_obj(ImageNameCell(obj.name))
-            self.object_names[obj.name] = obj
-        for obj in obj_list:
-            for attr_name in obj.active_attrs:
-                if not getattr(obj.__class__, attr_name).enum:
-                    attr_value: str = getattr(obj, "_str_{}".format(attr_name))
-                    for name in self.object_names:
-                        if name.isdigit():  # for rail points
-                            continue
-                        if " " in attr_value:
-                            split_names = attr_value.split(" ")
-                        else:
-                            split_names = [attr_value]
-                        for split_name in split_names:
-                            if name == split_name:
-                                node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == obj.name,
-                                                                      self.dg.not_inf_nodes)
-                                node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name,
-                                                                        self.dg.not_inf_nodes)
-                                self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
-
-    def check_cycle(self):
-        dg = self.dg
-        routes = dg.walk(dg.inf_pu.ni_nd)
-        if any([route_.is_cycle for route_ in routes]):
-            raise CycleError("Cycle in dependencies was found")
-
-    def rectified_object_list(self) -> list[StationObjectImage]:
-        nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]
-        return [self.object_names[node.cell_objs[0].name] for node in nodes]
-
-
-SOIR = SOIRectifier()
+# class SOIRectifier:
+#     """ objects sequence getter """
+#     def __init__(self):
+#         self.dg = OneComponentTwoSidedPG()  # dependence graph
+#         self.object_names: OrderedDict[str, Optional[StationObjectImage]] = OrderedDict()
+#         self.object_names[GLOBAL_CS_NAME] = None
+#         gcs_node = self.dg.insert_node()
+#         gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
+#
+#     def build_dg(self, obj_list: list[StationObjectImage]) -> None:
+#         for obj in obj_list:
+#             # if not obj.name in self.object_names:
+#             #     raise ExistingNameCoError("Name {} already exist".format(obj.name))
+#             if obj.name in self.object_names:
+#                 raise ExistingNameCoError("Name {} already exist".format(obj.name))
+#             node = self.dg.insert_node()
+#             node.append_cell_obj(ImageNameCell(obj.name))
+#             self.object_names[obj.name] = obj
+#         for obj in obj_list:
+#             for attr_name in obj.active_attrs:
+#                 if not getattr(obj.__class__, attr_name).enum:
+#                     attr_value: str = getattr(obj, "_str_{}".format(attr_name))
+#                     for name in self.object_names:
+#                         if name.isdigit():  # for rail points
+#                             continue
+#                         if " " in attr_value:
+#                             split_names = attr_value.split(" ")
+#                         else:
+#                             split_names = [attr_value]
+#                         for split_name in split_names:
+#                             if name == split_name:
+#                                 node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == obj.name,
+#                                                                       self.dg.not_inf_nodes)
+#                                 node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name,
+#                                                                         self.dg.not_inf_nodes)
+#                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
+#
+#     def check_cycle(self):
+#         dg = self.dg
+#         routes = dg.walk(dg.inf_pu.ni_nd)
+#         if any([route_.is_cycle for route_ in routes]):
+#             raise CycleError("Cycle in dependencies was found")
+#
+#     def rectified_object_list(self) -> list[StationObjectImage]:
+#         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]
+#         return [self.object_names[node.cell_objs[0].name] for node in nodes]
+#
+#
+# SOIR = SOIRectifier()
 
 
 def make_xlsx_templates(dir_name: str):
@@ -931,43 +935,59 @@ class ModelProcessor:
                                 pnts_list.append(rel_image)
                             setattr(image, "_{}".format(attr_name), pnts_list)
 
-                            # setattr(image, "_{}".format(attr_name), PicketCoordinate(str_attr_value).value)
+                if isinstance(image, LightSOI):
+                    default_attrib_evaluation("center_point", image, self.names_so)
+                    default_attrib_evaluation("direct_point", image, self.names_so)
+                    attr_name = "colors"
+                    if attr_name in image.active_attrs:
+                        setattr(image, "_{}".format(attr_name), None)
+                        str_attr_value: str = getattr(image, "_str_{}".format(attr_name))
+                        if not getattr(image, "_str_{}".format(attr_name)):
+                            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+                        else:
+                            str_colors = str_attr_value.split(" ")
+                            color_counts = dict(Counter(str_colors))
+                            for str_color in color_counts:
+                                if str_color not in CELightColor.possible_values:
+                                    raise TypeCoError("Color {} for light not possible".format(str_color))
+                                if color_counts[str_color] > 1 and str_color != "yellow":
+                                    raise TypeCoError("More then 2 lamps for color {} not possible".format(str_color))
+                            setattr(image, "_{}".format(attr_name), str_colors)
+
+                if isinstance(image, RailPointSOI):
+                    default_attrib_evaluation("center_point", image, self.names_so)
+                    default_attrib_evaluation("dir_plus_point", image, self.names_so)
+                    default_attrib_evaluation("dir_minus_point", image, self.names_so)
+
+                if isinstance(image, BorderSOI):
+                    default_attrib_evaluation("point", image, self.names_so)
+
+                if isinstance(image, SectionSOI):
+                    attr_name = "border_points"
+                    if attr_name in image.active_attrs:
+                        setattr(image, "_{}".format(attr_name), None)
+                        str_attr_value: str = getattr(image, "_str_{}".format(attr_name))
+                        if not getattr(image, "_str_{}".format(attr_name)):
+                            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+                        else:
+                            str_points = str_attr_value.split(" ")
+                            if len(set(str_points)) < len(str_points):
+                                raise RepeatingPointsCOError("Points in section border repeating")
+                            pnts_list = []
+                            for str_value in str_points:
+                                if str_value not in self.names_so:
+                                    raise ObjectNotFoundCoError("Object {} not found".format(str_value))
+                                rel_image = self.names_so[str_value]
+                                if not isinstance(rel_image, PointSOI):
+                                    raise TypeCoError("Object {} not satisfy required type {}"
+                                                      .format(str_value, "PointSOI"))
+                                pnts_list.append(rel_image)
+                            setattr(image, "_{}".format(attr_name), pnts_list)
         else:
             assert False, "evaluate_attributes not from file - not implemented"
 
-    #
-    #     """ names registration """
-    #     for image in images:
-    #         if not image.name:
-    #             print("here 1")
-    #             """ !!! ADD AUTO NAMING !!! """
-    #             setattr(image, "_check_status_name", "Name for object not defined")
-    #             return
-    #         if image.name in names_mo:
-    #             setattr(image, "_check_status_name", "Name {} already exists".format(image.name))
-    #             return
-    #         names_mo[image.name] = image
-    #
-    #     print("Names registration successful !")
-    #
-    #     """ attributes evaluation """
-    #     for image in images:
-    #         if isinstance(image, CoordinateSystemSOI):
-    #             # image.dependence
-    #             setattr(image, "_cs_relative_to", None)
-    #             str_cs_relative_to = getattr(image, "_str_cs_relative_to")
-    #             if not getattr(image, "_str_cs_relative_to"):
-    #                 setattr(image, "_predicted_cs_relative_to", GLOBAL_CS_NAME)
-    #             else:
-    #                 check_expected_type(str_cs_relative_to, "cs_relative_to", image, names_mo)
-
-
-# class ModelProcessor:
-#     def __init__(self):
-#         pass
-#
-#     def predict_attributes(self, soi: StationObjectImage):
-#         pass
+    def build_model(self):
+        pass
 
 
 MODEL = ModelProcessor()
@@ -1041,12 +1061,12 @@ if __name__ == "__main__":
         # for attr_ in pnt.active_attrs:
         #     print(getattr(pnt, attr_))
 
-        SOIR.build_dg(objs)
-        SOIR.check_cycle()
+        # SOIR.build_dg(objs)
+        # SOIR.check_cycle()
 
         # print(SOIR.dg.shortest_coverage())
 
-        print(recursive_map(lambda x: x.cell_objs[0].name, SOIR.rectified_object_list()))
+        # print(recursive_map(lambda x: x.cell_objs[0].name, SOIR.rectified_object_list()))
 
         # node_15: PolarNode = single_element(lambda x: x.cell_objs[0].name == "Point_15", SOIR.dg.not_inf_nodes)
         # node_4SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "4SP", SOIR.dg.not_inf_nodes)
@@ -1070,9 +1090,9 @@ if __name__ == "__main__":
     test_8 = False
     if test_8:
         objs = read_station_config(STATION_IN_CONFIG_FOLDER)
-        SOIR.build_dg(objs)
-        SOIR.check_cycle()
-        print([obj.name for obj in SOIR.rectified_object_list()])
+        # SOIR.build_dg(objs)
+        # SOIR.check_cycle()
+        # print([obj.name for obj in SOIR.rectified_object_list()])
         # build_model(SOIR.rectified_object_list())
 
     test_9 = True

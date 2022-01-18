@@ -1,5 +1,3 @@
-a = [1, 2, 3]
-b = list(reversed(a))
-b[0] = 5
-print(a)
-print(bool("0"))
+from collections import Counter
+c = Counter(["odin", "dva", "tri", "dva", "tri", "tri"])
+print(dict(c))
