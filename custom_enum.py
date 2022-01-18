@@ -4,6 +4,14 @@ from collections.abc import Iterable
 from copy import copy
 
 
+class CustomEnumImpossibleValue(Exception):
+    pass
+
+
+class CustomEnumComparisonException(Exception):
+    pass
+
+
 class PossibleValuesDescriptor:
 
     def __get__(self, instance, owner):
@@ -37,11 +45,13 @@ class CustomEnum:
 
     def __init__(self, value: Union[str, int]):
         if type(value) == str:
-            assert value in self.possible_values, "Str value {} not possible".format(value)
+            if value not in self.possible_values:
+                raise CustomEnumImpossibleValue("Str value {} not possible".format(value))
             self.str_value = value
             self.int_value = self.__class__.__dict__[value]
         elif type(value) == int:
-            assert value in self.reversed_dict, "Int value {} not possible".format(value)
+            if value not in self.reversed_dict:
+                raise CustomEnumImpossibleValue("Int value {} not possible".format(value))
             self.str_value = self.reversed_dict[value].pop()
             self.int_value = value
 
@@ -51,7 +61,8 @@ class CustomEnum:
     __str__ = __repr__
 
     def __eq__(self, other):
-        assert type(other) in [int, str, self.__class__], "Only str or class supported for comparison"
+        if type(other) not in [int, str, self.__class__]:
+            raise CustomEnumComparisonException("Only str, int or enum-class supported for comparison")
         if type(other) == str:
             return other in self.__class__.reversed_dict[self.int_value]
         elif type(other) == int:

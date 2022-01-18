@@ -23,6 +23,18 @@ class NotImplementedCoError(Exception):
     pass
 
 
+class RequiredAttributeNotDefinedCOError(Exception):
+    pass
+
+
+class PicketCoordinateParsingCoError(Exception):
+    pass
+
+
+class ObjectNotFoundCoError(Exception):
+    pass
+
+
 class NoNameCoError(Exception):
     pass
 
@@ -48,6 +60,14 @@ class CycleError(Exception):
 
 
 # ------------        ENUMS        ------------ #
+
+
+class CECommand(CustomEnum):
+    load_config = 0
+    create_object = 1
+    rename_object = 2
+    change_attrib_value = 3
+    delete_object = 4
 
 
 class CEDependence(CustomEnum):
@@ -246,8 +266,6 @@ class SOIName:
         return getattr(instance, "_name")
 
     def __set__(self, instance, value: str):
-        if value in SOIS.names_list:
-            raise ExistingNameCoError("Name {} already exists".format(value))
         instance._name = value
 
 
@@ -256,97 +274,44 @@ class SOIName:
 
 class BaseAttrDescriptor:
 
-    def __init__(self, expected_type_or_enum: Union[str, CustomEnum, tuple[str, str]] = None):
+    def __init__(self, expected_type: Union[str, Type[CustomEnum]] = None):
         self.enum = None
+        self.str_expected_type: str = ""
         self.expected_type = None
-        self.default_value = None
-        if expected_type_or_enum:
-            if isinstance(expected_type_or_enum, CustomEnum):
-                self.enum = expected_type_or_enum
-            elif isinstance(expected_type_or_enum, tuple):
-                self.expected_type: str = expected_type_or_enum[0]
-                self.default_value: str = expected_type_or_enum[1]
+        self.is_complex_type = False
+        if expected_type:
+            if expected_type == "complex_type":
+                self.is_complex_type = True
+            elif isinstance(expected_type, str):
+                self.str_expected_type: str = expected_type  # eval because Py-class cannot directly contain its name
             else:
-                self.expected_type: str = expected_type_or_enum
-
-    def __get__(self, instance, owner):
-        if not instance:
-            return self
-        elif hasattr(instance, "_no_eval_mode_"+self.name):  # str-value
-            return getattr(instance, "_str_"+self.name)
-        elif hasattr(instance, "_"+self.name):
-            return getattr(instance, "_"+self.name)
-        elif self.enum:
-            setattr(instance, "_"+self.name, self.enum)
-            return getattr(instance, "_"+self.name)
-        elif hasattr(instance, "predicted_"+self.name):  # predicted
-            return getattr(instance, "_predicted_"+self.name)
-        # elif self.default_value:  # default
-        #     return self.default_value
-        else:
-            return None
+                self.enum = expected_type
 
     def __set_name__(self, owner, name):
         self.name = name
 
+    def __get__(self, instance, owner):
+        if not instance:
+            return self
+        elif hasattr(instance, "_"+self.name) and not (getattr(instance, "_"+self.name) is None):
+            return getattr(instance, "_"+self.name)
+        elif hasattr(instance, "_predicted_"+self.name):
+            return getattr(instance, "_predicted_"+self.name)
+        else:
+            return None
+
     def __set__(self, instance: StationObjectImage, value: str):
         value = value.strip()
-        setattr(instance, "_str_"+self.name, value.replace("_str_", ""))
+        setattr(instance, "_str_"+self.name, value)
 
-        """ for stage building DG - no evaluations """
-        if value.startswith("_str_") and value.endswith("_str_"):
-            setattr(instance, "_no_eval_mode_" + self.name, True)
-            setattr(instance, "_" + self.name, value.replace("_str_", ""))
-            return
-        if hasattr(instance, "_no_eval_mode_" + self.name):
-            delattr(instance, "_no_eval_mode_" + self.name)
-
-        assert self.name in instance.active_attrs, "Attribute for set should be active"
-
-        """ for enum values """
         if self.enum:
-            inst_enum: CustomEnum = getattr(instance, self.name)
-            setattr(instance, "_" + self.name, type(inst_enum)(value))
-        elif self.expected_type:
-            if self.expected_type == "complex_type":
-                return
-            else:
-                expected_type = eval(self.expected_type)  # eval because Py-class cannot directly contain its name
-
-            if issubclass(expected_type, StationObjectImage):
-                if value in SOIS.names_list:
-                    obj = SOIS.get_object(value)
-                    if isinstance(obj, expected_type):
-                        setattr(instance, "_eval_" + self.name, obj)
-                    else:
-                        raise TypeCoError("Type of given object {} not satisfy type requirement {}"
-                                          .format(value, expected_type))
-                else:
-                    raise TypeCoError("Type of given object {} not satisfy type requirement {}"
-                                      .format(value, expected_type))
-            elif expected_type in [str, int, float]:
-                try:
-                    val = expected_type(value)
-                except ValueError:
-                    raise TypeCoError("Type of given object {} not satisfy type requirement {}"
-                                      .format(value, expected_type))
-                setattr(instance, "_eval_" + self.name, val)
-            else:
-                assert False, "StationObject type or str, int, float expected"
-
-            if self.__class__.__set__ is BaseAttrDescriptor.__set__:
-                self.push_eval_to_value(instance)
+            setattr(instance, "_" + self.name, self.enum(value))
+        elif self.is_complex_type:
+            return
+        elif self.str_expected_type:
+            self.expected_type = eval(self.str_expected_type)  # eval because Py-class cannot directly contain its name
         else:
             assert False, "No requirements found"
-
-    def get_str_value(self, instance: StationObjectImage):
-        return getattr(instance, "_str_" + self.name)
-
-    def get_eval_value(self, instance: StationObjectImage):
-        return getattr(instance, "_eval_" + self.name)
-
-    def push_eval_to_value(self, instance: StationObjectImage):
-        setattr(instance, "_" + self.name, getattr(instance, "_eval_" + self.name))
 
 
 # ------------        PARTIAL ATTRIBUTE DESCRIPTORS        ------------ #
@@ -369,8 +334,7 @@ class CsY(BaseAttrDescriptor):
 
 
 class CsAlpha(BaseAttrDescriptor):
-    def __set__(self, instance, value):
-        raise NotImplementedCoError
+    pass
 
 
 class CsCoX(BaseAttrDescriptor):
@@ -394,16 +358,7 @@ class AxY(BaseAttrDescriptor):
 
 
 class AxCenterPoint(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        super().__set__(instance, value)
-        if hasattr(instance, "_no_eval_mode_" + self.name):
-            return
-        point: PointSOI = self.get_eval_value(instance)
-        if point.on != "axis":
-            raise SemanticCoError("Center point should be on Axis")
-        else:
-            self.push_eval_to_value(instance)
+    pass
 
 
 class AxAlpha(BaseAttrDescriptor):
@@ -423,27 +378,7 @@ class PntLine(BaseAttrDescriptor):
 
 
 class PntX(BaseAttrDescriptor):
-
-    def __set__(self, instance, value):
-        super().__set__(instance, value)
-        if hasattr(instance, "_no_eval_mode_" + self.name):
-            return
-        x: str = self.get_str_value(instance)
-        if x.startswith("PK"):
-            try:
-                hund_meters = x[x.index("_")+1:x.index("+")]
-                meters = x[x.index("+"):]
-                hund_meters = int(hund_meters)
-                meters = int(meters)
-            except ValueError:
-                raise TypeCoError("Expected int value or picket 'PK_xx+xx'")
-            setattr(instance, "_"+self.name, hund_meters*100 + meters)
-        else:
-            try:
-                meters = int(x)
-            except ValueError:
-                raise TypeCoError("Expected int value or picket 'PK_xx+xx'")
-            setattr(instance, "_"+self.name, meters)
+    pass
 
 
 class LinePoints(BaseAttrDescriptor):
@@ -507,24 +442,24 @@ class StationObjectImage:
 
 class CoordinateSystemSOI(StationObjectImage):
     cs_relative_to = CsCsRelTo("CoordinateSystemSOI")
-    dependence = CsDepend(CEDependence(CEDependence.dependent))
+    dependence = CsDepend(CEDependence)
     x = CsX("int")
     y = CsY("int")
     alpha = CsAlpha("int")
-    co_x = CsCoX(CEBool(CEBool.true))
-    co_y = CsCoY(CEBool(CEBool.true))
+    co_x = CsCoX(CEBool)
+    co_y = CsCoY(CEBool)
 
 
 class AxisSOI(StationObjectImage):
     cs_relative_to = AxCsRelTo("CoordinateSystemSOI")
-    creation_method = AxCrtMethod(CEAxisCreationMethod(CEAxisCreationMethod.translational))
+    creation_method = AxCrtMethod(CEAxisCreationMethod)
     y = AxY("int")
     center_point = AxCenterPoint("PointSOI")
     alpha = AxAlpha("int")
 
 
 class PointSOI(StationObjectImage):
-    on = PntOn(CEAxisOrLine(CEAxisOrLine.axis))
+    on = PntOn(CEAxisOrLine)
     axis = PntAxis("AxisSOI")
     line = PntAxis("LineSOI")
     x = PntX("complex_type")
@@ -535,8 +470,8 @@ class LineSOI(StationObjectImage):
 
 
 class LightSOI(StationObjectImage):
-    light_route_type = LightRouteType(CELightRouteType(CELightRouteType.train))
-    light_stick_type = LightStickType(CELightStickType(CELightStickType.mast))
+    light_route_type = LightRouteType(CELightRouteType)
+    light_stick_type = LightStickType(CELightStickType)
     center_point = LightCenterPoint("PointSOI")
     direct_point = LightDirectionPoint("PointSOI")
     colors = LightColors("complex_type")
@@ -549,7 +484,7 @@ class RailPointSOI(StationObjectImage):
 
 
 class BorderSOI(StationObjectImage):
-    border_type = BorderType(CEBorderType(CEBorderType.standoff))
+    border_type = BorderType(CEBorderType)
     point = BorderPoint("PointSOI")
 
 
@@ -632,22 +567,25 @@ class SOIRectifier:
     """ objects sequence getter """
     def __init__(self):
         self.dg = OneComponentTwoSidedPG()  # dependence graph
+        self.object_names: OrderedDict[str, Optional[StationObjectImage]] = OrderedDict()
+        self.object_names[GLOBAL_CS_NAME] = None
         gcs_node = self.dg.insert_node()
         gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
 
     def build_dg(self, obj_list: list[StationObjectImage]) -> None:
-        names_list: list[str] = [GLOBAL_CS_NAME]
         for obj in obj_list:
-            if obj.name in names_list:
+            # if not obj.name in self.object_names:
+            #     raise ExistingNameCoError("Name {} already exist".format(obj.name))
+            if obj.name in self.object_names:
                 raise ExistingNameCoError("Name {} already exist".format(obj.name))
             node = self.dg.insert_node()
             node.append_cell_obj(ImageNameCell(obj.name))
-            names_list.append(obj.name)
+            self.object_names[obj.name] = obj
         for obj in obj_list:
             for attr_name in obj.active_attrs:
                 if not getattr(obj.__class__, attr_name).enum:
-                    attr_value: str = getattr(obj, attr_name)
-                    for name in names_list:
+                    attr_value: str = getattr(obj, "_str_{}".format(attr_name))
+                    for name in self.object_names:
                         if name.isdigit():  # for rail points
                             continue
                         if " " in attr_value:
@@ -669,7 +607,8 @@ class SOIRectifier:
             raise CycleError("Cycle in dependencies was found")
 
     def rectified_object_list(self) -> list[StationObjectImage]:
-        return list(flatten(self.dg.longest_coverage()))[1:]
+        nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]
+        return [self.object_names[node.cell_objs[0].name] for node in nodes]
 
 
 SOIR = SOIRectifier()
@@ -710,13 +649,7 @@ def read_station_config(dir_name: str) -> list[StationObjectImage]:
                 attr_val: str
                 attr_name = attr_name.strip()
                 attr_val = attr_val.strip()
-                if attr_name == "name":
-                    setattr(new_obj, attr_name, attr_val)
-                    continue
-                if getattr(cls, attr_name).enum:
-                    setattr(new_obj, attr_name, attr_val)
-                else:
-                    setattr(new_obj, attr_name, "_str_{}_str_".format(attr_val))
+                setattr(new_obj, attr_name, attr_val)  # can be raised custom enum exceptions
             objs_.append(new_obj)
     return objs_
 
@@ -777,50 +710,231 @@ class MOStorage:
         self.objects = []
 
 
+GLOBAL_CS_SO = CoordinateSystemSOI()
 GLOBAL_CS_MO = CoordinateSystemMO()
 
 
-def build_model(images: list[StationObjectImage], current_object: StationObjectImage, file_read_mode: False):
-    """ gets Images with str attribute values and builds model """
-    names = OrderedDict()
-    names[GLOBAL_CS_NAME] = GLOBAL_CS_MO
+def check_expected_type(str_value: str, attr_name: str, image_object: StationObjectImage, names_dict: OrderedDict):
+    attr_descr: BaseAttrDescriptor = getattr(image_object.__class__, attr_name)
+    if issubclass(attr_descr.expected_type, StationObjectImage):
+        if str_value not in names_dict:
+            raise ObjectNotFoundCoError("Object {} not found".format(str_value))
+        rel_image = names_dict[str_value]
+        if not isinstance(rel_image, attr_descr.expected_type):
+            raise TypeCoError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
+        setattr(image_object, "_{}".format(attr_name), names_dict[str_value])
+    else:
+        try:
+            result = eval(str_value)
+        except (ValueError, NameError, SyntaxError):
+            raise TypeCoError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
+        if not isinstance(result, attr_descr.expected_type):
+            raise TypeCoError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
+        setattr(image_object, "_{}".format(attr_name), result)
 
-    """ names registration """
-    for image in images:
-        if not image.name:
-            """ !!! ADD AUTO NAMING !!! """
-            setattr(image, "_check_status_name", "Name for object not defined")
-            return
-        if image.name in names:
-            setattr(image, "_check_status_name", "Name {} already exists".format(image.name))
-            return
-        names[image.name] = image
+# setattr(image_object, "_check_status_{}".format(attr_name), "Object {} not found".format(str_value))
+# return
+# setattr(image_object, "_check_status_{}".format(attr_name), "Object {} is not CS".format(str_value))
+# return
 
-    """ attributes evaluation """
-    for image in images:
-        if isinstance(image, CoordinateSystemSOI):
-            setattr(image, "_cs_relative_to", None)
-            str_cs_relative_to = getattr(image, "_str_cs_relative_to")
-            if not getattr(image, "_str_cs_relative_to"):
-                setattr(image, "_predicted_cs_relative_to", GLOBAL_CS_NAME)
-            else:
-                if str_cs_relative_to not in names:
-                    setattr(image, "_check_status_cs_relative_to", "CS {} not found".format(str_cs_relative_to))
-                    return
-                else:
-                    cs_relative_to = names[str_cs_relative_to]
-                    if not isinstance(cs_relative_to, CoordinateSystemSOI):
-                        setattr(image, "_check_status_cs_relative_to", "Object {} is not CS".format(str_cs_relative_to))
-                        return
-                    setattr(image, "_cs_relative_to", names[str_cs_relative_to])
+
+def default_attrib_evaluation(attr_name: str, image: StationObjectImage, names_dict: OrderedDict):
+    if attr_name in image.active_attrs:
+        setattr(image, "_{}".format(attr_name), None)
+        str_attr_value = getattr(image, "_str_{}".format(attr_name))
+        if not getattr(image, "_str_{}".format(attr_name)):
+            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+        else:
+            check_expected_type(str_attr_value, attr_name, image, names_dict)
+
+
+class Command:
+    def __init__(self, cmd_type: CECommand, cmd_args: list[str]):
+        """ Commands have next formats:
+        load_config(file_name) (or dir_name)
+        create_object(cls_name)
+        rename_object(old_name, new_name)
+        change_attrib_value(obj_name, attr_name, new_value)
+        delete_object(obj_name)
+        """
+        self.cmd_type = cmd_type
+        self.cmd_args = cmd_args
+
+
+class PicketCoordinate:
+    def __init__(self, str_value: str):
+        self.str_value = str_value
+
+    @property
+    def value(self):
+        x = self.str_value
+        if x.startswith("PK"):
+            try:
+                hund_meters = x[x.index("_")+1:x.index("+")]
+                meters = x[x.index("+"):]
+                hund_meters = int(hund_meters)
+                meters = int(meters)
+            except ValueError:
+                raise PicketCoordinateParsingCoError("Expected int value or picket 'PK_xx+xx'")
+            return meters + 100*hund_meters
+        else:
+            try:
+                meters = int(x)
+            except ValueError:
+                raise PicketCoordinateParsingCoError("Expected int value or picket 'PK_xx+xx'")
+            return meters
+
+
+class CommandSupervisor:
+    def __init__(self):
+        self.commands = []
+
+    def add_command(self):
+        pass
+
+    def remove_command(self):
+        pass
+
+    def undo(self):
+        pass
+
+    def redo(self):
+        pass
+
+
+def execute_commands(commands: list[Command]):
+    for command in commands:
+        if command.cmd_type == CECommand.load_config:
+            dir_name = command.cmd_args[0]
+            images = read_station_config(dir_name)
+            MODEL.build_dg(images, True)
+            MODEL.check_cycle_dg()
+            MODEL.rectify_dg()
+            MODEL.evaluate_attributes(True)
 
 
 class ModelProcessor:
     def __init__(self):
-        pass
+        self.names_so = None
+        self.names_mo = None
+        self.rect_so = None
+        self.refresh_names()
 
-    def predict_attributes(self, soi: StationObjectImage):
-        pass
+        self.dg = OneComponentTwoSidedPG()
+        gcs_node = self.dg.insert_node()
+        gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
+
+    def refresh_names(self):
+        self.names_so: OrderedDict[str, Optional[StationObjectImage]] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_SO})
+        self.names_mo: OrderedDict[str, ModelObject] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_MO})
+        self.rect_so: list[str] = []
+
+    def build_dg(self, images: list[StationObjectImage], from_file: bool = False) -> None:
+        if from_file:
+            self.refresh_names()
+            for image in images:
+                if not image.name:
+                    raise NoNameCoError("Name of object in class {} already exist".format(image.__class__.__name__))
+                if image.name in self.names_so:
+                    raise ExistingNameCoError("Name {} already exist".format(image.name))
+                node = self.dg.insert_node()
+                node.append_cell_obj(ImageNameCell(image.name))
+                self.names_so[image.name] = image
+            for image in images:
+                for attr_name in image.active_attrs:
+                    if not getattr(image.__class__, attr_name).enum:
+                        attr_value: str = getattr(image, "_str_{}".format(attr_name))
+                        for name in self.names_so:
+                            if name.isdigit():  # for rail points
+                                continue
+                            if " " in attr_value:
+                                split_names = attr_value.split(" ")
+                            else:
+                                split_names = [attr_value]
+                            for split_name in split_names:
+                                if name == split_name:
+                                    node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == image.name,
+                                                                          self.dg.not_inf_nodes)
+                                    node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name,
+                                                                            self.dg.not_inf_nodes)
+                                    self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
+        else:
+            assert False, "build_dg not from file - not implemented"
+
+    def check_cycle_dg(self):
+        dg = self.dg
+        routes = dg.walk(dg.inf_pu.ni_nd)
+        if any([route_.is_cycle for route_ in routes]):
+            raise CycleError("Cycle in dependencies was found")
+
+    def rectify_dg(self):
+        nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global_CS
+        self.rect_so = [node.cell_objs[0].name for node in nodes]
+
+    def evaluate_attributes(self, from_file: bool = False):
+        if from_file:
+            for image_name in self.rect_so:
+                image = self.names_so[image_name]
+
+                if isinstance(image, CoordinateSystemSOI):
+                    default_attrib_evaluation("cs_relative_to", image, self.names_so)
+                    default_attrib_evaluation("x", image, self.names_so)
+                    default_attrib_evaluation("y", image, self.names_so)
+                    default_attrib_evaluation("alpha", image, self.names_so)
+
+                if isinstance(image, AxisSOI):
+                    default_attrib_evaluation("cs_relative_to", image, self.names_so)
+                    default_attrib_evaluation("y", image, self.names_so)
+                    default_attrib_evaluation("center_point", image, self.names_so)
+                    default_attrib_evaluation("alpha", image, self.names_so)
+
+                if isinstance(image, PointSOI):
+                    default_attrib_evaluation("axis", image, self.names_so)
+                    default_attrib_evaluation("line", image, self.names_so)
+                    attr_name = "x"
+                    if attr_name in image.active_attrs:
+                        setattr(image, "_{}".format(attr_name), None)
+                        str_attr_value = getattr(image, "_str_{}".format(attr_name))
+                        if not getattr(image, "_str_{}".format(attr_name)):
+                            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+                        else:
+                            setattr(image, "_{}".format(attr_name), PicketCoordinate(str_attr_value).value)
+        else:
+            assert False, "evaluate_attributes not from file - not implemented"
+
+    #
+    #     """ names registration """
+    #     for image in images:
+    #         if not image.name:
+    #             print("here 1")
+    #             """ !!! ADD AUTO NAMING !!! """
+    #             setattr(image, "_check_status_name", "Name for object not defined")
+    #             return
+    #         if image.name in names_mo:
+    #             setattr(image, "_check_status_name", "Name {} already exists".format(image.name))
+    #             return
+    #         names_mo[image.name] = image
+    #
+    #     print("Names registration successful !")
+    #
+    #     """ attributes evaluation """
+    #     for image in images:
+    #         if isinstance(image, CoordinateSystemSOI):
+    #             # image.dependence
+    #             setattr(image, "_cs_relative_to", None)
+    #             str_cs_relative_to = getattr(image, "_str_cs_relative_to")
+    #             if not getattr(image, "_str_cs_relative_to"):
+    #                 setattr(image, "_predicted_cs_relative_to", GLOBAL_CS_NAME)
+    #             else:
+    #                 check_expected_type(str_cs_relative_to, "cs_relative_to", image, names_mo)
+
+
+# class ModelProcessor:
+#     def __init__(self):
+#         pass
+#
+#     def predict_attributes(self, soi: StationObjectImage):
+#         pass
 
 
 MODEL = ModelProcessor()
@@ -885,17 +999,22 @@ if __name__ == "__main__":
     if test_5:
         make_xlsx_templates(STATION_OUT_CONFIG_FOLDER)
 
-    test_6 = True
+    test_6 = False
     if test_6:
         objs = read_station_config(STATION_IN_CONFIG_FOLDER)
-        pnt = get_object_by_name("Point_16", objs)
-        # print(pnt.active_attrs)
+        pnt = get_object_by_name("Point_15", objs)
+        print(pnt.dict_possible_values)
+        print(pnt.__class__.dict_possible_values)
         # for attr_ in pnt.active_attrs:
         #     print(getattr(pnt, attr_))
+
         SOIR.build_dg(objs)
         SOIR.check_cycle()
+
         # print(SOIR.dg.shortest_coverage())
+
         print(recursive_map(lambda x: x.cell_objs[0].name, SOIR.rectified_object_list()))
+
         # node_15: PolarNode = single_element(lambda x: x.cell_objs[0].name == "Point_15", SOIR.dg.not_inf_nodes)
         # node_4SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "4SP", SOIR.dg.not_inf_nodes)
         # node_6SP: PolarNode = single_element(lambda x: x.cell_objs[0].name == "6SP", SOIR.dg.not_inf_nodes)
@@ -914,3 +1033,16 @@ if __name__ == "__main__":
         pnt = PointSOI()
         pnt.x = "PK_12+34"
         print(pnt.x)
+
+    test_8 = False
+    if test_8:
+        objs = read_station_config(STATION_IN_CONFIG_FOLDER)
+        SOIR.build_dg(objs)
+        SOIR.check_cycle()
+        print([obj.name for obj in SOIR.rectified_object_list()])
+        # build_model(SOIR.rectified_object_list())
+
+    test_9 = True
+    if test_9:
+        execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
+        print(MODEL.rect_so)
