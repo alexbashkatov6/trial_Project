@@ -4,11 +4,16 @@ from collections import OrderedDict, Counter
 from copy import copy
 import pandas as pd
 import os
+from abc import abstractmethod
+from numbers import Real
+import math
 
 from custom_enum import CustomEnum
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode
 from cell_object import CellObject
 from extended_itertools import single_element, recursive_map, flatten
+from graphical_object import Point2D, Angle, Line2D, BoundedCurve, lines_intersection, evaluate_vector, \
+    ParallelLinesException, EquivalentLinesException, PointsEqualException, OutBorderException
 
 GLOBAL_CS_NAME = "GlobalCS"
 STATION_OUT_CONFIG_FOLDER = "station_out_config"
@@ -18,6 +23,10 @@ STATION_IN_CONFIG_FOLDER = "station_in_config"
 
 
 # ------------        EXCEPTIONS        ------------ #
+
+class BuildGeometryError(Exception):
+    pass
+
 
 class NotImplementedCoError(Exception):
     pass
@@ -737,31 +746,46 @@ class CoordinateSystemMO(ModelObject):
         return self.base_cs.absolute_co_y == self.in_base_co_y
 
 
-class AxisMO:
+class AxisMO(ModelObject):
+    def __init__(self, line2D: Line2D):
+        self.line2D = line2D
+
+    @property
+    def angle(self):
+        return self.line2D.angle
+
+
+class PointMO(ModelObject):
+    def __init__(self, point2D: Point2D):
+        self.point2D = point2D
+
+    @property
+    def x(self):
+        return self.point2D.x
+
+    @property
+    def y(self):
+        return self.point2D.y
+
+
+class LineMO(ModelObject):
+    def __init__(self, boundedCurves: list[BoundedCurve]):
+        self.boundedCurves = boundedCurves
+
+
+class LightMO(ModelObject):
     pass
 
 
-class PointMO:
+class RailPointMO(ModelObject):
     pass
 
 
-class LineMO:
+class BorderMO(ModelObject):
     pass
 
 
-class LightMO:
-    pass
-
-
-class RailPointMO:
-    pass
-
-
-class BorderMO:
-    pass
-
-
-class SectionMO:
+class SectionMO(ModelObject):
     pass
 
 
@@ -863,14 +887,14 @@ def execute_commands(commands: list[Command]):
             MODEL.check_cycle_dg()
             MODEL.rectify_dg()
             MODEL.evaluate_attributes(True)
-            MODEL.build_model()
+            MODEL.build_geometry_model()
 
 
 class ModelProcessor:
     def __init__(self):
-        self.names_soi = None
-        self.names_mo = None
-        self.rect_so = None
+        self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
+        self.names_mo: OrderedDict[str, ModelObject] = OrderedDict()
+        self.rect_so: list[str] = []
         self.refresh_storages()
 
         self.dg = OneComponentTwoSidedPG()
@@ -878,7 +902,7 @@ class ModelProcessor:
         gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
 
     def refresh_storages(self):
-        self.names_soi: OrderedDict[str, Optional[StationObjectImage]] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_SO})
+        self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_SO})
         self.names_mo: OrderedDict[str, ModelObject] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_MO})
         self.rect_so: list[str] = []
 
@@ -1031,7 +1055,7 @@ class ModelProcessor:
         else:
             assert False, "evaluate_attributes not from file - not implemented"
 
-    def build_model(self):
+    def build_geometry_model(self):
         # refresh smth ?
 
         for image_name in self.rect_so:
@@ -1040,6 +1064,82 @@ class ModelProcessor:
                 model_object = CoordinateSystemMO(self.names_mo[image.cs_relative_to.name],
                                                   image.x, image.y,
                                                   image.co_x == "true", image.co_y == "true")
+                self.names_mo[image_name] = model_object
+
+            if isinstance(image, AxisSOI):
+                cs_rel: CoordinateSystemMO = self.names_mo[image.cs_relative_to.name]
+                if image.creation_method == CEAxisCreationMethod.translational:
+                    center_point_x = cs_rel.absolute_x
+                    center_point_y = image.y
+                    angle = 0
+                else:
+                    center_point_soi: PointSOI = image.center_point
+                    center_point_mo: PointMO = self.names_mo[center_point_soi]
+                    center_point_x = center_point_mo.x
+                    center_point_y = center_point_mo.y
+                    angle = image.alpha
+                    if center_point_soi.on == CEAxisOrLine.line:
+                        raise BuildGeometryError("Building axis by point on line is impossible")
+                    if Angle(angle) == Angle(math.pi/2):
+                        raise BuildGeometryError("Building vertical axis is impossible")
+                line2D = Line2D(Point2D(center_point_x, center_point_y), angle=Angle(angle))
+                model_object = AxisMO(line2D)
+                for model_object_2 in self.names_mo.values():
+                    if isinstance(model_object_2, AxisMO):
+                        try:
+                            lines_intersection(model_object.line2D, model_object_2.line2D)
+                        except ParallelLinesException:
+                            continue
+                        except EquivalentLinesException:
+                            raise BuildGeometryError("Cannot re-build existing axis")  # "Cannot re-build existing axis"
+                self.names_mo[image_name] = model_object
+
+            if isinstance(image, PointSOI):
+                if image.on == CEAxisOrLine.axis:
+                    axis: AxisMO = self.names_mo[image.axis.name]
+                    pnt2D = lines_intersection(axis.line2D, Line2D(Point2D(image.x, 0), angle=Angle(math.pi / 2)))
+                else:
+                    line: LineMO = self.names_mo[image.line.name]
+                    try:
+                        pnt2D_y = line.boundedCurves[0].y_by_x(image.x)
+                    except OutBorderException:
+                        if len(line.boundedCurves) == 1:
+                            raise BuildGeometryError("Point out of borders")
+                        else:
+                            try:
+                                pnt2D_y = line.boundedCurves[1].y_by_x(image.x)
+                            except OutBorderException:
+                                raise BuildGeometryError("Point out of borders")
+                    pnt2D = Point2D(image.x, pnt2D_y)
+                model_object = PointMO(pnt2D)
+                for model_object_2 in self.names_mo.values():
+                    if isinstance(model_object_2, PointMO):
+                        try:
+                            evaluate_vector(model_object.point2D, model_object_2.point2D)
+                        except PointsEqualException:
+                            raise BuildGeometryError("Cannot re-build existing point")
+                self.names_mo[image_name] = model_object
+
+            if isinstance(image, LineSOI):
+                points_so: list[PointSOI] = image.points
+                points_mo: list[PointMO] = [self.names_mo[point.name] for point in points_so]
+                point_1, point_2 = points_mo[0], points_mo[1]
+                for point_so in points_so:
+                    if point_so.on == CEAxisOrLine.line:
+                        raise BuildGeometryError("Cannot build line by point on line")
+                axises_mo: list[AxisMO] = [self.names_mo[point.axis.name] for point in points_so]
+                axis_1, axis_2 = axises_mo[0], axises_mo[1]
+                if axis_1 is axis_2:
+                    boundedCurves = [BoundedCurve(point_1.point2D, point_2.point2D)]
+                elif axis_1.angle == axis_2.angle:
+                    # print("angle", axis_1.angle, axis_2.angle)
+                    center_point = Point2D(0.5*(point_1.point2D.x+point_2.point2D.x),
+                                           0.5*(point_1.point2D.y+point_2.point2D.y))
+                    boundedCurves = [BoundedCurve(point_1.point2D, center_point, axis_1.angle),
+                                     BoundedCurve(point_2.point2D, center_point, axis_2.angle)]
+                else:
+                    boundedCurves = [BoundedCurve(point_1.point2D, point_2.point2D, axis_1.angle, axis_2.angle)]
+                model_object = LineMO(boundedCurves)
                 self.names_mo[image_name] = model_object
 
 
@@ -1151,21 +1251,32 @@ if __name__ == "__main__":
     test_9 = True
     if test_9:
         execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
+        print(MODEL.names_soi)
         print(MODEL.names_mo)
-        cs_1: CoordinateSystemMO = MODEL.names_mo['CS_1']
-        print(cs_1.absolute_x)
-        print(cs_1.absolute_y)
-        print(cs_1.absolute_co_x)
-        print(cs_1.absolute_co_y)
-        if 'CS_2' in MODEL.names_mo:
-            cs_2 = MODEL.names_mo['CS_2']
-            print(cs_2.absolute_x)
-            print(cs_2.absolute_y)
-            print(cs_2.absolute_co_x)
-            print(cs_2.absolute_co_y)
-        if 'CS_3' in MODEL.names_mo:
-            cs_3 = MODEL.names_mo['CS_3']
-            print(cs_3.absolute_x)
-            print(cs_3.absolute_y)
-            print(cs_3.absolute_co_x)
-            print(cs_3.absolute_co_y)
+
+        # cs_1: CoordinateSystemMO = MODEL.names_mo['CS_1']
+        # print(cs_1.absolute_x)
+        # print(cs_1.absolute_y)
+        # print(cs_1.absolute_co_x)
+        # print(cs_1.absolute_co_y)
+        # if 'CS_2' in MODEL.names_mo:
+        #     cs_2 = MODEL.names_mo['CS_2']
+        #     print(cs_2.absolute_x)
+        #     print(cs_2.absolute_y)
+        #     print(cs_2.absolute_co_x)
+        #     print(cs_2.absolute_co_y)
+        # if 'CS_3' in MODEL.names_mo:
+        #     cs_3 = MODEL.names_mo['CS_3']
+        #     print(cs_3.absolute_x)
+        #     print(cs_3.absolute_y)
+        #     print(cs_3.absolute_co_x)
+        #     print(cs_3.absolute_co_y)
+
+        ax_1: AxisMO = MODEL.names_mo['Axis_1']
+        print(ax_1.line2D)
+
+        line_2: LineMO = MODEL.names_mo['Line_2']
+        print(line_2.boundedCurves)
+
+        # pnt_15: PointMO = MODEL.names_mo['Axis_1']
+        # print(ax_1.line2D)

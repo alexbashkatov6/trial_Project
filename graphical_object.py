@@ -8,10 +8,18 @@ from numbers import Real
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 
 from nv_config import ANGLE_EQUAL_EVAL_PRECISION, ANGLE_EQUAL_VIEW_PRECISION, COORD_EQUAL_PRECISION, H_CLICK_ZONE
-from nv_bounded_string_set_class import bounded_string_set
+from custom_enum import CustomEnum
 
-BSSCurveType = bounded_string_set('BSSCurveType', [['line_segment'], ['bezier'], ['optimal_bezier']])
-BSSMaxMin = bounded_string_set('BSSMaxMin', [['max'], ['min']])
+
+class CECurveType(CustomEnum):
+    line_segment = 0
+    bezier = 1
+    optimal_bezier = 2
+
+
+class CEMaxMin(CustomEnum):
+    max = 0
+    min = 1
 
 
 class GeometryException(Exception):
@@ -30,8 +38,13 @@ class PointsEqualException(GeometryException):
     pass
 
 
-def cut_optimization(func, *args, borders: tuple[Real, Real], maxormin: BSSMaxMin = BSSMaxMin('min'),
+class OutBorderException(GeometryException):
+    pass
+
+
+def cut_optimization(func, *args, borders: tuple[Real, Real], maxormin: CEMaxMin = CEMaxMin('min'),
                      precision: float = ANGLE_EQUAL_EVAL_PRECISION) -> tuple[float, float]:
+    # print("given params: borders: {}, maxormin {}, precision {}".format(borders, maxormin, precision))
     """ CUT 1D optimization for convex functions """
     curr_borders = (min(borders), max(borders))
     curr_region_size = curr_borders[1] - curr_borders[0]
@@ -40,14 +53,17 @@ def cut_optimization(func, *args, borders: tuple[Real, Real], maxormin: BSSMaxMi
     else:
         k = -1
     while curr_region_size > precision:
-        border_vals = k * func(curr_borders[0], *args), k * func(curr_borders[1], *args)
-        if border_vals[1] > border_vals[0]:
+        # if maxormin == 'min':
+        #     print("curr_borders", curr_borders)
+        center_point = 0.5 * (curr_borders[0] + curr_borders[1])
+        epsilon_vals = k * func(center_point-precision, *args), k * func(center_point+precision, *args)
+        if epsilon_vals[1] > epsilon_vals[0]:
             curr_borders = curr_borders[0], 0.5 * (curr_borders[0] + curr_borders[1])
         else:
             curr_borders = 0.5 * (curr_borders[0] + curr_borders[1]), curr_borders[1]
         curr_region_size /= 2
 
-        curr_f_value = k * min(border_vals)
+        curr_f_value = k * min(epsilon_vals)
         curr_x_value = curr_borders[0]
 
     return curr_x_value, curr_f_value
@@ -69,7 +85,7 @@ def evaluate_vector(pnt_1: Point2D, pnt_2: Point2D) -> (Angle, bool):
     max_cycle_count = 5
     while True:
         if not max_cycle_count:
-            raise ValueError('Given points are equal')
+            raise PointsEqualException('Given points are equal')
         max_cycle_count -= 1
         if coord_equality(pnt_1.y, pnt_2.y, coord_eq_prec) and coord_equality(pnt_1.x, pnt_2.x, coord_eq_prec):
             coord_eq_prec *= COORD_EQUAL_PRECISION
@@ -147,6 +163,10 @@ class Point2D:
     @property
     def coords(self):
         return self.x, self.y
+
+    # @property
+    # def x(self):
+    #     return self.x
 
 
 class Angle:
@@ -242,13 +262,14 @@ class BoundedCurve(GeometryPrimitive):
     def __init__(self, pnt_1: Point2D, pnt_2: Point2D, angle_1: Angle = None, angle_2: Angle = None):
         self.pnt_1 = pnt_1
         self.pnt_2 = pnt_2
+        evaluate_vector(pnt_1, pnt_2)  # for equal points check
         if angle_1 is None and angle_2 is None:
-            self.geom_type = BSSCurveType('line_segment')
+            self.geom_type = CECurveType('line_segment')
         elif angle_2 is None:
-            self.geom_type = BSSCurveType('optimal_bezier')
+            self.geom_type = CECurveType('optimal_bezier')
             self.angle_1 = angle_1
         else:
-            self.geom_type = BSSCurveType('bezier')
+            self.geom_type = CECurveType('bezier')
             self.angle_1 = angle_1
             self.angle_2 = angle_2
         if self.geom_type != 'line_segment':
@@ -256,12 +277,19 @@ class BoundedCurve(GeometryPrimitive):
         if self.geom_type == 'optimal_bezier':
             self.angle_2 = self.bezier_optimization()
 
+    def __repr__(self):
+        if self.geom_type == 'line_segment':
+            return "{}({}, {})".format(self.__class__.__name__, self.pnt_1, self.pnt_2)
+        else:
+            return "{}({}, {}, {}, {})".format(self.__class__.__name__,
+                                               self.pnt_1, self.pnt_2, self.angle_1, self.angle_2)
+
     def check_not_on_line(self):
         angle_between = Line2D(self.pnt_1, self.pnt_2).angle
         if self.angle_1 == angle_between:
-            self.geom_type = BSSCurveType('line_segment')
+            self.geom_type = CECurveType('line_segment')
         if (self.geom_type == 'bezier') and (self.angle_2 == angle_between):
-            self.geom_type = BSSCurveType('line_segment')
+            self.geom_type = CECurveType('line_segment')
 
     @property
     def bezier_control_point(self) -> Point2D:
@@ -269,6 +297,11 @@ class BoundedCurve(GeometryPrimitive):
 
     def bezier_optimization(self) -> Angle:
         float_angle_1 = self.angle_1.angle_mpi2_ppi2
+        # print("in optim", float_angle_1, (float_angle_1 + ANGLE_EQUAL_VIEW_PRECISION,
+        #                                   float_angle_1 + math.pi - ANGLE_EQUAL_VIEW_PRECISION))
+        # print("optim result", cut_optimization(self.max_curvature,
+        #                               borders=(float_angle_1 + ANGLE_EQUAL_VIEW_PRECISION,
+        #                                        float_angle_1 + math.pi - ANGLE_EQUAL_VIEW_PRECISION))[0])
         return Angle(cut_optimization(self.max_curvature,
                                       borders=(float_angle_1 + ANGLE_EQUAL_VIEW_PRECISION,
                                                float_angle_1 + math.pi - ANGLE_EQUAL_VIEW_PRECISION))[0])
@@ -277,7 +310,7 @@ class BoundedCurve(GeometryPrimitive):
         angle = Angle(float_angle)
         pnt_intersect = lines_intersection(Line2D(self.pnt_1, angle=self.angle_1), Line2D(self.pnt_2, angle=angle))
         return cut_optimization(bezier_curvature, self.pnt_1, self.pnt_2, pnt_intersect,
-                                borders=(0, 1), maxormin=BSSMaxMin('max'))[1]
+                                borders=(0, 1), maxormin=CEMaxMin('max'))[1]
 
     def point_by_param(self, t: Real) -> Point2D:
         x1, y1 = self.pnt_1.coords
@@ -290,6 +323,15 @@ class BoundedCurve(GeometryPrimitive):
             x = t*(t*x2 + (1 - t)*((x3-x1) + x1)) + (1 - t)*(t*((x3-x1) + x1) + x1*(1 - t))
             y = t*(t*y2 + (1 - t)*((y3-y1) + y1)) + (1 - t)*(t*((y3-y1) + y1) + y1*(1 - t))
         return Point2D(x, y)
+
+    def y_by_x(self, x: Real) -> float:
+        x1, y1 = self.pnt_1.coords
+        x2, y2 = self.pnt_2.coords
+        if (x < min(x1, x2)) or (x > max(x1, x2)):
+            raise OutBorderException("Given x is not in borders")
+        t = cut_optimization(lambda s: abs(self.point_by_param(s).x-x),
+                             borders=(0, 1), maxormin=CEMaxMin('min'), precision=COORD_EQUAL_PRECISION)[0]
+        return self.point_by_param(t).y
 
     def angle_by_param(self, t: Real) -> Angle:
         if self.geom_type == 'line_segment':
@@ -595,159 +637,189 @@ class BaseFrame(Frame):
 
 
 if __name__ == '__main__':
-    p1 = Point2D(10, 20)
-    print('p1 x y = ', p1.x, p1.y)
-    p2 = Point2D((12, 13))
-    print('p2 x y = ', p2.x, p2.y)
-    # r1 = Rect(10, 20, 300, 400)
-    # print('r1 center angle = ', r1.center, r1.angle, r1.w, r1.h)
-    # r2 = Rect(w=10, h=20, center=Point2D(300, 400))
-    # print('r2 center angle = ', r2.center, r2.angle, r2.w, r2.h)
-    # r3 = Rect((300, 400), 0, 10, 20)
-    # print('r3 center angle = ', r3.center, r3.angle, r3.w, r3.h)
-    a = Angle(math.pi)
-    print(a.angle_mpi2_ppi2)
-    print(evaluate_vector(Point2D(1e-7, 0), Point2D(0, 0))[0].deg_angle_m90_p90)
-    line_ = Line2D(Point2D(0, 1), Point2D(3, 2))
-    print(line_.a, line_.b, line_.c)
-    b = Angle(-2 * math.pi + 0.001)
-    print(b.angle_0_2pi)
-    print(math.dist((0, 0), (1, 1)))
-    print(rotate_operation(Point2D(0, 0), Point2D(0, 1), Angle(math.pi / 2)).coords)
-    print(lines_intersection(Line2D(Point2D(0, 0), Point2D(1, 1)), Line2D(Point2D(1, 1), Point2D(2, 0))).coords)
+    test_1 = False
+    if test_1:
+        p1 = Point2D(10, 20)
+        print('p1 x y = ', p1.x, p1.y)
+        p2 = Point2D((12, 13))
+        print('p2 x y = ', p2.x, p2.y)
+        # r1 = Rect(10, 20, 300, 400)
+        # print('r1 center angle = ', r1.center, r1.angle, r1.w, r1.h)
+        # r2 = Rect(w=10, h=20, center=Point2D(300, 400))
+        # print('r2 center angle = ', r2.center, r2.angle, r2.w, r2.h)
+        # r3 = Rect((300, 400), 0, 10, 20)
+        # print('r3 center angle = ', r3.center, r3.angle, r3.w, r3.h)
+        a = Angle(math.pi)
+        print(a.angle_mpi2_ppi2)
+        print(evaluate_vector(Point2D(1e-7, 0), Point2D(0, 0))[0].deg_angle_m90_p90)
+        line_ = Line2D(Point2D(0, 1), Point2D(3, 2))
+        print(line_.a, line_.b, line_.c)
+        b = Angle(-2 * math.pi + 0.001)
+        print(b.angle_0_2pi)
+        print(math.dist((0, 0), (1, 1)))
+        print(rotate_operation(Point2D(0, 0), Point2D(0, 1), Angle(math.pi / 2)).coords)
+        print(lines_intersection(Line2D(Point2D(0, 0), Point2D(1, 1)), Line2D(Point2D(1, 1), Point2D(2, 0))).coords)
 
-    # bc = BezierCurve(Point2D(100, 100), Angle(0), Point2D(300, 200), Angle(math.pi * 0.25))
-    # print(bc.display_params())
-
-
-# class Rect:
-#     def __init__(self, x: Union[Real, Point2D] = None, y: Union[Real, Angle] = None, w: Real = None, h: Real = None,
-#                  center: Point2D = None, angle: Angle = None):
-#         """ docstring """
-#         if type(x) == Point2D:
-#             center = x
-#             angle = y
-#             x = None
-#             y = None
-#         assert not (w is None) & (not (h is None)), 'Width and height should be defined'
-#         assert ((not (x is None)) & (not (y is None)) & (angle is None)) | \
-#                ((not (center is None)) & (not (angle is None))), 'Not complete input data'
-#
-#         if angle is None:
-#             angle = Angle(0)
-#         if not (x is None):
-#             self.center = Point2D(float(x + w / 2), float(y + h / 2))
-#             self.angle = Angle(0)
-#         else:
-#             self.center = center
-#             self.angle = angle
-#         self.center: Point2D
-#         self.angle: Angle
-#         self.w = w
-#         self.h = h
-#
-#     def includes_point(self, p: Point2D):
-#         """border includes points too"""
-#         rot_point = rotate_operation(self.center, p, Angle(-self.angle.free_angle))
-#         print('rot_point', rot_point)
-#         return (self.center.x - self.w / 2 <= rot_point.x <= self.center.x + self.w / 2) & \
-#                (self.center.y - self.h / 2 <= rot_point.y <= self.center.y + self.h / 2)
+        # bc = BezierCurve(Point2D(100, 100), Angle(0), Point2D(300, 200), Angle(math.pi * 0.25))
+        # print(bc.display_params())
 
 
-    # r = Rect(Point2D(7, 5), Angle(-26.565 * math.pi / 180), 8.944, 4.472)
-    # print(r.includes_point(Point2D(3, 8)))
-
-    # Point2D((6,))
-
-    # center_fcs = FrameCS()
-    # center_fcs = FrameCS(center_fcs, Point2D(10, 20), 2, 2)
-    # sec_cs = FrameCS(center_fcs, Point2D(10, 20), 3, 2)
-    # print(sec_cs.center_pnt_absolute_x, sec_cs.center_pnt_absolute_y, sec_cs.scale_absolute_x, sec_cs.scale_absolute_y)
-
-    # def transform_coordinates(pnt: Point2D, cs_base: FrameCS, cs_new: FrameCS) -> Point2D:
-    #     pnt_abs_x = pnt.x / cs_base.scale_absolute_x + cs_base.center_pnt_absolute_x
-    #     pnt_abs_y = pnt.y / cs_base.scale_absolute_y + cs_base.center_pnt_absolute_y
-    #     pnt_new_x = (pnt_abs_x - cs_new.center_pnt_absolute_x) * cs_new.scale_absolute_x
-    #     pnt_new_y = (pnt_abs_y - cs_new.center_pnt_absolute_y) * cs_new.scale_absolute_y
-    #     return Point2D(pnt_new_x, pnt_new_y)
-    #     print(transform_coordinates(Point2D(3, 2), center_fcs, sec_cs))
-
-    base_cs_ = FrameCS()
-    center_cs = FrameCS(base_cs_, Point2D(3.5, 2), 2, 2)
-    sec_cs = FrameCS(base_cs_, Point2D(3, 1), 0.5, 0.5)
-
-    sec_cs.center_pnt_in_base = Point2D(3, 2)
-    fp = FramePoint(Point2D(3, 2), center_cs)
-    curved_cs = FrameCS(base_cs_, Point2D(3, 1), 1, 0.5)
-    fa = FrameAngle(Angle(math.pi / 4), base_cs_)
-
-    print(fp.reevaluate_in_cs(sec_cs))
-    print(fa.reevaluate_in_cs(center_cs).deg_angle_0_360)
-    print(fa.reevaluate_in_cs(curved_cs).deg_angle_0_360)
-
-
-    # print(math.tan(math.pi/2))
-
-    def parabola(x):
-        return (x - 3) ** 2 + 2
-
-
-    def bez(x):
-        return (x - 3) ** 2 + 2
-
-
-    print(cut_optimization(parabola, borders=(1, 5)))
-    # print(bezier_curvature(0, Point2D(100, 100), Point2D(300, 100), Point2D(300, 200)))
-    print(cut_optimization(bezier_curvature, Point2D(100, 100), Point2D(300, 200), Point2D(300, 100), borders=(0, 1)))
-
-
-    # def max_curvature(float_angle: float):
-    #     angle = Angle(float_angle)
-    #     pnt_1 = Point2D(1, 1)
-    #     angle_1 = Angle(math.pi / 4)
-    #     pnt_2 = Point2D(3, 1)
-    #     pnt_intersect = lines_intersection(Line2D(pnt_1, angle=angle_1), Line2D(pnt_2, angle=angle))
-    #     print(pnt_intersect)
-    #     return cut_optimization(bezier_curvature, pnt_1, pnt_2, pnt_intersect,
-    #                             borders=(0, 1), maxormin=BSSMaxMin('max'))[1]
+    # class Rect:
+    #     def __init__(self, x: Union[Real, Point2D] = None, y: Union[Real, Angle] = None, w: Real = None, h: Real = None,
+    #                  center: Point2D = None, angle: Angle = None):
+    #         """ docstring """
+    #         if type(x) == Point2D:
+    #             center = x
+    #             angle = y
+    #             x = None
+    #             y = None
+    #         assert not (w is None) & (not (h is None)), 'Width and height should be defined'
+    #         assert ((not (x is None)) & (not (y is None)) & (angle is None)) | \
+    #                ((not (center is None)) & (not (angle is None))), 'Not complete input data'
     #
+    #         if angle is None:
+    #             angle = Angle(0)
+    #         if not (x is None):
+    #             self.center = Point2D(float(x + w / 2), float(y + h / 2))
+    #             self.angle = Angle(0)
+    #         else:
+    #             self.center = center
+    #             self.angle = angle
+    #         self.center: Point2D
+    #         self.angle: Angle
+    #         self.w = w
+    #         self.h = h
     #
-    # # print(max_curvature(-math.pi/4))
-    # print(cut_optimization(max_curvature, borders=(math.pi / 4 + 0.01, math.pi + math.pi / 4 - 0.01)))
-    # print(Angle(2.3561937459466598).deg_angle_0_360)
-    # print(bezier_curvature(0.0, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
-    # print(bezier_curvature(0.2, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
-    # print(bezier_curvature(0.4, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
-    # print(bezier_curvature(0.6, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
-    # print(bezier_curvature(0.8, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
-    # print(bezier_curvature(1.0, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
+    #     def includes_point(self, p: Point2D):
+    #         """border includes points too"""
+    #         rot_point = rotate_operation(self.center, p, Angle(-self.angle.free_angle))
+    #         print('rot_point', rot_point)
+    #         return (self.center.x - self.w / 2 <= rot_point.x <= self.center.x + self.w / 2) & \
+    #                (self.center.y - self.h / 2 <= rot_point.y <= self.center.y + self.h / 2)
 
-    bc = BoundedCurve(Point2D(1, 1), Point2D(3, 1))
-    bc_2 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4), Angle(math.pi/2))
-    bc_3 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4))
-    print("here")
-    bc_4 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(0))
-    # bc_5 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4), Angle(math.pi/4))
-    print(bc.draw_parameters())
-    print(bc_2.draw_parameters())
-    print(bc_3.draw_parameters())
-    print(bc_4.draw_parameters())
-    # print(bc_5.draw_parameters())
 
-    print(distance(Point2D(1, 1), Point2D(2, 2)))
-    print(normal(Point2D(1, 1), Line2D(Point2D(2, 2), Point2D(3, 1))))
-    print(pnt_between(Point2D(2, 2), Point2D(1, 1), Point2D(3, 3)))
+        # r = Rect(Point2D(7, 5), Angle(-26.565 * math.pi / 180), 8.944, 4.472)
+        # print(r.includes_point(Point2D(3, 8)))
 
-    print(bc.point_by_param(0), bc.point_by_param(0.5), bc.point_by_param(1))
-    print(bc_2.point_by_param(0), bc_2.point_by_param(0.5), bc_2.point_by_param(1))
-    print(bc_3.point_by_param(0), bc_3.point_by_param(0.5), bc_3.point_by_param(1))
+        # Point2D((6,))
 
-    print(bc.angle_by_param(0), bc.angle_by_param(0.5), bc.angle_by_param(1))
-    print(bc_2.angle_by_param(0), bc_2.angle_by_param(0.15424156188964), bc_2.angle_by_param(0.5), bc_2.angle_by_param(1))
-    print(bc_3.angle_by_param(0), bc_3.angle_by_param(0.5), bc_3.angle_by_param(1))
+        # center_fcs = FrameCS()
+        # center_fcs = FrameCS(center_fcs, Point2D(10, 20), 2, 2)
+        # sec_cs = FrameCS(center_fcs, Point2D(10, 20), 3, 2)
+        # print(sec_cs.center_pnt_absolute_x, sec_cs.center_pnt_absolute_y, sec_cs.scale_absolute_x, sec_cs.scale_absolute_y)
 
-    sep = bc_3.t_devision()
-    print(sep)
-    print(len(sep))
+        # def transform_coordinates(pnt: Point2D, cs_base: FrameCS, cs_new: FrameCS) -> Point2D:
+        #     pnt_abs_x = pnt.x / cs_base.scale_absolute_x + cs_base.center_pnt_absolute_x
+        #     pnt_abs_y = pnt.y / cs_base.scale_absolute_y + cs_base.center_pnt_absolute_y
+        #     pnt_new_x = (pnt_abs_x - cs_new.center_pnt_absolute_x) * cs_new.scale_absolute_x
+        #     pnt_new_y = (pnt_abs_y - cs_new.center_pnt_absolute_y) * cs_new.scale_absolute_y
+        #     return Point2D(pnt_new_x, pnt_new_y)
+        #     print(transform_coordinates(Point2D(3, 2), center_fcs, sec_cs))
 
-    # lines_intersection(Line2D(Point2D(0,0), angle=Angle(0)), Line2D(Point2D(0,1), angle=Angle(0)))
+        base_cs_ = FrameCS()
+        center_cs = FrameCS(base_cs_, Point2D(3.5, 2), 2, 2)
+        sec_cs = FrameCS(base_cs_, Point2D(3, 1), 0.5, 0.5)
+
+        sec_cs.center_pnt_in_base = Point2D(3, 2)
+        fp = FramePoint(Point2D(3, 2), center_cs)
+        curved_cs = FrameCS(base_cs_, Point2D(3, 1), 1, 0.5)
+        fa = FrameAngle(Angle(math.pi / 4), base_cs_)
+
+        print(fp.reevaluate_in_cs(sec_cs))
+        print(fa.reevaluate_in_cs(center_cs).deg_angle_0_360)
+        print(fa.reevaluate_in_cs(curved_cs).deg_angle_0_360)
+
+
+        # print(math.tan(math.pi/2))
+
+        def parabola(x):
+            return (x - 3) ** 2 + 2
+
+
+        def bez(x):
+            return (x - 3) ** 2 + 2
+
+
+        print(cut_optimization(parabola, borders=(1, 5)))
+        # print(bezier_curvature(0, Point2D(100, 100), Point2D(300, 100), Point2D(300, 200)))
+        print(cut_optimization(bezier_curvature, Point2D(100, 100), Point2D(300, 200), Point2D(300, 100), borders=(0, 1)))
+
+
+        # def max_curvature(float_angle: float):
+        #     angle = Angle(float_angle)
+        #     pnt_1 = Point2D(1, 1)
+        #     angle_1 = Angle(math.pi / 4)
+        #     pnt_2 = Point2D(3, 1)
+        #     pnt_intersect = lines_intersection(Line2D(pnt_1, angle=angle_1), Line2D(pnt_2, angle=angle))
+        #     print(pnt_intersect)
+        #     return cut_optimization(bezier_curvature, pnt_1, pnt_2, pnt_intersect,
+        #                             borders=(0, 1), maxormin=BSSMaxMin('max'))[1]
+        #
+        #
+        # # print(max_curvature(-math.pi/4))
+        # print(cut_optimization(max_curvature, borders=(math.pi / 4 + 0.01, math.pi + math.pi / 4 - 0.01)))
+        # print(Angle(2.3561937459466598).deg_angle_0_360)
+        # print(bezier_curvature(0.0, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
+        # print(bezier_curvature(0.2, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
+        # print(bezier_curvature(0.4, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
+        # print(bezier_curvature(0.6, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
+        # print(bezier_curvature(0.8, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
+        # print(bezier_curvature(1.0, Point2D(1, 1), Point2D(3, 1), Point2D(2.0, 2.0)))
+
+        bc = BoundedCurve(Point2D(1, 1), Point2D(3, 1))
+        bc_2 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4), Angle(math.pi/2))
+        bc_3 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4))
+        print("here")
+        bc_4 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(0))
+        # bc_5 = BoundedCurve(Point2D(1, 1), Point2D(3, 1), Angle(math.pi/4), Angle(math.pi/4))
+
+        print()
+        print("draw_parameters")
+        print(bc.draw_parameters())
+        print(bc_2.draw_parameters())
+        print(bc_3.draw_parameters())
+        print(bc_4.draw_parameters())
+        # print(bc_5.draw_parameters())
+
+        print()
+        print(distance(Point2D(1, 1), Point2D(2, 2)))
+        print(normal(Point2D(1, 1), Line2D(Point2D(2, 2), Point2D(3, 1))))
+        print(pnt_between(Point2D(2, 2), Point2D(1, 1), Point2D(3, 3)))
+
+        print()
+        print("point_by_param")
+        print(bc.point_by_param(0), bc.point_by_param(0.5), bc.point_by_param(1))
+        print(bc_2.point_by_param(0), bc_2.point_by_param(0.5), bc_2.point_by_param(1))
+        print(bc_3.point_by_param(0), bc_3.point_by_param(0.5), bc_3.point_by_param(1))
+
+        print()
+        print("angle_by_param")
+        print(bc.angle_by_param(0), bc.angle_by_param(0.5), bc.angle_by_param(1))
+        print(bc_2.angle_by_param(0), bc_2.angle_by_param(0.15424156188964), bc_2.angle_by_param(0.5), bc_2.angle_by_param(1))
+        print(bc_3.angle_by_param(0), bc_3.angle_by_param(0.5), bc_3.angle_by_param(1))
+
+        print()
+        print("sep")
+        sep = bc_3.t_devision()
+        print(sep)
+        print(len(sep))
+
+        # lines_intersection(Line2D(Point2D(0,0), angle=Angle(0)), Line2D(Point2D(0,1), angle=Angle(0)))
+
+        print()
+        print("y by x")
+        print(bc_3.y_by_x(2))
+
+        # bc_5 = BoundedCurve(Point2D(1, 1), Point2D(1, 1))  # , Angle(0)
+
+        bc_station = BoundedCurve(Point2D(650.0, 0.0), Point2D(525.0, -2.5), Angle(0))
+        print(bc_station)
+        for i in range(20):
+            print((i*2*math.pi/20+0.001)*180/math.pi, bc_station.max_curvature(i*2*math.pi/20+0.001))
+
+    test_2 = True
+    if test_2:
+        bc_station = BoundedCurve(Point2D(650.0, 0.0), Point2D(525.0, -2.5), Angle(math.pi))
+        print(bc_station)
+
+
