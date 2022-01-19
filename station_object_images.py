@@ -749,6 +749,22 @@ class CoordinateSystemMO(ModelObject):
 class AxisMO(ModelObject):
     def __init__(self, line2D: Line2D):
         self.line2D = line2D
+        self._points: list[PointMO] = []
+        self._lines: list[LineMO] = []
+
+    def append_point(self, point: PointMO):
+        self._points.append(point)
+
+    def append_line(self, line: LineMO):
+        self._lines.append(line)
+
+    @property
+    def points(self):
+        return sorted(self._points, key=lambda s: s.x)
+
+    @property
+    def lines(self):
+        return self._lines
 
     @property
     def angle(self):
@@ -769,8 +785,27 @@ class PointMO(ModelObject):
 
 
 class LineMO(ModelObject):
-    def __init__(self, boundedCurves: list[BoundedCurve]):
+    def __init__(self, boundedCurves: list[BoundedCurve], points: list[PointMO] = None):
         self.boundedCurves = boundedCurves
+        self._points: list[PointMO] = []
+        self._axis = None
+        if points:
+            self._points = points
+
+    def append_point(self, point: PointMO):
+        self._points.append(point)
+
+    @property
+    def points(self):
+        return sorted(self._points, key=lambda s: s.x)
+
+    @property
+    def axis(self) -> AxisMO:
+        return self._axis
+
+    @axis.setter
+    def axis(self, val: AxisMO):
+        self._axis = val
 
 
 class LightMO(ModelObject):
@@ -861,6 +896,21 @@ class PicketCoordinate:
             return meters
 
 
+class PointCell(CellObject):
+    def __init__(self, point: PointMO):
+        self.point = point
+
+
+class LineCell(CellObject):
+    def __init__(self, line: LineMO):
+        self.line = line
+
+
+class LengthCell(CellObject):
+    def __init__(self, length: int):
+        self.length = length
+
+
 class CommandSupervisor:
     def __init__(self):
         self.commands = []
@@ -887,7 +937,7 @@ def execute_commands(commands: list[Command]):
             MODEL.check_cycle_dg()
             MODEL.rectify_dg()
             MODEL.evaluate_attributes(True)
-            MODEL.build_geometry_model()
+            MODEL.build_model()
 
 
 class ModelProcessor:
@@ -900,6 +950,8 @@ class ModelProcessor:
         self.dg = OneComponentTwoSidedPG()
         gcs_node = self.dg.insert_node()
         gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
+
+        self.smg = OneComponentTwoSidedPG()
 
     def refresh_storages(self):
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_SO})
@@ -1055,7 +1107,7 @@ class ModelProcessor:
         else:
             assert False, "evaluate_attributes not from file - not implemented"
 
-    def build_geometry_model(self):
+    def build_model(self):
         # refresh smth ?
 
         for image_name in self.rect_so:
@@ -1092,6 +1144,11 @@ class ModelProcessor:
                             continue
                         except EquivalentLinesException:
                             raise BuildGeometryError("Cannot re-build existing axis")  # "Cannot re-build existing axis"
+
+                if image.creation_method == CEAxisCreationMethod.rotational:
+                    center_point_soi: PointSOI = image.center_point
+                    model_object.append_point(center_point_soi)
+
                 self.names_mo[image_name] = model_object
 
             if isinstance(image, PointSOI):
@@ -1118,6 +1175,14 @@ class ModelProcessor:
                             evaluate_vector(model_object.point2D, model_object_2.point2D)
                         except PointsEqualException:
                             raise BuildGeometryError("Cannot re-build existing point")
+
+                if image.on == CEAxisOrLine.axis:
+                    axis: AxisMO = self.names_mo[image.axis.name]
+                    self.point_to_axis_handling(model_object, axis)
+                else:
+                    line: LineMO = self.names_mo[image.line.name]
+                    self.point_to_line_handling(model_object, line)
+
                 self.names_mo[image_name] = model_object
 
             if isinstance(image, LineSOI):
@@ -1132,7 +1197,6 @@ class ModelProcessor:
                 if axis_1 is axis_2:
                     boundedCurves = [BoundedCurve(point_1.point2D, point_2.point2D)]
                 elif axis_1.angle == axis_2.angle:
-                    # print("angle", axis_1.angle, axis_2.angle)
                     center_point = Point2D(0.5*(point_1.point2D.x+point_2.point2D.x),
                                            0.5*(point_1.point2D.y+point_2.point2D.y))
                     boundedCurves = [BoundedCurve(point_1.point2D, center_point, axis_1.angle),
@@ -1140,7 +1204,25 @@ class ModelProcessor:
                 else:
                     boundedCurves = [BoundedCurve(point_1.point2D, point_2.point2D, axis_1.angle, axis_2.angle)]
                 model_object = LineMO(boundedCurves)
+
+                model_object.append_point(point_1)
+                model_object.append_point(point_2)
+                if axis_1 is axis_2:
+                    self.line_to_axis_handling(model_object, axis_1)
+
                 self.names_mo[image_name] = model_object
+
+    def point_to_line_handling(self, point: PointMO, line: LineMO):
+        points = line.points
+        line.append_point(point)
+
+    def point_to_axis_handling(self, point: PointMO, axis: AxisMO):
+        points = axis.points
+        axis.append_point(point)
+
+    def line_to_axis_handling(self, line: LineMO, axis: AxisMO):
+        axis.append_line(line)
+        line.axis = axis
 
 
 MODEL = ModelProcessor()
@@ -1248,7 +1330,7 @@ if __name__ == "__main__":
         # print([obj.name for obj in SOIR.rectified_object_list()])
         # build_model(SOIR.rectified_object_list())
 
-    test_9 = True
+    test_9 = False
     if test_9:
         execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
         print(MODEL.names_soi)
@@ -1275,8 +1357,17 @@ if __name__ == "__main__":
         ax_1: AxisMO = MODEL.names_mo['Axis_1']
         print(ax_1.line2D)
 
-        line_2: LineMO = MODEL.names_mo['Line_2']
+        line_2: LineMO = MODEL.names_mo['Line_7']
         print(line_2.boundedCurves)
 
         # pnt_15: PointMO = MODEL.names_mo['Axis_1']
         # print(ax_1.line2D)
+
+    test_10 = True
+    if test_10:
+        execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
+        print(MODEL.names_soi)
+        print(MODEL.names_mo)
+
+        ax_1: AxisMO = MODEL.names_mo['Axis_2']
+        print([pnt.x for pnt in ax_1.points])
