@@ -11,7 +11,7 @@ import math
 from custom_enum import CustomEnum
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode
 from cell_object import CellObject
-from extended_itertools import single_element, recursive_map, flatten
+from extended_itertools import single_element, recursive_map, flatten, EINotFoundError
 from graphical_object import Point2D, Angle, Line2D, BoundedCurve, lines_intersection, evaluate_vector, \
     ParallelLinesException, EquivalentLinesException, PointsEqualException, OutBorderException
 
@@ -1233,6 +1233,8 @@ class ModelProcessor:
                 model_object.append_point(point_2)
                 if axis_1 is axis_2:
                     self.line_to_axis_handling(model_object, axis_1)
+                else:
+                    self.line_connection_handling(model_object, point_1, point_2)
 
                 self.names_mo[image_name] = model_object
 
@@ -1267,6 +1269,25 @@ class ModelProcessor:
 
         axis.append_point(point)
 
+    def line_connection_handling(self, line: LineMO, pnt_1: PointMO, pnt_2: PointMO):
+        min_point, max_point = (pnt_1, pnt_2) if (pnt_1.x < pnt_2.x) else (pnt_2, pnt_1)
+
+        try:
+            min_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == min_point.name,
+                                                 self.smg.not_inf_nodes)
+        except EINotFoundError:
+            min_node = self.smg.insert_node()
+            min_node.append_cell_obj(PointCell(min_point.name, min_point))
+
+        try:
+            max_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == max_point.name,
+                                                 self.smg.not_inf_nodes)
+        except EINotFoundError:
+            max_node = self.smg.insert_node()
+            max_node.append_cell_obj(PointCell(max_point.name, max_point))
+
+        self.smg.connect_inf_handling(min_node.ni_pu, max_node.ni_nd)
+
     def line_to_axis_handling(self, line: LineMO, axis: AxisMO):
         old_lines = axis.lines
         axis_points = axis.points
@@ -1278,9 +1299,14 @@ class ModelProcessor:
         on_line_points = axis_points[axis_points.index(line.min_point):axis_points.index(line.max_point)+1]
         last_nd_interface = self.smg.inf_pu.ni_nd
         for line_point in reversed(on_line_points):
-            new_point_node = self.smg.insert_node(last_nd_interface)
-            new_point_node.append_cell_obj(PointCell(line_point.name, line_point))
-            last_nd_interface = new_point_node.ni_nd
+            try:
+                point_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == line_point.name,
+                                                       self.smg.not_inf_nodes)
+                self.smg.connect_inf_handling(last_nd_interface, point_node.ni_pu)
+            except EINotFoundError:
+                point_node = self.smg.insert_node(last_nd_interface)
+                point_node.append_cell_obj(PointCell(line_point.name, line_point))
+            last_nd_interface = point_node.ni_nd
 
         axis.append_line(line)
         line.axis = axis
@@ -1430,5 +1456,18 @@ if __name__ == "__main__":
         print(MODEL.names_soi)
         print(MODEL.names_mo)
 
-        ax_1: AxisMO = MODEL.names_mo['Axis_2']
-        print([pnt.x for pnt in ax_1.points])
+        # ax_1: AxisMO = MODEL.names_mo['Axis_2']
+        # print([pnt.x for pnt in ax_1.points])
+        print(len(MODEL.smg.not_inf_nodes))
+
+        def get_point_node(point_name: str):
+            return single_element(lambda node: node.cell_objs[0].name == point_name, MODEL.smg.not_inf_nodes)
+        print("minus inf", MODEL.smg.inf_nd)
+        print("plus inf", MODEL.smg.inf_pu)
+        for i in range(20):
+            pnt_name = "Point_{}".format(str(i+1))
+            pnt_node: PolarNode = get_point_node(pnt_name)
+            print(pnt_name+" =>", pnt_node)
+            print("nd-connections", [link.opposite_ni(pnt_node.ni_nd).pn for link in pnt_node.ni_nd.links])
+            print("pu-connections", [link.opposite_ni(pnt_node.ni_pu).pn for link in pnt_node.ni_pu.links])
+        # print(get_point_node("Point_1"))

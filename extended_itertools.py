@@ -2,6 +2,18 @@ from __future__ import annotations
 from collections.abc import Iterable, Callable
 
 
+class EIError(Exception):
+    pass
+
+
+class EINotFoundError(EIError):
+    pass
+
+
+class EIManyFoundError(EIError):
+    pass
+
+
 def recursive_map(f: Callable, collect: Iterable):
     type_result = type(collect)
     result = []
@@ -36,8 +48,10 @@ def flatten(collect):
 
 def single_element(f: Callable, collect: Iterable):
     result = list(flatten(recursive_filter(f, collect)))
-    assert len(result) >= 1, "Element not found"
-    assert len(result) <= 1, "Found more then 1 element"
+    if len(result) < 1:
+        raise EINotFoundError("Element not found")
+    if len(result) > 1:
+        raise EIManyFoundError("Found more then 1 element")
     return result[0]
 
 
