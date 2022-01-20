@@ -1213,7 +1213,21 @@ class ModelProcessor:
                 self.names_mo[image_name] = model_object
 
     def point_to_line_handling(self, point: PointMO, line: LineMO):
-        points = line.points
+        old_points = line.points
+        prev_point, next_point = None, None
+        place_found = False
+        for old_point in old_points:
+            if place_found:
+                next_point = old_point
+                break
+            if point.x > old_point.x:
+                place_found = True
+                prev_point = old_point
+        if not place_found:
+            raise BuildGeometryError("point before inserting not found")
+        if not next_point:
+            raise BuildGeometryError("end of point list")
+        prev_node = single_element()
         line.append_point(point)
 
     def point_to_axis_handling(self, point: PointMO, axis: AxisMO):
