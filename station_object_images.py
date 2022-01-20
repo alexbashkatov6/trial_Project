@@ -1130,6 +1130,8 @@ class ModelProcessor:
 
         for image_name in self.rect_so:
             # print("image_name", image_name)
+            if image_name == 'Point_7':
+                break
             image = self.names_soi[image_name]
             if isinstance(image, CoordinateSystemSOI):
                 model_object = CoordinateSystemMO(self.names_mo[image.cs_relative_to.name],
@@ -1251,13 +1253,15 @@ class ModelProcessor:
         old_points = line.points
         prev_point, next_point = None, None
         place_found = False
+        """ HERE IS ERROR """
         for old_point in old_points:
             if place_found:
                 next_point = old_point
                 break
-            if point.x > old_point.x:
-                place_found = True
-                prev_point = old_point
+            if point.x < old_point.x:
+                continue
+            place_found = True
+            prev_point = old_point
         assert place_found, "point before inserting not found"
         assert next_point, "end of point list"
         prev_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == prev_point.name,
@@ -1307,11 +1311,13 @@ class ModelProcessor:
                 raise BuildGeometryError("lines intersection on axis found")
         on_line_points = axis_points[axis_points.index(line.min_point):axis_points.index(line.max_point)+1]
         last_nd_interface = self.smg.inf_pu.ni_nd
+        # print("line on axis", axis.name, list(reversed(on_line_points)))
         for line_point in reversed(on_line_points):
             try:
                 point_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == line_point.name,
                                                        self.smg.not_inf_nodes)
                 self.smg.connect_inf_handling(last_nd_interface, point_node.ni_pu)
+                # print("Found !", line_point.name)
             except EINotFoundError:
                 point_node = self.smg.insert_node(last_nd_interface)
                 point_node.append_cell_obj(PointCell(line_point.name, line_point))
@@ -1499,10 +1505,13 @@ if __name__ == "__main__":
         print("minus inf", MODEL.smg.inf_nd)
         print("plus inf", MODEL.smg.inf_pu)
         for i in range(20):
-            pnt_name = "Point_{}".format(str(i+1))
-            pnt_node: PolarNode = get_point_node_SMG(pnt_name)
-            print(pnt_name+" =>", pnt_node)
-            print("nd-connections", [link.opposite_ni(pnt_node.ni_nd).pn for link in pnt_node.ni_nd.links])
-            print("pu-connections", [link.opposite_ni(pnt_node.ni_pu).pn for link in pnt_node.ni_pu.links])
+            try:
+                pnt_name = "Point_{}".format(str(i+1))
+                pnt_node: PolarNode = get_point_node_SMG(pnt_name)
+                print(pnt_name+" =>", pnt_node)
+                print("nd-connections", [link.opposite_ni(pnt_node.ni_nd).pn for link in pnt_node.ni_nd.links])
+                print("pu-connections", [link.opposite_ni(pnt_node.ni_pu).pn for link in pnt_node.ni_pu.links])
+            except EINotFoundError:
+                continue
         print("len of links", len(MODEL.smg.links))
         # print(get_point_node("Point_1"))
