@@ -680,14 +680,32 @@ def get_object_by_name(name, obj_list) -> StationObjectImage:
 # -------------------------        MODEL CLASSES           -------------------- #
 
 
+class PointCell(CellObject):
+    def __init__(self, name: str, point: PointMO):
+        self.name = name
+        self.point = point
+
+
+class LineCell(CellObject):
+    def __init__(self, line: LineMO):
+        self.line = line
+
+
+class LengthCell(CellObject):
+    def __init__(self, length: int):
+        self.length = length
+
+
 class ModelObject:
-    pass
+    def __init__(self):
+        self.name: str = ""
 
 
 class CoordinateSystemMO(ModelObject):
     def __init__(self, base_cs: CoordinateSystemMO = None,
                  x: int = 0, y: int = 0,
                  co_x: bool = True, co_y: bool = True):
+        super().__init__()
         self._base_cs = base_cs
         self._is_base = base_cs is None
         self._in_base_x = x
@@ -748,6 +766,7 @@ class CoordinateSystemMO(ModelObject):
 
 class AxisMO(ModelObject):
     def __init__(self, line2D: Line2D):
+        super().__init__()
         self.line2D = line2D
         self._points: list[PointMO] = []
         self._lines: list[LineMO] = []
@@ -773,6 +792,7 @@ class AxisMO(ModelObject):
 
 class PointMO(ModelObject):
     def __init__(self, point2D: Point2D):
+        super().__init__()
         self.point2D = point2D
 
     @property
@@ -786,6 +806,7 @@ class PointMO(ModelObject):
 
 class LineMO(ModelObject):
     def __init__(self, boundedCurves: list[BoundedCurve], points: list[PointMO] = None):
+        super().__init__()
         self.boundedCurves = boundedCurves
         self._points: list[PointMO] = []
         self._axis = None
@@ -798,6 +819,16 @@ class LineMO(ModelObject):
     @property
     def points(self):
         return sorted(self._points, key=lambda s: s.x)
+
+    @property
+    def min_point(self):
+        assert len(self.points) >= 2, "Count of points <2"
+        return self.points[0]
+
+    @property
+    def max_point(self):
+        assert len(self.points) >= 2, "Count of points <2"
+        return self.points[-1]
 
     @property
     def axis(self) -> AxisMO:
@@ -894,21 +925,6 @@ class PicketCoordinate:
             except ValueError:
                 raise PicketCoordinateParsingCoError("Expected int value or picket 'PK_xx+xx'")
             return meters
-
-
-class PointCell(CellObject):
-    def __init__(self, point: PointMO):
-        self.point = point
-
-
-class LineCell(CellObject):
-    def __init__(self, line: LineMO):
-        self.line = line
-
-
-class LengthCell(CellObject):
-    def __init__(self, length: int):
-        self.length = length
 
 
 class CommandSupervisor:
@@ -1116,6 +1132,7 @@ class ModelProcessor:
                 model_object = CoordinateSystemMO(self.names_mo[image.cs_relative_to.name],
                                                   image.x, image.y,
                                                   image.co_x == "true", image.co_y == "true")
+                model_object.name = image_name
                 self.names_mo[image_name] = model_object
 
             if isinstance(image, AxisSOI):
@@ -1135,7 +1152,10 @@ class ModelProcessor:
                     if Angle(angle) == Angle(math.pi/2):
                         raise BuildGeometryError("Building vertical axis is impossible")
                 line2D = Line2D(Point2D(center_point_x, center_point_y), angle=Angle(angle))
+
                 model_object = AxisMO(line2D)
+                model_object.name = image_name
+
                 for model_object_2 in self.names_mo.values():
                     if isinstance(model_object_2, AxisMO):
                         try:
@@ -1168,7 +1188,10 @@ class ModelProcessor:
                             except OutBorderException:
                                 raise BuildGeometryError("Point out of borders")
                     pnt2D = Point2D(image.x, pnt2D_y)
+
                 model_object = PointMO(pnt2D)
+                model_object.name = image_name
+
                 for model_object_2 in self.names_mo.values():
                     if isinstance(model_object_2, PointMO):
                         try:
@@ -1204,6 +1227,7 @@ class ModelProcessor:
                 else:
                     boundedCurves = [BoundedCurve(point_1.point2D, point_2.point2D, axis_1.angle, axis_2.angle)]
                 model_object = LineMO(boundedCurves)
+                model_object.name = image_name
 
                 model_object.append_point(point_1)
                 model_object.append_point(point_2)
@@ -1223,18 +1247,41 @@ class ModelProcessor:
             if point.x > old_point.x:
                 place_found = True
                 prev_point = old_point
-        if not place_found:
-            raise BuildGeometryError("point before inserting not found")
-        if not next_point:
-            raise BuildGeometryError("end of point list")
-        prev_node = single_element()
+        assert place_found, "point before inserting not found"
+        assert next_point, "end of point list"
+        prev_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == prev_point.name,
+                                              self.smg.not_inf_nodes)
+        next_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == next_point.name,
+                                              self.smg.not_inf_nodes)
+        new_point_node = self.smg.insert_node(next_node.ni_nd, prev_node.ni_pu)
+        new_point_node.append_cell_obj(PointCell(point.name, point))
+
         line.append_point(point)
 
     def point_to_axis_handling(self, point: PointMO, axis: AxisMO):
-        points = axis.points
+        lines = axis.lines
+        for line in lines:
+            if line.min_point.x < point.x < line.max_point.x:
+                self.point_to_line_handling(point, line)
+                break
+
         axis.append_point(point)
 
     def line_to_axis_handling(self, line: LineMO, axis: AxisMO):
+        old_lines = axis.lines
+        axis_points = axis.points
+        for old_line in old_lines:
+            if (line.min_point.x > old_line.max_point.x) or (old_line.min_point.x > line.max_point.x):
+                continue
+            else:
+                raise BuildGeometryError("lines intersection on axis found")
+        on_line_points = axis_points[axis_points.index(line.min_point):axis_points.index(line.max_point)+1]
+        last_nd_interface = self.smg.inf_pu.ni_nd
+        for line_point in reversed(on_line_points):
+            new_point_node = self.smg.insert_node(last_nd_interface)
+            new_point_node.append_cell_obj(PointCell(line_point.name, line_point))
+            last_nd_interface = new_point_node.ni_nd
+
         axis.append_line(line)
         line.axis = axis
 
