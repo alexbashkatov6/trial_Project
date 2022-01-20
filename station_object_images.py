@@ -998,6 +998,8 @@ class ModelProcessor:
                                 split_names = [attr_value]
                             for split_name in split_names:
                                 if name == split_name:
+                                    # if name == "Point_16":
+                                    #     print("name", image.name, attr_name, name)
                                     node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == image.name,
                                                                           self.dg.not_inf_nodes)
                                     node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name,
@@ -1127,6 +1129,7 @@ class ModelProcessor:
         # refresh smth ?
 
         for image_name in self.rect_so:
+            # print("image_name", image_name)
             image = self.names_soi[image_name]
             if isinstance(image, CoordinateSystemSOI):
                 model_object = CoordinateSystemMO(self.names_mo[image.cs_relative_to.name],
@@ -1212,10 +1215,16 @@ class ModelProcessor:
                 points_so: list[PointSOI] = image.points
                 points_mo: list[PointMO] = [self.names_mo[point.name] for point in points_so]
                 point_1, point_2 = points_mo[0], points_mo[1]
+                axises_mo: list[AxisMO] = []
                 for point_so in points_so:
                     if point_so.on == CEAxisOrLine.line:
-                        raise BuildGeometryError("Cannot build line by point on line")
-                axises_mo: list[AxisMO] = [self.names_mo[point.axis.name] for point in points_so]
+                        line_mo: LineMO = self.names_mo[point_so.line.name]
+                        if not line_mo.axis:
+                            raise BuildGeometryError("Cannot build line by point on line")
+                        axises_mo.append(line_mo.axis)
+                    else:
+                        axis_mo: AxisMO = self.names_mo[point_so.axis.name]
+                        axises_mo.append(axis_mo)
                 axis_1, axis_2 = axises_mo[0], axises_mo[1]
                 if axis_1 is axis_2:
                     boundedCurves = [BoundedCurve(point_1.point2D, point_2.point2D)]
@@ -1452,22 +1461,48 @@ if __name__ == "__main__":
 
     test_10 = True
     if test_10:
+
+        def get_point_node_SMG(point_name: str) -> PolarNode:
+            return single_element(lambda node: node.cell_objs[0].name == point_name, MODEL.smg.not_inf_nodes)
+
+        def get_point_node_DG(point_name: str) -> PolarNode:
+            return single_element(lambda node: node.cell_objs[0].name == point_name, MODEL.dg.not_inf_nodes)
+
         execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
         print(MODEL.names_soi)
+        # print(MODEL.names_soi.keys())  # .rect_so
+        print(MODEL.rect_so)
         print(MODEL.names_mo)
+
+        # line_1_node = get_point_node_DG("Line_1")
+        # line_6_node = get_point_node_DG("Line_6")
+        # point_16_node = get_point_node_DG("Point_16")
+        # print("line_1_node", line_1_node)
+        # print("line_6_node", line_6_node)
+        # print("line_6 up connections", [link.opposite_ni(line_6_node.ni_pu).pn for link in line_6_node.ni_pu.links])
+        # print("point_16_node", point_16_node)
+        # print("point_16 up connections", [link.opposite_ni(point_16_node.ni_pu).pn for link in point_16_node.ni_pu.links])
+        #
+        # print(MODEL.dg.longest_coverage())
+        # print("len routes", len(MODEL.dg.walk(MODEL.dg.inf_pu.ni_nd)))
+        # i=0
+        # for route in MODEL.dg.walk(MODEL.dg.inf_pu.ni_nd):
+        #     if (line_6_node in route.nodes) or (line_6_node in route.nodes):
+        #         i+=1
+        #         print("i=", i)
+        #         print("nodes", route.nodes)
 
         # ax_1: AxisMO = MODEL.names_mo['Axis_2']
         # print([pnt.x for pnt in ax_1.points])
         print(len(MODEL.smg.not_inf_nodes))
 
-        def get_point_node(point_name: str):
-            return single_element(lambda node: node.cell_objs[0].name == point_name, MODEL.smg.not_inf_nodes)
         print("minus inf", MODEL.smg.inf_nd)
         print("plus inf", MODEL.smg.inf_pu)
         for i in range(20):
             pnt_name = "Point_{}".format(str(i+1))
-            pnt_node: PolarNode = get_point_node(pnt_name)
+            pnt_node: PolarNode = get_point_node_SMG(pnt_name)
             print(pnt_name+" =>", pnt_node)
             print("nd-connections", [link.opposite_ni(pnt_node.ni_nd).pn for link in pnt_node.ni_nd.links])
             print("pu-connections", [link.opposite_ni(pnt_node.ni_pu).pn for link in pnt_node.ni_pu.links])
+        print("len of links", len(MODEL.smg.links))
         # print(get_point_node("Point_1"))

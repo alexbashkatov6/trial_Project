@@ -643,6 +643,7 @@ class OneComponentTwoSidedPG(PolarGraph):
         return layers
 
     def longest_coverage(self, start_ni: NodeInterface = None) -> list[list[PolarNode]]:
+        """ returns nodes in order from min longest root to max l.r. """
         if not start_ni:
             start_ni = self.inf_pu.ni_nd
         routes = self.walk(start_ni)
@@ -659,9 +660,12 @@ class OneComponentTwoSidedPG(PolarGraph):
                     layers[i-1].append(node)
         nodes = set()
         for i, rev_layer in enumerate(list(reversed(layers))):
+            nodes_for_remove = []
             for node in rev_layer:
                 if node in nodes:
-                    layers[-1-i].remove(node)
+                    nodes_for_remove.append(node)
+            for node in nodes_for_remove:
+                rev_layer.remove(node)
             nodes |= set(rev_layer)
         return layers
 
@@ -754,7 +758,7 @@ if __name__ == '__main__':
     # pn_13 = pg_3.insert_node_neck()
 
     # print(pg_3.shortest_coverage())
-    # print(pg_3.longest_coverage())
+    print(pg_3.longest_coverage())
     # routs = pg_3.walk(pg_3.inf_pu.ni_nd)
     # print(len(routs))
     # print(routs)
