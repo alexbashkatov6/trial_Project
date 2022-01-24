@@ -305,6 +305,9 @@ class Route:
             for ni in link.ni_s:
                 ni.choice_move_activate(ni.get_move_by_link(link))
 
+    def partially_overlaps(self, route_2: Route) -> bool:
+        return bool(set(self.links) & set(route_2.links))
+
 
 class NodesMerge:
     def __init__(self, ni_base: NodeInterface, ni_insert: NodeInterface, merge: bool = True):
@@ -408,6 +411,18 @@ class PolarGraph:
                     opposite_ni = enter_node.opposite_ni(enter_ni)
                     links_need_to_check[opposite_ni] = opposite_ni.links
         return routes_
+
+    def routes_node_to_node(self, start_node: PolarNode, end_node: PolarNode) \
+            -> tuple[list[Route], Union[bool, NodeInterface]]:
+        routes = []
+        ni_found = False
+        for start_ni in start_node.ni_s:
+            new_routes = [route for route in self.walk(start_ni, [end_node]) if (route.nodes[-1] is end_node)]
+            if new_routes:
+                assert not ni_found, "Second ni found as begin of route to end-node"
+                ni_found = start_ni
+            routes.extend(new_routes)
+        return routes, ni_found
 
     def route_links_between(self, border_nodes: Iterable[PolarNode], internal_node: PolarNode = None) -> set[Link]:
         border_nodes = set(border_nodes)
@@ -681,6 +696,13 @@ class OneComponentTwoSidedPG(PolarGraph):
                     return set()
         return route_links
 
+    def check_node_inf_connected(self, pn: PolarNode) -> bool:
+        for ni in pn.ni_s:
+            connected = any(link.opposite_ni(ni) in self.inf_ni_s for link in ni.links)
+            if connected:
+                return True
+        return False
+
 
 if __name__ == '__main__':
     pass
@@ -771,6 +793,8 @@ if __name__ == '__main__':
     cl = pg_3.closed_links([pn_8, pn_13])
     print(len(cl))
     print(cl)
+    print("route_exists =", pg_3.routes_node_to_node(pn_12, pn_13))
+    print("inf connected =", pg_3.check_node_inf_connected(pn_8))
 
     # print(pg_3.free_roll().nodes)
 

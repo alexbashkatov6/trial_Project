@@ -24,7 +24,11 @@ STATION_IN_CONFIG_FOLDER = "station_in_config"
 
 # ------------        EXCEPTIONS        ------------ #
 
-class BuildGeometryError(Exception):
+class BuildSkeletonError(Exception):
+    pass
+
+
+class BuildEquipmentError(Exception):
     pass
 
 
@@ -703,15 +707,12 @@ class ModelObject:
 
 class CoordinateSystemMO(ModelObject):
     def __init__(self, base_cs: CoordinateSystemMO = None,
-                 x: int = 0, y: int = 0,
-                 co_x: bool = True, co_y: bool = True):
+                 x: int = 0, co_x: bool = True):
         super().__init__()
         self._base_cs = base_cs
         self._is_base = base_cs is None
         self._in_base_x = x
         self._in_base_co_x = co_x
-        self._in_base_y = y
-        self._in_base_co_y = co_y
 
     @property
     def is_base(self) -> bool:
@@ -742,26 +743,6 @@ class CoordinateSystemMO(ModelObject):
         if self.is_base:
             return self.in_base_co_x
         return self.base_cs.absolute_co_x == self.in_base_co_x
-
-    @property
-    def in_base_y(self) -> int:
-        return self._in_base_y
-
-    @property
-    def in_base_co_y(self) -> bool:
-        return self._in_base_co_y
-
-    @property
-    def absolute_y(self) -> int:
-        if self.is_base:
-            return self.in_base_y
-        return int(self.base_cs.absolute_y + self.in_base_y * (-0.5 + int(self.base_cs.absolute_co_y)) * 2)
-
-    @property
-    def absolute_co_y(self) -> bool:
-        if self.is_base:
-            return self.in_base_co_y
-        return self.base_cs.absolute_co_y == self.in_base_co_y
 
 
 class AxisMO(ModelObject):
@@ -840,19 +821,32 @@ class LineMO(ModelObject):
 
 
 class LightMO(ModelObject):
-    pass
+    def __init__(self, route_type: CELightRouteType, center_point: PointMO, direct_point: PointMO,
+                 colors: list[CELightColor], stick_type: CELightStickType):
+        super().__init__()
+        self.route_type = route_type
+        self.center_point = center_point
+        self.direct_point = direct_point
+        self.colors = colors
+        self.stick_type = stick_type
 
 
 class RailPointMO(ModelObject):
-    pass
+    def __init__(self, center_point: PointMO, plus_point: PointMO, minus_point: PointMO):
+        super().__init__()
+        self.center_point = center_point
+        self.plus_point = plus_point
+        self.minus_point = minus_point
 
 
 class BorderMO(ModelObject):
-    pass
+    def __init__(self):
+        super().__init__()
 
 
 class SectionMO(ModelObject):
-    pass
+    def __init__(self):
+        super().__init__()
 
 
 GLOBAL_CS_SO = CoordinateSystemSOI()
@@ -953,7 +947,8 @@ def execute_commands(commands: list[Command]):
             MODEL.check_cycle_dg()
             MODEL.rectify_dg()
             MODEL.evaluate_attributes(True)
-            MODEL.build_model()
+            MODEL.build_skeleton()
+            MODEL.build_equipment()
 
 
 class ModelProcessor:
@@ -1125,15 +1120,14 @@ class ModelProcessor:
         else:
             assert False, "evaluate_attributes not from file - not implemented"
 
-    def build_model(self):
-        # refresh smth ?
+    def build_skeleton(self):
 
         for image_name in self.rect_so:
             image = self.names_soi[image_name]
+
             if isinstance(image, CoordinateSystemSOI):
                 model_object = CoordinateSystemMO(self.names_mo[image.cs_relative_to.name],
-                                                  image.x, image.y,
-                                                  image.co_x == "true", image.co_y == "true")
+                                                  image.x, image.co_x == "true")
                 model_object.name = image_name
                 self.names_mo[image_name] = model_object
 
@@ -1150,9 +1144,9 @@ class ModelProcessor:
                     center_point_y = center_point_mo.y
                     angle = image.alpha
                     if center_point_soi.on == CEAxisOrLine.line:
-                        raise BuildGeometryError("Building axis by point on line is impossible")
+                        raise BuildSkeletonError("Building axis by point on line is impossible")
                     if Angle(angle) == Angle(math.pi/2):
-                        raise BuildGeometryError("Building vertical axis is impossible")
+                        raise BuildSkeletonError("Building vertical axis is impossible")
                 line2D = Line2D(Point2D(center_point_x, center_point_y), angle=Angle(angle))
 
                 model_object = AxisMO(line2D)
@@ -1165,7 +1159,7 @@ class ModelProcessor:
                         except ParallelLinesException:
                             continue
                         except EquivalentLinesException:
-                            raise BuildGeometryError("Cannot re-build existing axis")  # "Cannot re-build existing axis"
+                            raise BuildSkeletonError("Cannot re-build existing axis")  # "Cannot re-build existing axis"
 
                 if image.creation_method == CEAxisCreationMethod.rotational:
                     center_point_soi: PointSOI = image.center_point
@@ -1183,12 +1177,12 @@ class ModelProcessor:
                         pnt2D_y = line.boundedCurves[0].y_by_x(image.x)
                     except OutBorderException:
                         if len(line.boundedCurves) == 1:
-                            raise BuildGeometryError("Point out of borders")
+                            raise BuildSkeletonError("Point out of borders")
                         else:
                             try:
                                 pnt2D_y = line.boundedCurves[1].y_by_x(image.x)
                             except OutBorderException:
-                                raise BuildGeometryError("Point out of borders")
+                                raise BuildSkeletonError("Point out of borders")
                     pnt2D = Point2D(image.x, pnt2D_y)
 
                 model_object = PointMO(pnt2D)
@@ -1199,7 +1193,7 @@ class ModelProcessor:
                         try:
                             evaluate_vector(model_object.point2D, model_object_2.point2D)
                         except PointsEqualException:
-                            raise BuildGeometryError("Cannot re-build existing point")
+                            raise BuildSkeletonError("Cannot re-build existing point")
 
                 if image.on == CEAxisOrLine.axis:
                     axis: AxisMO = self.names_mo[image.axis.name]
@@ -1219,7 +1213,7 @@ class ModelProcessor:
                     if point_so.on == CEAxisOrLine.line:
                         line_mo: LineMO = self.names_mo[point_so.line.name]
                         if not line_mo.axis:
-                            raise BuildGeometryError("Cannot build line by point on line")
+                            raise BuildSkeletonError("Cannot build line by point on line")
                         axises_mo.append(line_mo.axis)
                     else:
                         axis_mo: AxisMO = self.names_mo[point_so.axis.name]
@@ -1250,11 +1244,10 @@ class ModelProcessor:
         old_points = line.points
         prev_point, next_point = None, None
         place_found = False
-        """ HERE IS ERROR """
-        for i in range(len(old_points)-1):
-            if old_points[i].x < point.x < old_points[i+1].x:
+        for i_ in range(len(old_points)-1):
+            if old_points[i_].x < point.x < old_points[i_+1].x:
                 place_found = True
-                prev_point, next_point = old_points[i], old_points[i+1]
+                prev_point, next_point = old_points[i_], old_points[i_+1]
         assert place_found, "point before inserting not found"
         assert next_point, "end of point list"
         prev_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == prev_point.name,
@@ -1301,16 +1294,14 @@ class ModelProcessor:
             if (line.min_point.x > old_line.max_point.x) or (old_line.min_point.x > line.max_point.x):
                 continue
             else:
-                raise BuildGeometryError("lines intersection on axis found")
+                raise BuildSkeletonError("lines intersection on axis found")
         on_line_points = axis_points[axis_points.index(line.min_point):axis_points.index(line.max_point)+1]
         last_nd_interface = self.smg.inf_pu.ni_nd
-        # print("line on axis", axis.name, list(reversed(on_line_points)))
         for line_point in reversed(on_line_points):
             try:
                 point_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == line_point.name,
                                                        self.smg.not_inf_nodes)
                 self.smg.connect_inf_handling(last_nd_interface, point_node.ni_pu)
-                # print("Found !", line_point.name)
             except EINotFoundError:
                 point_node = self.smg.insert_node(last_nd_interface)
                 point_node.append_cell_obj(PointCell(line_point.name, line_point))
@@ -1318,6 +1309,60 @@ class ModelProcessor:
 
         axis.append_line(line)
         line.axis = axis
+
+    def build_equipment(self):
+
+        for image_name in self.rect_so:
+            image = self.names_soi[image_name]
+
+            if isinstance(image, LightSOI):
+                center_point: PointMO = self.names_mo[image.center_point.name]
+                direct_point: PointMO = self.names_mo[image.direct_point.name]
+
+                if center_point is direct_point:
+                    raise BuildEquipmentError("Direction point is equal to central point")
+
+                # check direction
+                center_point_node = single_element(lambda node: node.cell_objs[0].name == center_point.name,
+                                                   self.smg.not_inf_nodes)
+                direct_point_node = single_element(lambda node: node.cell_objs[0].name == direct_point.name,
+                                                   self.smg.not_inf_nodes)
+                if not self.smg.routes_node_to_node(center_point_node, direct_point_node):
+                    raise BuildEquipmentError("Route from central point to direction point not found")
+
+                model_object = LightMO(image.light_route_type, center_point, direct_point,
+                                       image.colors, image.light_stick_type)
+                model_object.name = image_name
+                self.names_mo[image_name] = model_object
+
+            if isinstance(image, RailPointSOI):
+                center_point: PointMO = self.names_mo[image.center_point.name]
+                plus_point: PointMO = self.names_mo[image.dir_plus_point.name]
+                minus_point: PointMO = self.names_mo[image.dir_minus_point.name]
+
+                # check direction
+                center_point_node = single_element(lambda node: node.cell_objs[0].name == center_point.name,
+                                                   self.smg.not_inf_nodes)
+                plus_point_node = single_element(lambda node: node.cell_objs[0].name == plus_point.name,
+                                                 self.smg.not_inf_nodes)
+                minus_point_node = single_element(lambda node: node.cell_objs[0].name == minus_point.name,
+                                                  self.smg.not_inf_nodes)
+                plus_routes, ni_plus = self.smg.routes_node_to_node(center_point_node, plus_point_node)
+                minus_routes, ni_minus = self.smg.routes_node_to_node(center_point_node, minus_point_node)
+                if not plus_routes:
+                    raise BuildEquipmentError("Route from central point to '+' point not found")
+                if not minus_routes:
+                    raise BuildEquipmentError("Route from central point to '-' point not found")
+                for plus_route in plus_routes:
+                    for minus_route in minus_routes:
+                        if plus_route.partially_overlaps(minus_route):
+                            raise BuildEquipmentError("Cannot understand '+' and '-' directions because their overlaps")
+                if not (ni_plus is ni_minus):
+                    raise BuildEquipmentError("Defined '+' or '-' direction is equal to 0-direction")
+
+                model_object = RailPointMO(center_point, plus_point, minus_point)
+                model_object.name = image_name
+                self.names_mo[image_name] = model_object
 
 
 MODEL = ModelProcessor()
