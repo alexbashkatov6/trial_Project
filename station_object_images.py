@@ -840,13 +840,16 @@ class RailPointMO(ModelObject):
 
 
 class BorderMO(ModelObject):
-    def __init__(self):
+    def __init__(self, point: PointMO, border_type: CEBorderType):
         super().__init__()
+        self.point = point
+        self.border_type = border_type
 
 
 class SectionMO(ModelObject):
-    def __init__(self):
+    def __init__(self, points: list[PointMO]):
         super().__init__()
+        self.points = points
 
 
 GLOBAL_CS_SO = CoordinateSystemSOI()
@@ -1361,6 +1364,25 @@ class ModelProcessor:
                     raise BuildEquipmentError("Defined '+' or '-' direction is equal to 0-direction")
 
                 model_object = RailPointMO(center_point, plus_point, minus_point)
+                model_object.name = image_name
+                self.names_mo[image_name] = model_object
+
+            if isinstance(image, BorderSOI):
+                point: PointMO = self.names_mo[image.point.name]
+
+                model_object = BorderMO(point, image.border_type)
+                model_object.name = image_name
+                self.names_mo[image_name] = model_object
+
+            if isinstance(image, SectionSOI):
+                border_points: list[PointMO] = [self.names_mo[point.name] for point in image.border_points]
+                point_nodes: list[PolarNode] = [single_element(lambda node: node.cell_objs[0].name == point.name,
+                                                               self.smg.not_inf_nodes) for point in border_points]
+                closed_links = self.smg.closed_links(point_nodes)
+                if not closed_links:
+                    raise BuildEquipmentError("No closed links found")
+
+                model_object = SectionMO(border_points)
                 model_object.name = image_name
                 self.names_mo[image_name] = model_object
 
