@@ -1129,9 +1129,6 @@ class ModelProcessor:
         # refresh smth ?
 
         for image_name in self.rect_so:
-            # print("image_name", image_name)
-            if image_name == 'Point_7':
-                break
             image = self.names_soi[image_name]
             if isinstance(image, CoordinateSystemSOI):
                 model_object = CoordinateSystemMO(self.names_mo[image.cs_relative_to.name],
@@ -1254,14 +1251,10 @@ class ModelProcessor:
         prev_point, next_point = None, None
         place_found = False
         """ HERE IS ERROR """
-        for old_point in old_points:
-            if place_found:
-                next_point = old_point
-                break
-            if point.x < old_point.x:
-                continue
-            place_found = True
-            prev_point = old_point
+        for i in range(len(old_points)-1):
+            if old_points[i].x < point.x < old_points[i+1].x:
+                place_found = True
+                prev_point, next_point = old_points[i], old_points[i+1]
         assert place_found, "point before inserting not found"
         assert next_point, "end of point list"
         prev_node: PolarNode = single_element(lambda node: node.cell_objs[0].name == prev_point.name,
