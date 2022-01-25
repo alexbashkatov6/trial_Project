@@ -656,7 +656,7 @@ class IsolatedSectionCell(CellObject):
 
 
 class LengthCell(CellObject):
-    def __init__(self, length: int):
+    def __init__(self, length: float):
         self.length = length
 
 
@@ -925,6 +925,7 @@ def execute_commands(commands: list[Command]):
             MODEL.rectify_dg()
             MODEL.evaluate_attributes(True)
             MODEL.build_skeleton()
+            MODEL.eval_link_length()
             MODEL.build_equipment()
 
 
@@ -1287,6 +1288,12 @@ class ModelProcessor:
         axis.append_line(line)
         line.axis = axis
 
+    def eval_link_length(self):
+        for link in self.smg.not_inf_links:
+            pn_s = [ni.pn for ni in link.ni_s]
+            pnt_cells: list[PointCell] = [pn.cell_objs[0] for pn in pn_s]
+            link.append_cell_obj(LengthCell(abs(pnt_cells[0].point.x - pnt_cells[1].point.x)))
+
     def build_equipment(self):
 
         for image_name in self.rect_so:
@@ -1548,4 +1555,10 @@ if __name__ == "__main__":
             except EINotFoundError:
                 continue
         print("len of links", len(MODEL.smg.links))
+        for link in MODEL.smg.not_inf_links:
+            pn_s = [ni.pn for ni in link.ni_s]
+            pnt_cells: list[PointCell] = [pn.cell_objs[0] for pn in pn_s]
+            print("link between {}, {}".format(pnt_cells[0].name, pnt_cells[1].name))
+            print("length {}".format(link.cell_objs[0].length))
+            # print("length {}".format(type(link.cell_objs[0].length)))
         # print(get_point_node("Point_1"))

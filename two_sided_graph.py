@@ -570,6 +570,15 @@ class OneComponentTwoSidedPG(PolarGraph):
     def not_inf_nodes(self):
         return self.nodes - set(self.inf_nodes)
 
+    @property
+    def not_inf_links(self):
+        result = self.links
+        for link in self.links:
+            for ni in link.ni_s:
+                if ni in self.inf_ni_s:
+                    result.remove(link)
+        return result
+
     def insert_node(self, ni_pu: NodeInterface = None, ni_nd: NodeInterface = None,
                     remove_exist_link: bool = True) -> PolarNode:
         if ni_pu is None:
@@ -795,6 +804,8 @@ if __name__ == '__main__':
     print(cl)
     print("route_exists =", pg_3.routes_node_to_node(pn_12, pn_13))
     print("inf connected =", pg_3.check_node_inf_connected(pn_8))
+    print("links common len =", len(pg_3.links))
+    print("links not inf len =", len(pg_3.not_inf_links))
 
     # print(pg_3.free_roll().nodes)
 
