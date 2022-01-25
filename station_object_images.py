@@ -645,19 +645,36 @@ class PointCell(CellObject):
         self.point = point
 
 
+class LightCell(CellObject):
+    def __init__(self, light: LightMO):
+        self.light = light
+
+
 class LineCell(CellObject):
     def __init__(self, line: LineMO):
         self.line = line
 
 
 class IsolatedSectionCell(CellObject):
-    def __init__(self, section: SectionMO):
-        self.section = section
+    def __init__(self, section_name: str):
+        self.section_name = section_name
 
 
 class LengthCell(CellObject):
     def __init__(self, length: float):
         self.length = length
+
+
+class CellError(Exception):
+    pass
+
+
+class NotFoundCellError(CellError):
+    pass
+
+
+class ManyFoundCellError(CellError):
+    pass
 
 
 def get_cell_by_class(el: Element, cls_name: str) -> CellObject:
@@ -666,8 +683,10 @@ def get_cell_by_class(el: Element, cls_name: str) -> CellObject:
     for cell in el.cell_objs:
         if isinstance(cell, cls):
             found_cells.add(cell)
-    assert found_cells, "Not found"
-    assert len(found_cells) == 1, "More then 1 cell found"
+    if not found_cells:
+        raise NotFoundCellError("Not found")
+    if len(found_cells) != 1:
+        raise ManyFoundCellError("More then 1 cell found")
     return found_cells.pop()
 
 
@@ -938,6 +957,7 @@ def execute_commands(commands: list[Command]):
             MODEL.build_skeleton()
             MODEL.eval_link_length()
             MODEL.build_equipment()
+            MODEL.eval_routes()
 
 
 class ModelProcessor:
@@ -1325,9 +1345,10 @@ class ModelProcessor:
                     raise BuildEquipmentError("Direction point is equal to central point")
 
                 # check direction
-                center_point_node = single_element(lambda node:
-                                                   get_cell_by_class(node, "PointCell").name == center_point.name,
-                                                   self.smg.not_inf_nodes)
+                center_point_node: PolarNode = single_element(
+                    lambda node:
+                    get_cell_by_class(node, "PointCell").name == center_point.name,
+                    self.smg.not_inf_nodes)
                 direct_point_node = single_element(lambda node:
                                                    get_cell_by_class(node, "PointCell").name == direct_point.name,
                                                    self.smg.not_inf_nodes)
@@ -1336,6 +1357,8 @@ class ModelProcessor:
 
                 model_object = LightMO(image.light_route_type, center_point, direct_point,
                                        image.colors, image.light_stick_type)
+                center_point_node.append_cell_obj(LightCell(model_object))
+
                 model_object.name = image_name
                 self.names_mo[image_name] = model_object
 
@@ -1367,7 +1390,7 @@ class ModelProcessor:
                 if not (ni_plus is ni_minus):
                     raise BuildEquipmentError("Defined '+' or '-' direction is equal to 0-direction")
 
-                # move cells
+                # + and - move cells
                 plus_route = plus_routes[0]
                 plus_link = plus_route.links[0]
                 plus_move = ni_plus.get_move_by_link(plus_link)
@@ -1397,9 +1420,22 @@ class ModelProcessor:
                 if not closed_links:
                     raise BuildEquipmentError("No closed links found")
 
+                # links sections
+                for link in closed_links:
+                    try:
+                        get_cell_by_class(link, "IsolatedSectionCell")
+                    except NotFoundCellError:
+                        pass
+                    else:
+                        raise BuildEquipmentError("Section in link already exists")
+                    link.append_cell_obj(IsolatedSectionCell(image.name))
+
                 model_object = SectionMO(border_points)
                 model_object.name = image_name
                 self.names_mo[image_name] = model_object
+
+    def eval_routes(self):
+        pass
 
 
 MODEL = ModelProcessor()
@@ -1585,3 +1621,4 @@ if __name__ == "__main__":
                 if move.cell_objs:
                     rpdc = get_cell_by_class(move, "RailPointDirectionCell")
                     print("Rail point direction = ", rpdc.direction)
+            print("section {}".format(get_cell_by_class(link, "IsolatedSectionCell").section_name))
