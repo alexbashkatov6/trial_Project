@@ -1344,6 +1344,16 @@ class ModelProcessor:
                 if not (ni_plus is ni_minus):
                     raise BuildEquipmentError("Defined '+' or '-' direction is equal to 0-direction")
 
+                # move cells
+                plus_route = plus_routes[0]
+                plus_link = plus_route.links[0]
+                plus_move = ni_plus.get_move_by_link(plus_link)
+                plus_move.append_cell_obj(RailPointDirectionCell("+{}".format(image.name)))
+                minus_route = minus_routes[0]
+                minus_link = minus_route.links[0]
+                minus_move = ni_minus.get_move_by_link(minus_link)
+                minus_move.append_cell_obj(RailPointDirectionCell("-{}".format(image.name)))
+
                 model_object = RailPointMO(center_point, plus_point, minus_point)
                 model_object.name = image_name
                 self.names_mo[image_name] = model_object
@@ -1556,9 +1566,16 @@ if __name__ == "__main__":
                 continue
         print("len of links", len(MODEL.smg.links))
         for link in MODEL.smg.not_inf_links:
+            print()
+            ni_s = link.ni_s
             pn_s = [ni.pn for ni in link.ni_s]
             pnt_cells: list[PointCell] = [pn.cell_objs[0] for pn in pn_s]
             print("link between {}, {}".format(pnt_cells[0].name, pnt_cells[1].name))
             print("length {}".format(link.cell_objs[0].length))
+            for ni in ni_s:
+                move = ni.get_move_by_link(link)
+                if move.cell_objs:
+                    rpdc = move.cell_objs[0]
+                    print("Rail point direction = ", rpdc.direction)
             # print("length {}".format(type(link.cell_objs[0].length)))
         # print(get_point_node("Point_1"))
