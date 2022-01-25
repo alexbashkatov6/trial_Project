@@ -147,8 +147,6 @@ class SOIAttrSeqTemplate:
                     [CoordinateSystemSOI.cs_relative_to,
                      CoordinateSystemSOI.dependence,
                      CoordinateSystemSOI.x,
-                     CoordinateSystemSOI.y,
-                     CoordinateSystemSOI.alpha,
                      CoordinateSystemSOI.co_x,
                      CoordinateSystemSOI.co_y]]
 
@@ -165,6 +163,7 @@ class SOIAttrSeqTemplate:
                     [PointSOI.on,
                      PointSOI.axis,
                      PointSOI.line,
+                     PointSOI.cs_relative_to,
                      PointSOI.x]]
 
         if owner == LineSOI:
@@ -206,11 +205,10 @@ class SOIActiveAttrs:
 
         if owner == CoordinateSystemSOI:
             instance: CoordinateSystemSOI
-            if instance.dependence == CEDependence.dependent:
-                instance._active_attrs.remove(CoordinateSystemSOI.alpha.name)
-            else:
+            if instance.dependence == CEDependence.independent:
                 instance._active_attrs.remove(CoordinateSystemSOI.x.name)
-                instance._active_attrs.remove(CoordinateSystemSOI.y.name)
+                instance._active_attrs.remove(CoordinateSystemSOI.co_x.name)
+                instance._active_attrs.remove(CoordinateSystemSOI.co_y.name)
 
         if owner == AxisSOI:
             instance: AxisSOI
@@ -398,6 +396,10 @@ class PntLine(BaseAttrDescriptor):
     pass
 
 
+class PntCsRelTo(BaseAttrDescriptor):
+    pass
+
+
 class PntX(BaseAttrDescriptor):
     pass
 
@@ -465,8 +467,6 @@ class CoordinateSystemSOI(StationObjectImage):
     cs_relative_to = CsCsRelTo("CoordinateSystemSOI")
     dependence = CsDepend(CEDependence)
     x = CsX("int")
-    y = CsY("int")
-    alpha = CsAlpha("int")
     co_x = CsCoX(CEBool)
     co_y = CsCoY(CEBool)
 
@@ -483,6 +483,7 @@ class PointSOI(StationObjectImage):
     on = PntOn(CEAxisOrLine)
     axis = PntAxis("AxisSOI")
     line = PntAxis("LineSOI")
+    cs_relative_to = PntCsRelTo("CoordinateSystemSOI")
     x = PntX("complex_type")
 
 
@@ -584,57 +585,6 @@ class ImageNameCell(CellObject):
         self.name = name
 
 
-# class SOIRectifier:
-#     """ objects sequence getter """
-#     def __init__(self):
-#         self.dg = OneComponentTwoSidedPG()  # dependence graph
-#         self.object_names: OrderedDict[str, Optional[StationObjectImage]] = OrderedDict()
-#         self.object_names[GLOBAL_CS_NAME] = None
-#         gcs_node = self.dg.insert_node()
-#         gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
-#
-#     def build_dg(self, obj_list: list[StationObjectImage]) -> None:
-#         for obj in obj_list:
-#             # if not obj.name in self.object_names:
-#             #     raise ExistingNameCoError("Name {} already exist".format(obj.name))
-#             if obj.name in self.object_names:
-#                 raise ExistingNameCoError("Name {} already exist".format(obj.name))
-#             node = self.dg.insert_node()
-#             node.append_cell_obj(ImageNameCell(obj.name))
-#             self.object_names[obj.name] = obj
-#         for obj in obj_list:
-#             for attr_name in obj.active_attrs:
-#                 if not getattr(obj.__class__, attr_name).enum:
-#                     attr_value: str = getattr(obj, "_str_{}".format(attr_name))
-#                     for name in self.object_names:
-#                         if name.isdigit():  # for rail points
-#                             continue
-#                         if " " in attr_value:
-#                             split_names = attr_value.split(" ")
-#                         else:
-#                             split_names = [attr_value]
-#                         for split_name in split_names:
-#                             if name == split_name:
-#                                 node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == obj.name,
-#                                                                       self.dg.not_inf_nodes)
-#                                 node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name,
-#                                                                         self.dg.not_inf_nodes)
-#                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
-#
-#     def check_cycle(self):
-#         dg = self.dg
-#         routes = dg.walk(dg.inf_pu.ni_nd)
-#         if any([route_.is_cycle for route_ in routes]):
-#             raise CycleError("Cycle in dependencies was found")
-#
-#     def rectified_object_list(self) -> list[StationObjectImage]:
-#         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]
-#         return [self.object_names[node.cell_objs[0].name] for node in nodes]
-#
-#
-# SOIR = SOIRectifier()
-
-
 def make_xlsx_templates(dir_name: str):
     folder = os.path.join(os.getcwd(), dir_name)
     for cls in StationObjectImage.__subclasses__():
@@ -681,7 +631,12 @@ def get_object_by_name(name, obj_list) -> StationObjectImage:
             return obj
     assert False, "Name not found"
 
-# -------------------------        MODEL CLASSES           -------------------- #
+# -------------------------        CELLS           -------------------- #
+
+
+class RailPointDirectionCell(CellObject):
+    def __init__(self, direction: str):
+        self.direction = direction
 
 
 class PointCell(CellObject):
@@ -695,9 +650,17 @@ class LineCell(CellObject):
         self.line = line
 
 
+class IsolatedSectionCell(CellObject):
+    def __init__(self, section: SectionMO):
+        self.section = section
+
+
 class LengthCell(CellObject):
     def __init__(self, length: int):
         self.length = length
+
+
+# -------------------------        MODEL CLASSES           -------------------- #
 
 
 class ModelObject:
@@ -707,12 +670,13 @@ class ModelObject:
 
 class CoordinateSystemMO(ModelObject):
     def __init__(self, base_cs: CoordinateSystemMO = None,
-                 x: int = 0, co_x: bool = True):
+                 x: int = 0, co_x: bool = True, co_y: bool = True):
         super().__init__()
         self._base_cs = base_cs
         self._is_base = base_cs is None
         self._in_base_x = x
         self._in_base_co_x = co_x
+        self._in_base_co_y = co_y
 
     @property
     def is_base(self) -> bool:
@@ -733,6 +697,10 @@ class CoordinateSystemMO(ModelObject):
         return self._in_base_co_x
 
     @property
+    def in_base_co_y(self) -> bool:
+        return self._in_base_co_y
+
+    @property
     def absolute_x(self) -> int:
         if self.is_base:
             return self.in_base_x
@@ -743,6 +711,12 @@ class CoordinateSystemMO(ModelObject):
         if self.is_base:
             return self.in_base_co_x
         return self.base_cs.absolute_co_x == self.in_base_co_x
+
+    @property
+    def absolute_co_y(self) -> bool:
+        if self.is_base:
+            return self.in_base_co_y
+        return self.base_cs.absolute_co_y == self.in_base_co_y
 
 
 class AxisMO(ModelObject):
@@ -974,7 +948,7 @@ class ModelProcessor:
 
     def build_dg(self, images: list[StationObjectImage], from_file: bool = False) -> None:
         if from_file:
-            self.refresh_storages()  # when refresh ?
+            self.refresh_storages()
             for image in images:
                 if not image.name:
                     raise NoNameCoError("Name of object in class {} already exist".format(image.__class__.__name__))
@@ -996,8 +970,6 @@ class ModelProcessor:
                                 split_names = [attr_value]
                             for split_name in split_names:
                                 if name == split_name:
-                                    # if name == "Point_16":
-                                    #     print("name", image.name, attr_name, name)
                                     node_self: PolarNode = single_element(lambda x: x.cell_objs[0].name == image.name,
                                                                           self.dg.not_inf_nodes)
                                     node_parent: PolarNode = single_element(lambda x: x.cell_objs[0].name == name,
@@ -1024,8 +996,6 @@ class ModelProcessor:
                 if isinstance(image, CoordinateSystemSOI):
                     default_attrib_evaluation("cs_relative_to", image, self.names_soi)
                     default_attrib_evaluation("x", image, self.names_soi)
-                    default_attrib_evaluation("y", image, self.names_soi)
-                    default_attrib_evaluation("alpha", image, self.names_soi)
 
                 if isinstance(image, AxisSOI):
                     default_attrib_evaluation("cs_relative_to", image, self.names_soi)
@@ -1036,6 +1006,7 @@ class ModelProcessor:
                 if isinstance(image, PointSOI):
                     default_attrib_evaluation("axis", image, self.names_soi)
                     default_attrib_evaluation("line", image, self.names_soi)
+                    default_attrib_evaluation("cs_relative_to", image, self.names_soi)
                     attr_name = "x"
                     if attr_name in image.active_attrs:
                         setattr(image, "_{}".format(attr_name), None)
@@ -1130,15 +1101,16 @@ class ModelProcessor:
 
             if isinstance(image, CoordinateSystemSOI):
                 model_object = CoordinateSystemMO(self.names_mo[image.cs_relative_to.name],
-                                                  image.x, image.co_x == "true")
+                                                  image.x, image.co_x == "true", image.co_y == "true")
                 model_object.name = image_name
                 self.names_mo[image_name] = model_object
 
             if isinstance(image, AxisSOI):
                 cs_rel: CoordinateSystemMO = self.names_mo[image.cs_relative_to.name]
                 if image.creation_method == CEAxisCreationMethod.translational:
+                    cs_rel_mo: CoordinateSystemMO = self.names_mo[image.cs_relative_to.name]
                     center_point_x = cs_rel.absolute_x
-                    center_point_y = image.y
+                    center_point_y = image.y * int(2*(int(cs_rel_mo.absolute_co_y)-0.5))
                     angle = 0
                 else:
                     center_point_soi: PointSOI = image.center_point
@@ -1171,22 +1143,24 @@ class ModelProcessor:
                 self.names_mo[image_name] = model_object
 
             if isinstance(image, PointSOI):
+                cs_rel: CoordinateSystemMO = self.names_mo[image.cs_relative_to.name]
+                point_x = cs_rel.absolute_x + image.x * cs_rel.absolute_co_x
                 if image.on == CEAxisOrLine.axis:
                     axis: AxisMO = self.names_mo[image.axis.name]
-                    pnt2D = lines_intersection(axis.line2D, Line2D(Point2D(image.x, 0), angle=Angle(math.pi / 2)))
+                    pnt2D = lines_intersection(axis.line2D, Line2D(Point2D(point_x, 0), angle=Angle(math.pi / 2)))
                 else:
                     line: LineMO = self.names_mo[image.line.name]
                     try:
-                        pnt2D_y = line.boundedCurves[0].y_by_x(image.x)
+                        pnt2D_y = line.boundedCurves[0].y_by_x(point_x)
                     except OutBorderException:
                         if len(line.boundedCurves) == 1:
                             raise BuildSkeletonError("Point out of borders")
                         else:
                             try:
-                                pnt2D_y = line.boundedCurves[1].y_by_x(image.x)
+                                pnt2D_y = line.boundedCurves[1].y_by_x(point_x)
                             except OutBorderException:
                                 raise BuildSkeletonError("Point out of borders")
-                    pnt2D = Point2D(image.x, pnt2D_y)
+                    pnt2D = Point2D(point_x, pnt2D_y)
 
                 model_object = PointMO(pnt2D)
                 model_object.name = image_name
