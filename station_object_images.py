@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ElTr
 import xml.dom.minidom
 
 from custom_enum import CustomEnum
-from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Element
+from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Element, Route
 from cell_object import CellObject
 from extended_itertools import single_element, recursive_map, flatten, EINotFoundError, EIManyFoundError
 from graphical_object import Point2D, Angle, Line2D, BoundedCurve, lines_intersection, evaluate_vector, \
@@ -851,12 +851,12 @@ class LineMO(ModelObject):
 
 
 class LightMO(ModelObject):
-    def __init__(self, route_type: CELightRouteType, center_point: PointMO, direct_point: PointMO,
+    def __init__(self, route_type: CELightRouteType, center_point: PointMO, direct_polarity: str,
                  colors: list[CELightColor], stick_type: CELightStickType):
         super().__init__()
         self.route_type = route_type
         self.center_point = center_point
-        self.direct_point = direct_point
+        self.direct_polarity = direct_polarity
         self.colors = colors
         self.stick_type = stick_type
 
@@ -880,6 +880,8 @@ class SectionMO(ModelObject):
     def __init__(self, points: list[PointMO]):
         super().__init__()
         self.points = points
+        self.section_type = None
+        self.rail_points = []
 
 
 GLOBAL_CS_SO = CoordinateSystemSOI()
@@ -892,7 +894,7 @@ GLOBAL_CS_MO._name = GLOBAL_CS_NAME
 
 
 class CrossroadNotification:
-    def __init__(self, cn_route: Route, num: int):
+    def __init__(self, cn_route: RailRoute, num: int):
         self.route = cn_route
         self.num = num
         self._crsrd_id = None
@@ -994,7 +996,7 @@ class CrossroadNotification:
             assert False, "Signal type {} not exists".format(self.route.signal_type)
 
 
-class Route:
+class RailRoute:
     def __init__(self, id_):
         self.id = str(id_)
         self.route_tag = None
@@ -1218,7 +1220,7 @@ class Route:
         self.crossroad_notifications.append(cn)
 
 
-def form_route_element(signal_element_, route_: Route) -> ElTr.Element:
+def form_route_element(signal_element_, route_: RailRoute) -> ElTr.Element:
     if route_.route_type == "PpoTrainRoute":
         route_element = ElTr.SubElement(signal_element_, 'TrRoute')
     else:
@@ -1406,7 +1408,10 @@ def execute_commands(commands: list[Command]):
             MODEL.evaluate_attributes(True)
             MODEL.build_skeleton()
             MODEL.eval_link_length()
-            MODEL.build_equipment()
+            MODEL.build_lights()
+            MODEL.build_rail_points()
+            MODEL.build_borders()
+            MODEL.build_sections()
 
 
 class ModelProcessor:
@@ -1782,16 +1787,10 @@ class ModelProcessor:
             link.append_cell_obj(LengthCell(abs(self.names_mo["Point"][pnt_cells_[0].name].x -
                                                 self.names_mo["Point"][pnt_cells_[1].name].x)))
 
-    def build_equipment(self):
+    def build_lights(self):
 
         if "Light" not in self.names_mo:
             self.names_mo["Light"] = OrderedDict()
-        if "RailPoint" not in self.names_mo:
-            self.names_mo["RailPoint"] = OrderedDict()
-        if "Border" not in self.names_mo:
-            self.names_mo["Border"] = OrderedDict()
-        if "Section" not in self.names_mo:
-            self.names_mo["Section"] = OrderedDict()
 
         for image_name in self.rect_so:
             image = self.names_soi[image_name]
@@ -1806,15 +1805,29 @@ class ModelProcessor:
                 # check direction
                 center_point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", center_point.name)[1]
                 direct_point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", direct_point.name)[1]
-                if not self.smg.routes_node_to_node(center_point_node, direct_point_node):
+                routes_node_to_node = self.smg.routes_node_to_node(center_point_node, direct_point_node)
+                if not routes_node_to_node:
                     raise BuildEquipmentError("Route from central point to direction point not found")
+                ni = routes_node_to_node[1]
+                if ni.end == 'nd':
+                    direction_ni = 'nd'
+                else:
+                    direction_ni = 'pu'
 
-                model_object = LightMO(image.light_route_type, center_point, direct_point,
+                model_object = LightMO(image.light_route_type, center_point, direction_ni,
                                        image.colors, image.light_stick_type)
                 center_point_node.append_cell_obj(LightCell(model_object.name))
 
                 model_object.name = image_name
                 self.names_mo["Light"][image_name] = model_object
+
+    def build_rail_points(self):
+
+        if "RailPoint" not in self.names_mo:
+            self.names_mo["RailPoint"] = OrderedDict()
+
+        for image_name in self.rect_so:
+            image = self.names_soi[image_name]
 
             if isinstance(image, RailPointSOI):
                 center_point: PointMO = self.names_mo["Point"][image.center_point.name]
@@ -1852,12 +1865,28 @@ class ModelProcessor:
                 model_object.name = image_name
                 self.names_mo["RailPoint"][image_name] = model_object
 
+    def build_borders(self):
+
+        if "Border" not in self.names_mo:
+            self.names_mo["Border"] = OrderedDict()
+
+        for image_name in self.rect_so:
+            image = self.names_soi[image_name]
+
             if isinstance(image, BorderSOI):
                 point: PointMO = self.names_mo["Point"][image.point.name]
 
                 model_object = BorderMO(point, image.border_type)
                 model_object.name = image_name
                 self.names_mo["Border"][image_name] = model_object
+
+    def build_sections(self):
+
+        if "Section" not in self.names_mo:
+            self.names_mo["Section"] = OrderedDict()
+
+        for image_name in self.rect_so:
+            image = self.names_soi[image_name]
 
             if isinstance(image, SectionSOI):
                 border_points: list[PointMO] = [self.names_mo["Point"][point.name] for point in image.border_points]
@@ -1886,7 +1915,6 @@ class ModelProcessor:
 
         # 1. Form routes from smg
         light_cells_ = all_cells_of_type(self.smg.not_inf_nodes, "LightCell")
-        pass
 
 
 MODEL = ModelProcessor()
