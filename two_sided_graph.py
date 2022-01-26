@@ -62,6 +62,13 @@ class NodeInterface:
         return self._end
 
     @property
+    def end_str(self) -> str:
+        if self.end == "nd":
+            return "nd"
+        else:
+            return "pu"
+
+    @property
     def links(self) -> list[Link]:
         return list(self._move_by_link.keys())
 

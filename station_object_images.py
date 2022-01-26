@@ -139,6 +139,13 @@ class CEBorderType(CustomEnum):
     pab = 2
 
 
+class CESectionType(CustomEnum):
+    track = 0
+    non_stop = 1
+    shunt_stop = 2
+    indic = 3
+
+
 # ------------        IMAGES COMMON AGGREGATE ATTRS        ------------ #
 
 
@@ -628,12 +635,6 @@ def read_station_config(dir_name: str) -> list[StationObjectImage]:
     return objs_
 
 
-# def get_object_by_name(name, obj_list) -> StationObjectImage:
-#     for obj in obj_list:
-#         if obj.name == name:
-#             return obj
-#     assert False, "Name not found"
-
 # -------------------------        CELLS           -------------------- #
 
 
@@ -715,6 +716,7 @@ def find_cell_name(elements: Iterable[Element], cls_name: str, name: str) -> Opt
     except EIManyFoundError:
         raise ManyFoundCellError("More then 1 cell found")
     return co, cell_candidates[co]
+
 
 # -------------------------        MODEL CLASSES           -------------------- #
 
@@ -851,29 +853,31 @@ class LineMO(ModelObject):
 
 
 class LightMO(ModelObject):
-    def __init__(self, route_type: CELightRouteType, center_point: PointMO, direct_polarity: str,
+    def __init__(self, route_type: CELightRouteType, center_point: PointMO, end_forward_tpl1: str,
                  colors: list[CELightColor], stick_type: CELightStickType):
         super().__init__()
         self.route_type = route_type
         self.center_point = center_point
-        self.direct_polarity = direct_polarity
+        self.end_forward_tpl1 = end_forward_tpl1
         self.colors = colors
         self.stick_type = stick_type
 
 
 class RailPointMO(ModelObject):
-    def __init__(self, center_point: PointMO, plus_point: PointMO, minus_point: PointMO):
+    def __init__(self, center_point: PointMO, plus_point: PointMO, minus_point: PointMO, end_tpl0: str):
         super().__init__()
         self.center_point = center_point
         self.plus_point = plus_point
         self.minus_point = minus_point
+        self.end_tpl0 = end_tpl0
 
 
 class BorderMO(ModelObject):
-    def __init__(self, point: PointMO, border_type: CEBorderType):
+    def __init__(self, point: PointMO, border_type: CEBorderType, end_not_inf_tpl0: Optional[str] = None):
         super().__init__()
         self.point = point
         self.border_type = border_type
+        self.end_not_inf_tpl0 = end_not_inf_tpl0
 
 
 class SectionMO(ModelObject):
@@ -1808,13 +1812,8 @@ class ModelProcessor:
                 routes_node_to_node = self.smg.routes_node_to_node(center_point_node, direct_point_node)
                 if not routes_node_to_node:
                     raise BuildEquipmentError("Route from central point to direction point not found")
-                ni = routes_node_to_node[1]
-                if ni.end == 'nd':
-                    direction_ni = 'nd'
-                else:
-                    direction_ni = 'pu'
 
-                model_object = LightMO(image.light_route_type, center_point, direction_ni,
+                model_object = LightMO(image.light_route_type, center_point, routes_node_to_node[1].end_str,
                                        image.colors, image.light_stick_type)
                 center_point_node.append_cell_obj(LightCell(model_object.name))
 
@@ -1861,7 +1860,8 @@ class ModelProcessor:
                 minus_move = ni_minus.get_move_by_link(minus_link)
                 minus_move.append_cell_obj(RailPointDirectionCell("-{}".format(image.name)))
 
-                model_object = RailPointMO(center_point, plus_point, minus_point)
+                model_object = RailPointMO(center_point, plus_point, minus_point,
+                                           ni_plus.pn.opposite_ni(ni_plus).end_str)
                 model_object.name = image_name
                 self.names_mo["RailPoint"][image_name] = model_object
 
@@ -1875,6 +1875,8 @@ class ModelProcessor:
 
             if isinstance(image, BorderSOI):
                 point: PointMO = self.names_mo["Point"][image.point.name]
+                point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", image.point.name)[1]
+                self.smg.
 
                 model_object = BorderMO(point, image.border_type)
                 model_object.name = image_name
