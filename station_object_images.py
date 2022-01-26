@@ -8,6 +8,8 @@ from abc import abstractmethod
 from numbers import Real
 import math
 import re
+import xml.etree.ElementTree as ElTr
+import xml.dom.minidom
 
 from custom_enum import CustomEnum
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Element
@@ -884,7 +886,6 @@ class CrossroadNotification:
     def crsrd_id(self, value):
         if (not value) or value.isspace():
             return
-        # self.route.int_checker(value, 'crsrd_id_{}'.format(self.num))
         self._crsrd_id = value
 
     @property
@@ -895,8 +896,6 @@ class CrossroadNotification:
     def crsrd_delay_open(self, value):
         if (not value) or value.isspace():
             return
-        # assert value and not value.isspace(), "Empty crsrd_delay_open_{} in line {}". \
-        #     format(self.num, self.route.line_in_excel)
         self.route.int_checker(value, 'crsrd_delay_open_{}'.format(self.num), 0)
         self._crsrd_delay_open = value
 
@@ -908,8 +907,6 @@ class CrossroadNotification:
     def crsrd_delay_start_notif(self, value):
         if (not value) or value.isspace():
             return
-        # assert value and not value.isspace(), "Empty crsrd_delay_start_notif_{} in line {}". \
-        #     format(self.num, self.route.line_in_excel)
         self.route.int_checker(value, 'crsrd_delay_start_notif_{}'.format(self.num), 0)
         self._crsrd_delay_start_notif = value
 
@@ -921,8 +918,6 @@ class CrossroadNotification:
     def crsrd_start_notif(self, value):
         if (not value) or value.isspace():
             return
-        # assert value and not value.isspace(), "Empty crsrd_start_notif_{} in line {}". \
-        #     format(self.num, self.route.line_in_excel)
         # ! implement here check start_notif in list of available values
         self._crsrd_start_notif = value
 
@@ -1199,6 +1194,97 @@ class Route:
         self.crossroad_notifications.append(cn)
 
 
+def form_route_element(signal_element_, route_: Route) -> ElTr.Element:
+    if route_.route_type == "PpoTrainRoute":
+        route_element = ElTr.SubElement(signal_element_, 'TrRoute')
+    else:
+        route_element = ElTr.SubElement(signal_element_, 'ShRoute')
+    route_element.set("Tag", route_.route_tag)
+    route_element.set("Type", route_.route_type)
+    route_element.set("Id", route_.id)
+    if route_.route_pointer_value:
+        route_element.set("ValueRoutePointer", route_.route_pointer_value)
+    trace_element = ElTr.SubElement(route_element, 'Trace')
+    trace_element.set("Start", route_.trace_begin)
+    trace_element.set("OnCoursePoints", route_.trace_points)
+    trace_element.set("Finish", route_.trace_end)
+    if route_.trace_variants:
+        trace_element.set("Variants", route_.trace_variants)
+    selectors_element = ElTr.SubElement(route_element, 'OperatorSelectors')
+    selectors_element.set("Ends", route_.end_selectors)
+    if route_.route_type == "PpoTrainRoute":
+        dependence_element = ElTr.SubElement(route_element, 'SignalingDependence')
+        dependence_element.set("Dark", route_.next_dark)
+        dependence_element.set("Stop", route_.next_stop)
+        dependence_element.set("OnMain", route_.next_on_main)
+        dependence_element.set("OnMainGreen", route_.next_on_main_green)
+        dependence_element.set("OnSide", route_.next_on_side)
+        dependence_element.set("OnMainALSO", route_.next_also_on_main)
+        dependence_element.set("OnMainGrALSO", route_.next_also_on_main_green)
+        dependence_element.set("OnSideALSO", route_.next_also_on_side)
+        if route_.route_points_before_route:
+            before_route_element = ElTr.SubElement(route_element, 'PointsAnDTrack')
+            before_route_element.set("Points", route_.route_points_before_route)
+    for cn_ in route_.crossroad_notifications:
+        if cn_.crsrd_id is None:
+            continue
+        cn_element = ElTr.SubElement(route_element, 'CrossroadNotification')
+        cn_element.set("RailCrossing", cn_.crsrd_id)
+        cn_element.set("DelayOpenSignal", cn_.crsrd_delay_open)
+        if route_.signal_type == "PpoTrainSignal":
+            cn_element.set("DelayStartNotification", cn_.crsrd_delay_start_notif)
+            cn_element.set("StartNotification", cn_.crsrd_start_notif)
+        if not (cn_.crsrd_notif_point is None):
+            cn_element.set("NotificationPoint", cn_.crsrd_notif_point)
+        if not (cn_.crsrd_before_route_points is None):
+            cn_element.set("Point", cn_.crsrd_before_route_points)
+    return route_element
+
+
+# train_routes_dict = OrderedDict()
+# shunt_trs_routes_dict = OrderedDict()
+# shunt_shs_routes_dict = OrderedDict()
+# for route in routes:
+#     st = route.signal_tag
+#     if route.route_type == "PpoTrainRoute":
+#         if st not in train_routes_dict:
+#             train_routes_dict[st] = []
+#         train_routes_dict[st].append(route)
+#     elif route.signal_type == "PpoTrainSignal":
+#         if st not in shunt_trs_routes_dict:
+#             shunt_trs_routes_dict[st] = []
+#         shunt_trs_routes_dict[st].append(route)
+#     else:
+#         if st not in shunt_shs_routes_dict:
+#             shunt_shs_routes_dict[st] = []
+#         shunt_shs_routes_dict[st].append(route)
+
+# train_route_element = ElTr.Element('Routes')
+# shunt_route_element = ElTr.Element('Routes')
+# for train_signal in train_routes_dict:
+#     signal_element = ElTr.SubElement(train_route_element, 'TrainSignal')
+#     signal_element.set("Tag", train_signal)
+#     signal_element.set("Type", "PpoTrainSignal")
+#     for route in train_routes_dict[train_signal]:
+#         form_route_element(signal_element, route)
+#     if train_signal in shunt_trs_routes_dict:
+#         for route in shunt_trs_routes_dict[train_signal]:
+#             form_route_element(signal_element, route)
+# for shunt_signal in shunt_shs_routes_dict:
+#     signal_element = ElTr.SubElement(shunt_route_element, 'ShuntingSignal')
+#     signal_element.set("Tag", shunt_signal)
+#     signal_element.set("Type", "PpoShuntingSignal")
+#     for route in shunt_shs_routes_dict[shunt_signal]:
+#         form_route_element(signal_element, route)
+#
+# xmlstr_train = xml.dom.minidom.parseString(ElTr.tostring(train_route_element)).toprettyxml()
+# with open('TrainRoute.xml', 'w', encoding='utf-8') as out:
+#     out.write(xmlstr_train)
+# xmlstr_shunt = xml.dom.minidom.parseString(ElTr.tostring(shunt_route_element)).toprettyxml()
+# with open('ShuntingRoute.xml', 'w', encoding='utf-8') as out:
+#     out.write(xmlstr_shunt)
+
+
 # ------------------------------------------------------
 
 
@@ -1303,7 +1389,7 @@ def execute_commands(commands: list[Command]):
 class ModelProcessor:
     def __init__(self):
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
-        self.names_mo: OrderedDict[str, ModelObject] = OrderedDict()
+        self.names_mo: OrderedDict[str, OrderedDict[str, ModelObject]] = OrderedDict()  # cls_name: obj_name: obj
         self.rect_so: list[str] = []
         self.refresh_storages()
 
@@ -1315,7 +1401,9 @@ class ModelProcessor:
 
     def refresh_storages(self):
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_SO})
-        self.names_mo: OrderedDict[str, ModelObject] = OrderedDict({GLOBAL_CS_NAME: GLOBAL_CS_MO})
+        self.names_mo: OrderedDict[str, OrderedDict[str, ModelObject]] = OrderedDict()
+        self.names_mo["CoordinateSystem"]: OrderedDict[str, CoordinateSystemMO] = OrderedDict()
+        self.names_mo["CoordinateSystem"][GLOBAL_CS_NAME] = GLOBAL_CS_MO
         self.rect_so: list[str] = []
 
     def build_dg(self, images: list[StationObjectImage], from_file: bool = False) -> None:
@@ -1472,25 +1560,34 @@ class ModelProcessor:
 
     def build_skeleton(self):
 
+        if "CoordinateSystem" not in self.names_mo:
+            self.names_mo["CoordinateSystem"] = OrderedDict()
+        if "Axis" not in self.names_mo:
+            self.names_mo["Axis"] = OrderedDict()
+        if "Point" not in self.names_mo:
+            self.names_mo["Point"] = OrderedDict()
+        if "Line" not in self.names_mo:
+            self.names_mo["Line"] = OrderedDict()
+
         for image_name in self.rect_so:
             image = self.names_soi[image_name]
 
             if isinstance(image, CoordinateSystemSOI):
-                model_object = CoordinateSystemMO(self.names_mo[image.cs_relative_to.name],
+                model_object = CoordinateSystemMO(self.names_mo["CoordinateSystem"][image.cs_relative_to.name],
                                                   image.x, image.co_x == "true", image.co_y == "true")
                 model_object.name = image_name
-                self.names_mo[image_name] = model_object
+                self.names_mo["CoordinateSystem"][image_name] = model_object
 
             if isinstance(image, AxisSOI):
-                cs_rel: CoordinateSystemMO = self.names_mo[image.cs_relative_to.name]
+                cs_rel: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.cs_relative_to.name]
                 if image.creation_method == CEAxisCreationMethod.translational:
-                    cs_rel_mo: CoordinateSystemMO = self.names_mo[image.cs_relative_to.name]
+                    cs_rel_mo: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.cs_relative_to.name]
                     center_point_x = cs_rel.absolute_x
                     center_point_y = image.y * int(2*(int(cs_rel_mo.absolute_co_y)-0.5))
                     angle = 0
                 else:
                     center_point_soi: PointSOI = image.center_point
-                    center_point_mo: PointMO = self.names_mo[center_point_soi]
+                    center_point_mo: PointMO = self.names_mo["Point"][center_point_soi]
                     center_point_x = center_point_mo.x
                     center_point_y = center_point_mo.y
                     angle = image.alpha
@@ -1503,29 +1600,28 @@ class ModelProcessor:
                 model_object = AxisMO(line2D)
                 model_object.name = image_name
 
-                for model_object_2 in self.names_mo.values():
-                    if isinstance(model_object_2, AxisMO):
-                        try:
-                            lines_intersection(model_object.line2D, model_object_2.line2D)
-                        except ParallelLinesException:
-                            continue
-                        except EquivalentLinesException:
-                            raise BuildSkeletonError("Cannot re-build existing axis")
+                for model_object_2 in self.names_mo["Axis"].values():
+                    model_object_2: AxisMO
+                    try:
+                        lines_intersection(model_object.line2D, model_object_2.line2D)
+                    except ParallelLinesException:
+                        continue
+                    except EquivalentLinesException:
+                        raise BuildSkeletonError("Cannot re-build existing axis")
 
                 if image.creation_method == CEAxisCreationMethod.rotational:
                     center_point_soi: PointSOI = image.center_point
                     model_object.append_point(center_point_soi)
-
-                self.names_mo[image_name] = model_object
+                self.names_mo["Axis"][image_name] = model_object
 
             if isinstance(image, PointSOI):
-                cs_rel: CoordinateSystemMO = self.names_mo[image.cs_relative_to.name]
+                cs_rel: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.cs_relative_to.name]
                 point_x = cs_rel.absolute_x + image.x * cs_rel.absolute_co_x
                 if image.on == CEAxisOrLine.axis:
-                    axis: AxisMO = self.names_mo[image.axis.name]
+                    axis: AxisMO = self.names_mo["Axis"][image.axis.name]
                     pnt2D = lines_intersection(axis.line2D, Line2D(Point2D(point_x, 0), angle=Angle(math.pi / 2)))
                 else:
-                    line: LineMO = self.names_mo[image.line.name]
+                    line: LineMO = self.names_mo["Line"][image.line.name]
                     try:
                         pnt2D_y = line.boundedCurves[0].y_by_x(point_x)
                     except OutBorderException:
@@ -1541,35 +1637,34 @@ class ModelProcessor:
                 model_object = PointMO(pnt2D)
                 model_object.name = image_name
 
-                for model_object_2 in self.names_mo.values():
-                    if isinstance(model_object_2, PointMO):
-                        try:
-                            evaluate_vector(model_object.point2D, model_object_2.point2D)
-                        except PointsEqualException:
-                            raise BuildSkeletonError("Cannot re-build existing point")
+                for model_object_2 in self.names_mo["Point"].values():
+                    model_object_2: PointMO
+                    try:
+                        evaluate_vector(model_object.point2D, model_object_2.point2D)
+                    except PointsEqualException:
+                        raise BuildSkeletonError("Cannot re-build existing point")
 
                 if image.on == CEAxisOrLine.axis:
-                    axis: AxisMO = self.names_mo[image.axis.name]
+                    axis: AxisMO = self.names_mo["Axis"][image.axis.name]
                     self.point_to_axis_handling(model_object, axis)
                 else:
-                    line: LineMO = self.names_mo[image.line.name]
+                    line: LineMO = self.names_mo["Line"][image.line.name]
                     self.point_to_line_handling(model_object, line)
-
-                self.names_mo[image_name] = model_object
+                self.names_mo["Point"][image_name] = model_object
 
             if isinstance(image, LineSOI):
                 points_so: list[PointSOI] = image.points
-                points_mo: list[PointMO] = [self.names_mo[point.name] for point in points_so]
+                points_mo: list[PointMO] = [self.names_mo["Point"][point.name] for point in points_so]
                 point_1, point_2 = points_mo[0], points_mo[1]
                 axises_mo: list[AxisMO] = []
                 for point_so in points_so:
                     if point_so.on == CEAxisOrLine.line:
-                        line_mo: LineMO = self.names_mo[point_so.line.name]
+                        line_mo: LineMO = self.names_mo["Line"][point_so.line.name]
                         if not line_mo.axis:
                             raise BuildSkeletonError("Cannot build line by point on line")
                         axises_mo.append(line_mo.axis)
                     else:
-                        axis_mo: AxisMO = self.names_mo[point_so.axis.name]
+                        axis_mo: AxisMO = self.names_mo["Axis"][point_so.axis.name]
                         axises_mo.append(axis_mo)
                 axis_1, axis_2 = axises_mo[0], axises_mo[1]
                 if axis_1 is axis_2:
@@ -1589,9 +1684,8 @@ class ModelProcessor:
                 if axis_1 is axis_2:
                     self.line_to_axis_handling(model_object, axis_1)
                 else:
-                    self.line_connection_handling(model_object, point_1, point_2)
-
-                self.names_mo[image_name] = model_object
+                    self.line_connection_handling(point_1, point_2)
+                self.names_mo["Line"][image_name] = model_object
 
     def point_to_line_handling(self, point: PointMO, line: LineMO):
         old_points = line.points
@@ -1621,7 +1715,7 @@ class ModelProcessor:
 
         axis.append_point(point)
 
-    def line_connection_handling(self, line: LineMO, pnt_1: PointMO, pnt_2: PointMO):
+    def line_connection_handling(self, pnt_1: PointMO, pnt_2: PointMO):
         min_point, max_point = (pnt_1, pnt_2) if (pnt_1.x < pnt_2.x) else (pnt_2, pnt_1)
 
         try:
@@ -1670,17 +1764,26 @@ class ModelProcessor:
         for link in self.smg.not_inf_links:
             pn_s_ = [ni.pn for ni in link.ni_s]
             pnt_cells_: list[PointCell] = [get_cell_by_class(pn, "PointCell") for pn in pn_s_]
-            link.append_cell_obj(LengthCell(abs(self.names_mo[pnt_cells_[0].name].x -
-                                                self.names_mo[pnt_cells_[1].name].x)))
+            link.append_cell_obj(LengthCell(abs(self.names_mo["Point"][pnt_cells_[0].name].x -
+                                                self.names_mo["Point"][pnt_cells_[1].name].x)))
 
     def build_equipment(self):
+
+        if "Light" not in self.names_mo:
+            self.names_mo["Light"] = OrderedDict()
+        if "RailPoint" not in self.names_mo:
+            self.names_mo["RailPoint"] = OrderedDict()
+        if "Border" not in self.names_mo:
+            self.names_mo["Border"] = OrderedDict()
+        if "Section" not in self.names_mo:
+            self.names_mo["Section"] = OrderedDict()
 
         for image_name in self.rect_so:
             image = self.names_soi[image_name]
 
             if isinstance(image, LightSOI):
-                center_point: PointMO = self.names_mo[image.center_point.name]
-                direct_point: PointMO = self.names_mo[image.direct_point.name]
+                center_point: PointMO = self.names_mo["Point"][image.center_point.name]
+                direct_point: PointMO = self.names_mo["Point"][image.direct_point.name]
 
                 if center_point is direct_point:
                     raise BuildEquipmentError("Direction point is equal to central point")
@@ -1701,12 +1804,12 @@ class ModelProcessor:
                 center_point_node.append_cell_obj(LightCell(model_object.name))
 
                 model_object.name = image_name
-                self.names_mo[image_name] = model_object
+                self.names_mo["Light"][image_name] = model_object
 
             if isinstance(image, RailPointSOI):
-                center_point: PointMO = self.names_mo[image.center_point.name]
-                plus_point: PointMO = self.names_mo[image.dir_plus_point.name]
-                minus_point: PointMO = self.names_mo[image.dir_minus_point.name]
+                center_point: PointMO = self.names_mo["Point"][image.center_point.name]
+                plus_point: PointMO = self.names_mo["Point"][image.dir_plus_point.name]
+                minus_point: PointMO = self.names_mo["Point"][image.dir_minus_point.name]
 
                 # check direction
                 center_point_node = single_element(lambda node:
@@ -1743,17 +1846,17 @@ class ModelProcessor:
 
                 model_object = RailPointMO(center_point, plus_point, minus_point)
                 model_object.name = image_name
-                self.names_mo[image_name] = model_object
+                self.names_mo["RailPoint"][image_name] = model_object
 
             if isinstance(image, BorderSOI):
-                point: PointMO = self.names_mo[image.point.name]
+                point: PointMO = self.names_mo["Point"][image.point.name]
 
                 model_object = BorderMO(point, image.border_type)
                 model_object.name = image_name
-                self.names_mo[image_name] = model_object
+                self.names_mo["Border"][image_name] = model_object
 
             if isinstance(image, SectionSOI):
-                border_points: list[PointMO] = [self.names_mo[point.name] for point in image.border_points]
+                border_points: list[PointMO] = [self.names_mo["Point"][point.name] for point in image.border_points]
                 point_nodes: list[PolarNode] = [single_element(lambda node:
                                                                get_cell_by_class(node, "PointCell").name == point.name,
                                                                self.smg.not_inf_nodes) for point in border_points]
@@ -1773,7 +1876,7 @@ class ModelProcessor:
 
                 model_object = SectionMO(border_points)
                 model_object.name = image_name
-                self.names_mo[image_name] = model_object
+                self.names_mo["Section"][image_name] = model_object
 
     def eval_routes(self):
         pass
