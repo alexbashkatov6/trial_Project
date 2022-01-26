@@ -14,7 +14,7 @@ import xml.dom.minidom
 from custom_enum import CustomEnum
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Element
 from cell_object import CellObject
-from extended_itertools import single_element, recursive_map, flatten, EINotFoundError
+from extended_itertools import single_element, recursive_map, flatten, EINotFoundError, EIManyFoundError
 from graphical_object import Point2D, Angle, Line2D, BoundedCurve, lines_intersection, evaluate_vector, \
     ParallelLinesException, EquivalentLinesException, PointsEqualException, OutBorderException
 
@@ -628,11 +628,11 @@ def read_station_config(dir_name: str) -> list[StationObjectImage]:
     return objs_
 
 
-def get_object_by_name(name, obj_list) -> StationObjectImage:
-    for obj in obj_list:
-        if obj.name == name:
-            return obj
-    assert False, "Name not found"
+# def get_object_by_name(name, obj_list) -> StationObjectImage:
+#     for obj in obj_list:
+#         if obj.name == name:
+#             return obj
+#     assert False, "Name not found"
 
 # -------------------------        CELLS           -------------------- #
 
@@ -705,6 +705,16 @@ def all_cells_of_type(elements: Iterable[Element], cls_name: str) -> dict[CellOb
         result[co] = element
     return result
 
+
+def find_cell_name(elements: Iterable[Element], cls_name: str, name: str) -> Optional[tuple[CellObject, Element]]:
+    cell_candidates = all_cells_of_type(elements, cls_name)
+    try:
+        co = single_element(lambda x: x.name == name, list(cell_candidates.keys()))
+    except EINotFoundError:
+        raise NotFoundCellError("Not found")
+    except EIManyFoundError:
+        raise ManyFoundCellError("More then 1 cell found")
+    return co, cell_candidates[co]
 
 # -------------------------        MODEL CLASSES           -------------------- #
 
@@ -1443,14 +1453,11 @@ class ModelProcessor:
                                 split_names = [attr_value]
                             for split_name in split_names:
                                 if name == split_name:
-                                    node_self: PolarNode = single_element(lambda x:
-                                                                          element_cell_by_type(x, "ImageNameCell").name
-                                                                          == image.name,
-                                                                          self.dg.not_inf_nodes)
-                                    node_parent: PolarNode = single_element(lambda x:
-                                                                            element_cell_by_type(x, "ImageNameCell").name
-                                                                            == name,
-                                                                            self.dg.not_inf_nodes)
+
+                                    node_self: PolarNode = find_cell_name(self.dg.not_inf_nodes,
+                                                                          "ImageNameCell", image.name)[1]
+                                    node_parent: PolarNode = find_cell_name(self.dg.not_inf_nodes,
+                                                                            "ImageNameCell", name)[1]
                                     self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
         else:
             assert False, "build_dg not from file - not implemented"
@@ -1710,10 +1717,10 @@ class ModelProcessor:
                 prev_point, next_point = old_points[i_], old_points[i_+1]
         assert place_found, "point before inserting not found"
         assert next_point, "end of point list"
-        prev_node: PolarNode = single_element(lambda node: element_cell_by_type(node, "PointCell").name == prev_point.name,
-                                              self.smg.not_inf_nodes)
-        next_node: PolarNode = single_element(lambda node: element_cell_by_type(node, "PointCell").name == next_point.name,
-                                              self.smg.not_inf_nodes)
+
+        prev_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", prev_point.name)[1]
+        next_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", next_point.name)[1]
+
         new_point_node = self.smg.insert_node(next_node.ni_nd, prev_node.ni_pu)
         new_point_node.append_cell_obj(PointCell(point.name))
 
@@ -1732,18 +1739,15 @@ class ModelProcessor:
         min_point, max_point = (pnt_1, pnt_2) if (pnt_1.x < pnt_2.x) else (pnt_2, pnt_1)
 
         try:
-            min_node: PolarNode = single_element(lambda node:
-                                                 element_cell_by_type(node, "PointCell").name == min_point.name,
-                                                 self.smg.not_inf_nodes)
-        except EINotFoundError:
+
+            min_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", min_point.name)[1]
+        except NotFoundCellError:
             min_node = self.smg.insert_node()
             min_node.append_cell_obj(PointCell(min_point.name))
 
         try:
-            max_node: PolarNode = single_element(lambda node:
-                                                 element_cell_by_type(node, "PointCell").name == max_point.name,
-                                                 self.smg.not_inf_nodes)
-        except EINotFoundError:
+            max_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", max_point.name)[1]
+        except NotFoundCellError:
             max_node = self.smg.insert_node()
             max_node.append_cell_obj(PointCell(max_point.name))
 
@@ -1761,11 +1765,9 @@ class ModelProcessor:
         last_nd_interface = self.smg.inf_pu.ni_nd
         for line_point in reversed(on_line_points):
             try:
-                point_node: PolarNode = single_element(lambda node:
-                                                       element_cell_by_type(node, "PointCell").name == line_point.name,
-                                                       self.smg.not_inf_nodes)
+                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", line_point.name)[1]
                 self.smg.connect_inf_handling(last_nd_interface, point_node.ni_pu)
-            except EINotFoundError:
+            except NotFoundCellError:
                 point_node = self.smg.insert_node(last_nd_interface)
                 point_node.append_cell_obj(PointCell(line_point.name))
             last_nd_interface = point_node.ni_nd
@@ -1802,13 +1804,8 @@ class ModelProcessor:
                     raise BuildEquipmentError("Direction point is equal to central point")
 
                 # check direction
-                center_point_node: PolarNode = single_element(
-                    lambda node:
-                    element_cell_by_type(node, "PointCell").name == center_point.name,
-                    self.smg.not_inf_nodes)
-                direct_point_node = single_element(lambda node:
-                                                   element_cell_by_type(node, "PointCell").name == direct_point.name,
-                                                   self.smg.not_inf_nodes)
+                center_point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", center_point.name)[1]
+                direct_point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", direct_point.name)[1]
                 if not self.smg.routes_node_to_node(center_point_node, direct_point_node):
                     raise BuildEquipmentError("Route from central point to direction point not found")
 
@@ -1825,15 +1822,9 @@ class ModelProcessor:
                 minus_point: PointMO = self.names_mo["Point"][image.dir_minus_point.name]
 
                 # check direction
-                center_point_node = single_element(lambda node:
-                                                   element_cell_by_type(node, "PointCell").name == center_point.name,
-                                                   self.smg.not_inf_nodes)
-                plus_point_node = single_element(lambda node:
-                                                 element_cell_by_type(node, "PointCell").name == plus_point.name,
-                                                 self.smg.not_inf_nodes)
-                minus_point_node = single_element(lambda node:
-                                                  element_cell_by_type(node, "PointCell").name == minus_point.name,
-                                                  self.smg.not_inf_nodes)
+                center_point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", center_point.name)[1]
+                plus_point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", plus_point.name)[1]
+                minus_point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", minus_point.name)[1]
                 plus_routes, ni_plus = self.smg.routes_node_to_node(center_point_node, plus_point_node)
                 minus_routes, ni_minus = self.smg.routes_node_to_node(center_point_node, minus_point_node)
                 if not plus_routes:
@@ -1870,9 +1861,8 @@ class ModelProcessor:
 
             if isinstance(image, SectionSOI):
                 border_points: list[PointMO] = [self.names_mo["Point"][point.name] for point in image.border_points]
-                point_nodes: list[PolarNode] = [single_element(lambda node:
-                                                               element_cell_by_type(node, "PointCell").name == point.name,
-                                                               self.smg.not_inf_nodes) for point in border_points]
+                point_nodes: list[PolarNode] = [find_cell_name(self.smg.not_inf_nodes, "PointCell", point.name)[1]
+                                                for point in border_points]
                 closed_links = self.smg.closed_links(point_nodes)
                 if not closed_links:
                     raise BuildEquipmentError("No closed links found")
@@ -1895,8 +1885,8 @@ class ModelProcessor:
         routes = []
 
         # 1. Form routes from smg
-        for node in self.smg.not_inf_nodes:
-            pass
+        light_cells_ = all_cells_of_type(self.smg.not_inf_nodes, "LightCell")
+        pass
 
 
 MODEL = ModelProcessor()
@@ -1964,7 +1954,7 @@ if __name__ == "__main__":
     test_6 = False
     if test_6:
         objs = read_station_config(STATION_IN_CONFIG_FOLDER)
-        pnt = get_object_by_name("Point_15", objs)
+        # pnt = get_object_by_name("Point_15", objs)
         print(pnt.dict_possible_values)
         print(pnt.__class__.dict_possible_values)
         # for attr_ in pnt.active_attrs:
@@ -2017,18 +2007,8 @@ if __name__ == "__main__":
         # pnt_15: PointMO = MODEL.names_mo['Axis_1']
         # print(ax_1.line2D)
 
-    test_10 = False
+    test_10 = True
     if test_10:
-
-        def get_point_node_SMG(point_name: str) -> PolarNode:
-            return single_element(lambda node:
-                                  element_cell_by_type(node, "PointCell").name == point_name,
-                                  MODEL.smg.not_inf_nodes)
-
-        def get_point_node_DG(point_name: str) -> PolarNode:
-            return single_element(lambda node:
-                                  element_cell_by_type(node, "ImageNameCell").name == point_name,
-                                  MODEL.dg.not_inf_nodes)
 
         execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
         print(MODEL.names_soi)
@@ -2063,11 +2043,11 @@ if __name__ == "__main__":
         for i in range(20):
             try:
                 pnt_name = "Point_{}".format(str(i+1))
-                pnt_node: PolarNode = get_point_node_SMG(pnt_name)
+                pnt_node: PolarNode = find_cell_name(MODEL.smg.not_inf_nodes, "PointCell", pnt_name)[1]
                 print(pnt_name+" =>", pnt_node)
                 print("nd-connections", [link.opposite_ni(pnt_node.ni_nd).pn for link in pnt_node.ni_nd.links])
                 print("pu-connections", [link.opposite_ni(pnt_node.ni_pu).pn for link in pnt_node.ni_pu.links])
-            except EINotFoundError:
+            except NotFoundCellError:
                 continue
         print("len of links", len(MODEL.smg.links))
         for link in MODEL.smg.not_inf_links:
@@ -2090,7 +2070,7 @@ if __name__ == "__main__":
         light_cells = all_cells_of_type(MODEL.smg.not_inf_nodes, "LightCell")
         print(len(light_cells))
 
-    test_12 = True
+    test_12 = False
     if test_12:
         execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
         MODEL.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
