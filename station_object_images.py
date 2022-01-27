@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ElTr
 import xml.dom.minidom
 
 from custom_enum import CustomEnum
-from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Element, Route
+from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Element, Route, NodeInterface
 from cell_object import CellObject
 from extended_itertools import single_element, recursive_map, flatten, EINotFoundError, EIManyFoundError
 from graphical_object import Point2D, Angle, Line2D, BoundedCurve, lines_intersection, evaluate_vector, \
@@ -643,6 +643,16 @@ class PointCell(CellObject):
         self.name = name
 
 
+class RailPointCell(CellObject):
+    def __init__(self, name: str):
+        self.name = name
+
+
+class BorderCell(CellObject):
+    def __init__(self, name: str):
+        self.name = name
+
+
 class LightCell(CellObject):
     def __init__(self, name: str):
         self.name = name
@@ -881,11 +891,14 @@ class BorderMO(ModelObject):
 
 
 class SectionMO(ModelObject):
-    def __init__(self, points: list[PointMO]):
+    def __init__(self, points: list[PointMO], section_type: CESectionType, rail_points_names: list[str] = None):
         super().__init__()
         self.points = points
-        self.section_type = None
-        self.rail_points = []
+        self.section_type = section_type
+        if not rail_points_names:
+            self.rail_points_names = []
+        else:
+            self.rail_points_names = rail_points_names
 
 
 GLOBAL_CS_SO = CoordinateSystemSOI()
@@ -1815,7 +1828,7 @@ class ModelProcessor:
 
                 model_object = LightMO(image.light_route_type, center_point, routes_node_to_node[1].end_str,
                                        image.colors, image.light_stick_type)
-                center_point_node.append_cell_obj(LightCell(model_object.name))
+                center_point_node.append_cell_obj(LightCell(image_name))
 
                 model_object.name = image_name
                 self.names_mo["Light"][image_name] = model_object
@@ -1862,6 +1875,7 @@ class ModelProcessor:
 
                 model_object = RailPointMO(center_point, plus_point, minus_point,
                                            ni_plus.pn.opposite_ni(ni_plus).end_str)
+                center_point_node.append_cell_obj(RailPointCell(image_name))
                 model_object.name = image_name
                 self.names_mo["RailPoint"][image_name] = model_object
 
@@ -1875,10 +1889,13 @@ class ModelProcessor:
 
             if isinstance(image, BorderSOI):
                 point: PointMO = self.names_mo["Point"][image.point.name]
-                point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", image.point.name)[1]
-                self.smg.
+                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", image.point.name)[1]
+                inf_ni_str = None
+                if point_node in self.smg.nodes_inf_connected:
+                    inf_ni_str = self.smg.nodes_inf_connected[point_node].opposite_end_str
 
-                model_object = BorderMO(point, image.border_type)
+                model_object = BorderMO(point, image.border_type, inf_ni_str)
+                point_node.append_cell_obj(BorderCell(image_name))
                 model_object.name = image_name
                 self.names_mo["Border"][image_name] = model_object
 
@@ -1894,11 +1911,11 @@ class ModelProcessor:
                 border_points: list[PointMO] = [self.names_mo["Point"][point.name] for point in image.border_points]
                 point_nodes: list[PolarNode] = [find_cell_name(self.smg.not_inf_nodes, "PointCell", point.name)[1]
                                                 for point in border_points]
-                closed_links = self.smg.closed_links(point_nodes)
+                closed_links, closed_nodes = self.smg.closed_links_nodes(point_nodes)
                 if not closed_links:
                     raise BuildEquipmentError("No closed links found")
 
-                # links sections
+                # check links sections and make cells
                 for link in closed_links:
                     try:
                         element_cell_by_type(link, "IsolatedSectionCell")
@@ -1908,7 +1925,43 @@ class ModelProcessor:
                         raise BuildEquipmentError("Section in link already exists")
                     link.append_cell_obj(IsolatedSectionCell(image.name))
 
-                model_object = SectionMO(border_points)
+                # section type and rail points
+                rail_points = []
+                if len(closed_links) > 1:
+                    section_type = CESectionType(CESectionType.non_stop)
+                    # print("closed_nodes", closed_nodes)
+                    for node in closed_nodes:
+                        try:
+                            rail_cell: RailPointCell = element_cell_by_type(node, "RailPointCell")
+                        except NotFoundCellError:
+                            continue
+                        # print("appending", rail_cell.name)
+                        rail_points.append(rail_cell.name)
+                else:
+                    link = closed_links.pop()
+                    light_names: dict[str, NodeInterface] = {}
+                    for ni in link.ni_s:
+                        node = ni.pn
+                        try:
+                            light_cell: LightCell = element_cell_by_type(node, "LightCell")
+                        except NotFoundCellError:
+                            continue
+                        light_names[light_cell.name] = ni
+                    if not light_names:
+                        raise BuildEquipmentError("Found segment section |---| with 0 border lights")
+                    if len(light_names) == 2:
+                        section_type = CESectionType(CESectionType.shunt_stop)
+                        for light_name in light_names:
+                            light: LightMO = self.names_mo['Light'][light_name]
+                            link_ni = light_names[light_name]
+                            if (light.route_type == CELightRouteType.train) and (link_ni.end != light.end_forward_tpl1):
+                                section_type = CESectionType(CESectionType.track)
+                                break
+                    else:
+                        section_type = CESectionType(CESectionType.indic)
+
+                model_object = SectionMO(border_points, section_type, rail_points)
+                print("SECTION {}, type={}, rail_points={}".format(image_name, section_type, rail_points))
                 model_object.name = image_name
                 self.names_mo["Section"][image_name] = model_object
 

@@ -69,6 +69,13 @@ class NodeInterface:
             return "pu"
 
     @property
+    def opposite_end_str(self) -> str:
+        if self.end == "nd":
+            return "pu"
+        else:
+            return "nd"
+
+    @property
     def links(self) -> list[Link]:
         return list(self._move_by_link.keys())
 
@@ -578,6 +585,15 @@ class OneComponentTwoSidedPG(PolarGraph):
         return self.nodes - set(self.inf_nodes)
 
     @property
+    def nodes_inf_connected(self) -> dict[PolarNode, NodeInterface]:
+        result = {}
+        for ni in self.inf_ni_s:
+            for link in ni.links:
+                opposite_ni = link.opposite_ni(ni)
+                result[opposite_ni.pn] = opposite_ni
+        return result
+
+    @property
     def not_inf_links(self):
         result = self.links
         for link in self.links:
@@ -700,24 +716,19 @@ class OneComponentTwoSidedPG(PolarGraph):
             nodes |= set(rev_layer)
         return layers
 
-    def closed_links(self, border_nodes: Iterable[PolarNode]) -> set[Link]:
+    def closed_links_nodes(self, border_nodes: Iterable[PolarNode]) -> tuple[set[Link], set[PolarNode]]:
         border_nodes = set(border_nodes)
         route_links = self.route_links_between(border_nodes)
+        internal_nodes = set()
         for link in route_links:
             for ni in link.ni_s:
                 if ni.pn in border_nodes:
                     continue
+                internal_nodes.add(ni.pn)
                 routes = self.walk(ni, border_nodes)
                 if any([route.end_enter_ni in self.inf_ni_s for route in routes]):
-                    return set()
-        return route_links
-
-    def check_node_inf_connected(self, pn: PolarNode) -> bool:
-        for ni in pn.ni_s:
-            connected = any(link.opposite_ni(ni) in self.inf_ni_s for link in ni.links)
-            if connected:
-                return True
-        return False
+                    return set(), set()
+        return route_links, internal_nodes
 
 
 if __name__ == '__main__':
@@ -806,11 +817,11 @@ if __name__ == '__main__':
     #
     # print(pg_3.free_roll().nodes)
 
-    cl = pg_3.closed_links([pn_8, pn_13])
+    cl = pg_3.closed_links_nodes([pn_8, pn_13])
     print(len(cl))
     print(cl)
     print("route_exists =", pg_3.routes_node_to_node(pn_12, pn_13))
-    print("inf connected =", pg_3.check_node_inf_connected(pn_8))
+    print("inf connected =", pg_3.nodes_inf_connected)
     print("links common len =", len(pg_3.links))
     print("links not inf len =", len(pg_3.not_inf_links))
 
