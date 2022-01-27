@@ -2070,16 +2070,141 @@ class ModelProcessor:
                     if (not shunting_slice_repeats) and shunting_route_slice:
                         shunting_route_slices.append(shunting_route_slice)
 
-            print("train_route_slices", len(train_route_slices))
-            print("shunting_route_slices", len(shunting_route_slices))
+            # print("train_route_slices", len(train_route_slices))
+            # print("shunting_route_slices", len(shunting_route_slices))
 
             # 1.2 Route info extraction
-            # rail_routes = []
-            # for train_route_slice in train_route_slices:
-            #     rail_route = RailRoute(len(rail_routes)+1)
+            routes = []
+            train_routes = []
+            shunting_routes = []
+            for train_route_slice in train_route_slices:
+                train_route = RailRoute(len(routes)+1)
 
-                # 1.2.1
-                # rail_route.signal_type
+                # route_type
+                train_route.route_type = "PpoTrainRoute"
+
+                # tag_end_eval
+                end_node = train_route_slice.nodes[-1]
+                light_cell: LightCell = element_cell_by_type(end_node, "LightCell")
+                end_light_name = light_cell.name
+                train_route.route_tag = "{}_{}".format(light.name, end_light_name)
+
+                # trace_begin
+                train_route.trace_begin = light.name
+
+                # trace_points
+                trace_point_directions = []
+                for link in train_route_slice.links:
+                    for ni in link.ni_s:
+                        move_ = ni.get_move_by_link(link)
+                        try:
+                            rpdc_: RailPointDirectionCell = element_cell_by_type(move_, "RailPointDirectionCell")
+                        except NotFoundCellError:
+                            pass
+                        else:
+                            trace_point_directions.append(rpdc_.direction)
+                train_route.trace_points = " ".join(trace_point_directions)
+
+                # trace_end
+                try:
+                    border_cell: BorderCell = element_cell_by_type(end_node, "BorderCell")
+                    trace_end = border_cell.name
+                except NotFoundCellError:
+                    trace_end = element_cell_by_type(end_node, "LightCell").name
+                train_route.trace_end = trace_end
+
+                # finish_selectors
+                end_link = train_route_slice.links[-1]
+                end_section_cell: IsolatedSectionCell = element_cell_by_type(end_link, "IsolatedSectionCell")
+                end_section: SectionMO = self.names_mo["Section"][end_section_cell.name]
+                finish_selectors = [end_light_name]
+                if end_section.section_type == CESectionType.track:
+                    node_before_end = train_route_slice.nodes[-2]
+                    before_end_light_cell: LightCell = element_cell_by_type(node_before_end, "LightCell")
+                    finish_selectors.append(before_end_light_cell.name)
+                train_route.end_selectors = " ".join(finish_selectors)
+
+                train_routes.append(train_route)
+                routes.append(train_route)
+
+            for shunting_route_slice in shunting_route_slices:
+                shunting_route = RailRoute(len(routes)+1)
+
+                # route_type
+                shunting_route.route_type = "PpoShuntingRoute"
+
+                # tag_end_eval
+                end_node = shunting_route_slice.nodes[-1]
+                # try:
+                #     end_light: LightCell = element_cell_by_type(end_node, "LightCell")
+                #     end_light_name = end_light.name
+                # except NotFoundCellError:
+                #     before_end_node = shunting_route_slice.nodes[-2]
+                #     light_before_end_cell: LightCell = element_cell_by_type(before_end_node, "LightCell")
+                #     end_light_name = light_before_end_cell.name
+                # else:
+                try:
+                    element_cell_by_type(end_node, "BorderCell")  # border_cell: BorderCell =
+                except NotFoundCellError:
+                    end_light: LightCell = element_cell_by_type(end_node, "LightCell")
+                    end_light_name = end_light.name
+                else:
+                    before_end_node = shunting_route_slice.nodes[-2]
+                    light_before_end_cell: LightCell = element_cell_by_type(before_end_node, "LightCell")
+                    end_light_name = light_before_end_cell.name
+
+                shunting_route.route_tag = "{}_{}".format(light.name, end_light_name)
+                print()
+                print("route_tag", shunting_route.route_tag)
+
+                # trace_begin
+                shunting_route.trace_begin = light.name
+
+                # trace_points
+                trace_point_directions = []
+                for link in shunting_route_slice.links:
+                    for ni in link.ni_s:
+                        move_ = ni.get_move_by_link(link)
+                        try:
+                            rpdc_: RailPointDirectionCell = element_cell_by_type(move_, "RailPointDirectionCell")
+                        except NotFoundCellError:
+                            pass
+                        else:
+                            trace_point_directions.append(rpdc_.direction)
+                shunting_route.trace_points = " ".join(trace_point_directions)
+                print("trace_points", shunting_route.trace_points)
+
+                # trace_end
+                end_link = shunting_route_slice.links[-1]
+                end_section_cell: IsolatedSectionCell = element_cell_by_type(end_link, "IsolatedSectionCell")
+                end_section: SectionMO = self.names_mo["Section"][end_section_cell.name]
+                try:
+                    border_cell: BorderCell = element_cell_by_type(end_node, "BorderCell")
+                except NotFoundCellError:
+                    trace_end = element_cell_by_type(end_node, "LightCell").name
+                else:
+                    if (end_section.section_type == CESectionType.indic) or \
+                            (end_section.section_type == CESectionType.shunt_stop):
+                        trace_end = end_section.name
+                    else:
+                        trace_end = border_cell.name
+
+                shunting_route.trace_end = trace_end
+                print("trace_end", shunting_route.trace_end)
+
+                # finish_selectors
+                finish_selectors = [end_light_name]
+                if (end_section.section_type == CESectionType.track) or\
+                        (end_section.section_type == CESectionType.shunt_stop):
+                    node_before_end = shunting_route_slice.nodes[-2]
+                    before_end_light_cell: LightCell = element_cell_by_type(node_before_end, "LightCell")
+                    if before_end_light_cell.name not in finish_selectors:
+                        finish_selectors.append(before_end_light_cell.name)
+                shunting_route.end_selectors = " ".join(finish_selectors)
+                print("end_selectors", shunting_route.end_selectors)
+
+                shunting_routes.append(shunting_route)
+                routes.append(shunting_route)
 
 
 MODEL = ModelProcessor()
