@@ -863,37 +863,31 @@ class LineMO(ModelObject):
 
 
 class LightMO(ModelObject):
-    def __init__(self, route_type: CELightRouteType, center_point: PointMO, end_forward_tpl1: str,
+    def __init__(self, route_type: CELightRouteType, end_forward_tpl1: str,
                  colors: list[CELightColor], stick_type: CELightStickType):
         super().__init__()
         self.route_type = route_type
-        self.center_point = center_point
         self.end_forward_tpl1 = end_forward_tpl1
         self.colors = colors
         self.stick_type = stick_type
 
 
 class RailPointMO(ModelObject):
-    def __init__(self, center_point: PointMO, plus_point: PointMO, minus_point: PointMO, end_tpl0: str):
+    def __init__(self, end_tpl0: str):
         super().__init__()
-        self.center_point = center_point
-        self.plus_point = plus_point
-        self.minus_point = minus_point
         self.end_tpl0 = end_tpl0
 
 
 class BorderMO(ModelObject):
-    def __init__(self, point: PointMO, border_type: CEBorderType, end_not_inf_tpl0: Optional[str] = None):
+    def __init__(self, border_type: CEBorderType, end_not_inf_tpl0: Optional[str] = None):
         super().__init__()
-        self.point = point
         self.border_type = border_type
         self.end_not_inf_tpl0 = end_not_inf_tpl0
 
 
 class SectionMO(ModelObject):
-    def __init__(self, points: list[PointMO], section_type: CESectionType, rail_points_names: list[str] = None):
+    def __init__(self, section_type: CESectionType, rail_points_names: list[str] = None):
         super().__init__()
-        self.points = points
         self.section_type = section_type
         if not rail_points_names:
             self.rail_points_names = []
@@ -1826,7 +1820,7 @@ class ModelProcessor:
                 if not routes_node_to_node:
                     raise BuildEquipmentError("Route from central point to direction point not found")
 
-                model_object = LightMO(image.light_route_type, center_point, routes_node_to_node[1].end_str,
+                model_object = LightMO(image.light_route_type, routes_node_to_node[1].end_str,
                                        image.colors, image.light_stick_type)
                 center_point_node.append_cell_obj(LightCell(image_name))
 
@@ -1873,8 +1867,7 @@ class ModelProcessor:
                 minus_move = ni_minus.get_move_by_link(minus_link)
                 minus_move.append_cell_obj(RailPointDirectionCell("-{}".format(image.name)))
 
-                model_object = RailPointMO(center_point, plus_point, minus_point,
-                                           ni_plus.pn.opposite_ni(ni_plus).end_str)
+                model_object = RailPointMO(ni_plus.pn.opposite_ni(ni_plus).end_str)
                 center_point_node.append_cell_obj(RailPointCell(image_name))
                 model_object.name = image_name
                 self.names_mo["RailPoint"][image_name] = model_object
@@ -1894,7 +1887,7 @@ class ModelProcessor:
                 if point_node in self.smg.nodes_inf_connected:
                     inf_ni_str = self.smg.nodes_inf_connected[point_node].opposite_end_str
 
-                model_object = BorderMO(point, image.border_type, inf_ni_str)
+                model_object = BorderMO(image.border_type, inf_ni_str)
                 point_node.append_cell_obj(BorderCell(image_name))
                 model_object.name = image_name
                 self.names_mo["Border"][image_name] = model_object
@@ -1925,17 +1918,15 @@ class ModelProcessor:
                         raise BuildEquipmentError("Section in link already exists")
                     link.append_cell_obj(IsolatedSectionCell(image.name))
 
-                # section type and rail points
+                # section type and rail points evaluations
                 rail_points = []
                 if len(closed_links) > 1:
                     section_type = CESectionType(CESectionType.non_stop)
-                    # print("closed_nodes", closed_nodes)
                     for node in closed_nodes:
                         try:
                             rail_cell: RailPointCell = element_cell_by_type(node, "RailPointCell")
                         except NotFoundCellError:
                             continue
-                        # print("appending", rail_cell.name)
                         rail_points.append(rail_cell.name)
                 else:
                     link = closed_links.pop()
@@ -1948,7 +1939,7 @@ class ModelProcessor:
                             continue
                         light_names[light_cell.name] = ni
                     if not light_names:
-                        raise BuildEquipmentError("Found segment section |---| with 0 border lights")
+                        raise BuildEquipmentError("Found segment section |-----| with 0 border lights")
                     if len(light_names) == 2:
                         section_type = CESectionType(CESectionType.shunt_stop)
                         for light_name in light_names:
@@ -1960,8 +1951,7 @@ class ModelProcessor:
                     else:
                         section_type = CESectionType(CESectionType.indic)
 
-                model_object = SectionMO(border_points, section_type, rail_points)
-                print("SECTION {}, type={}, rail_points={}".format(image_name, section_type, rail_points))
+                model_object = SectionMO(section_type, rail_points)
                 model_object.name = image_name
                 self.names_mo["Section"][image_name] = model_object
 
@@ -1969,7 +1959,69 @@ class ModelProcessor:
         routes = []
 
         # 1. Form routes from smg
-        light_cells_ = all_cells_of_type(self.smg.not_inf_nodes, "LightCell")
+        light_cells_: dict[LightCell, PolarNode] = all_cells_of_type(self.smg.not_inf_nodes, "LightCell")
+        for light_cell in light_cells_:
+            print("For light ", light_cell.name)
+            light: LightMO = self.names_mo["Light"][light_cell.name]
+            start_ni = light_cells_[light_cell].ni_by_end(light.end_forward_tpl1)
+            routes = self.smg.walk(start_ni)
+            route_slices: list[Route] = []
+
+            # 1.1 Slices extraction
+            for route in routes:
+                slice_repeats = False
+                not_possible_end_train = False
+                route_slice = None
+                for ni in route.outer_ni_s[1:]:
+                    node = ni.pn
+
+                    # 1.1.1 Check if node is light
+                    light_cell = None
+                    try:
+                        light_cell: LightCell = element_cell_by_type(node, "LightCell")
+                    except NotFoundCellError:
+                        pass
+                    if light_cell:
+                        light_found: LightMO = self.names_mo["Light"][light_cell.name]
+                        if ni.end == light_found.end_forward_tpl1:
+                            if (light.route_type == CELightRouteType.shunt) or\
+                                    (light.route_type == CELightRouteType.train) \
+                                    and (light_found.route_type == CELightRouteType.train):
+                                route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
+                                for old_route_slice in route_slices:
+                                    if set(old_route_slice.nodes) == set(route_slice.nodes):
+                                        slice_repeats = True
+                                        break
+                                break
+
+                    # 1.1.2 Check if node is border
+                    border_cell = None
+                    try:
+                        border_cell: BorderCell = element_cell_by_type(node, "BorderCell")
+                    except NotFoundCellError:
+                        pass
+                    if border_cell:
+                        border_found: BorderMO = self.names_mo["Border"][border_cell.name]
+                        if (light.route_type == CELightRouteType.train) and\
+                            (border_found.border_type == CEBorderType.standoff):
+                            not_possible_end_train = True
+                            break
+                        route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
+                        for old_route_slice in route_slices:
+                            if set(old_route_slice.nodes) == set(route_slice.nodes):
+                                slice_repeats = True
+                                break
+                        break
+
+                if (not slice_repeats) and (not not_possible_end_train) and route_slice:
+                    print("Slice append")
+                    route_slices.append(route_slice)
+
+            # 1.2 Route info extraction
+
+
+                # else:
+                #     print("SHUNT SIGNAL")
 
 
 MODEL = ModelProcessor()
@@ -2090,7 +2142,7 @@ if __name__ == "__main__":
         # pnt_15: PointMO = MODEL.names_mo['Axis_1']
         # print(ax_1.line2D)
 
-    test_10 = True
+    test_10 = False
     if test_10:
 
         execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
@@ -2153,7 +2205,7 @@ if __name__ == "__main__":
         light_cells = all_cells_of_type(MODEL.smg.not_inf_nodes, "LightCell")
         print(len(light_cells))
 
-    test_12 = False
+    test_12 = True
     if test_12:
         execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
         MODEL.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
