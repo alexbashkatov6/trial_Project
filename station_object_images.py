@@ -1277,6 +1277,53 @@ def form_route_element(signal_element_, route_: RailRoute) -> ElTr.Element:
             cn_element.set("Point", cn_.crsrd_before_route_points)
     return route_element
 
+# 2. List of routes to xml
+
+# def form_route_element(signal_element_, route_: Route) -> ElTr.Element:
+#     if route_.route_type == "PpoTrainRoute":
+#         route_element = ElTr.SubElement(signal_element_, 'TrRoute')
+#     else:
+#         route_element = ElTr.SubElement(signal_element_, 'ShRoute')
+#     route_element.set("Tag", route_.route_tag)
+#     route_element.set("Type", route_.route_type)
+#     route_element.set("Id", route_.id)
+#     if route_.route_pointer_value:
+#         route_element.set("ValueRoutePointer", route_.route_pointer_value)
+#     trace_element = ElTr.SubElement(route_element, 'Trace')
+#     trace_element.set("Start", route_.trace_begin)
+#     trace_element.set("OnCoursePoints", route_.trace_points)
+#     trace_element.set("Finish", route_.trace_end)
+#     if route_.trace_variants:
+#         trace_element.set("Variants", route_.trace_variants)
+#     selectors_element = ElTr.SubElement(route_element, 'OperatorSelectors')
+#     selectors_element.set("Ends", route_.end_selectors)
+#     if route_.route_type == "PpoTrainRoute":
+#         dependence_element = ElTr.SubElement(route_element, 'SignalingDependence')
+#         dependence_element.set("Dark", route_.next_dark)
+#         dependence_element.set("Stop", route_.next_stop)
+#         dependence_element.set("OnMain", route_.next_on_main)
+#         dependence_element.set("OnMainGreen", route_.next_on_main_green)
+#         dependence_element.set("OnSide", route_.next_on_side)
+#         dependence_element.set("OnMainALSO", route_.next_also_on_main)
+#         dependence_element.set("OnMainGrALSO", route_.next_also_on_main_green)
+#         dependence_element.set("OnSideALSO", route_.next_also_on_side)
+#         if route_.route_points_before_route:
+#             before_route_element = ElTr.SubElement(route_element, 'PointsAnDTrack')
+#             before_route_element.set("Points", route_.route_points_before_route)
+#     for cn_ in route_.crossroad_notifications:
+#         if cn_.crsrd_id is None:
+#             continue
+#         cn_element = ElTr.SubElement(route_element, 'CrossroadNotification')
+#         cn_element.set("RailCrossing", cn_.crsrd_id)
+#         cn_element.set("DelayOpenSignal", cn_.crsrd_delay_open)
+#         if route_.signal_type == "PpoTrainSignal":
+#             cn_element.set("DelayStartNotification", cn_.crsrd_delay_start_notif)
+#             cn_element.set("StartNotification", cn_.crsrd_start_notif)
+#         if not (cn_.crsrd_notif_point is None):
+#             cn_element.set("NotificationPoint", cn_.crsrd_notif_point)
+#         if not (cn_.crsrd_before_route_points is None):
+#             cn_element.set("Point", cn_.crsrd_before_route_points)
+#     return route_element
 
 # train_routes_dict = OrderedDict()
 # shunt_trs_routes_dict = OrderedDict()
@@ -1956,12 +2003,11 @@ class ModelProcessor:
                 self.names_mo["Section"][image_name] = model_object
 
     def eval_routes(self, train_routes_file_name, shunting_routes_file_name):
-        routes = []
 
         # 1. Form routes from smg
         light_cells_: dict[LightCell, PolarNode] = all_cells_of_type(self.smg.not_inf_nodes, "LightCell")
         for light_cell in light_cells_:
-            print("For light ", light_cell.name)
+            # print("For light ", light_cell.name)
             light: LightMO = self.names_mo["Light"][light_cell.name]
             start_ni = light_cells_[light_cell].ni_by_end(light.end_forward_tpl1)
             routes = self.smg.walk(start_ni)
@@ -2154,8 +2200,8 @@ class ModelProcessor:
                     end_light_name = light_before_end_cell.name
 
                 shunting_route.route_tag = "{}_{}".format(light.name, end_light_name)
-                print()
-                print("route_tag", shunting_route.route_tag)
+                # print()
+                # print("route_tag", shunting_route.route_tag)
 
                 # trace_begin
                 shunting_route.trace_begin = light.name
@@ -2172,7 +2218,7 @@ class ModelProcessor:
                         else:
                             trace_point_directions.append(rpdc_.direction)
                 shunting_route.trace_points = " ".join(trace_point_directions)
-                print("trace_points", shunting_route.trace_points)
+                # print("trace_points", shunting_route.trace_points)
 
                 # trace_end
                 end_link = shunting_route_slice.links[-1]
@@ -2190,7 +2236,7 @@ class ModelProcessor:
                         trace_end = border_cell.name
 
                 shunting_route.trace_end = trace_end
-                print("trace_end", shunting_route.trace_end)
+                # print("trace_end", shunting_route.trace_end)
 
                 # finish_selectors
                 finish_selectors = [end_light_name]
@@ -2201,10 +2247,16 @@ class ModelProcessor:
                     if before_end_light_cell.name not in finish_selectors:
                         finish_selectors.append(before_end_light_cell.name)
                 shunting_route.end_selectors = " ".join(finish_selectors)
-                print("end_selectors", shunting_route.end_selectors)
+                # print("end_selectors", shunting_route.end_selectors)
 
                 shunting_routes.append(shunting_route)
                 routes.append(shunting_route)
+
+        # 2. Xml form
+        train_routes_file_full_name = os.path.join(os.getcwd(), "eval_results", train_routes_file_name)
+        shunting_routes_file_full_name = os.path.join(os.getcwd(), "eval_results", shunting_routes_file_name)
+        print("train_routes_file_full_name", train_routes_file_full_name)
+        print("shunting_routes_file_full_name", shunting_routes_file_full_name)
 
 
 MODEL = ModelProcessor()
