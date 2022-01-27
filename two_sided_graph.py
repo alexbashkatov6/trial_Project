@@ -246,6 +246,12 @@ class Route:
         else:
             self._links = links
 
+    def __eq__(self, other: Route):
+        return (self.start_ni is other.start_ni) and (set(self.nodes) == set(other.nodes))
+
+    def __hash__(self):
+        return id(self)
+
     @property
     def start_ni(self) -> NodeInterface:
         return self._start_ni

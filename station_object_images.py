@@ -1965,63 +1965,121 @@ class ModelProcessor:
             light: LightMO = self.names_mo["Light"][light_cell.name]
             start_ni = light_cells_[light_cell].ni_by_end(light.end_forward_tpl1)
             routes = self.smg.walk(start_ni)
-            route_slices: list[Route] = []
+            train_route_slices: list[Route] = []
+            shunting_route_slices: list[Route] = []
+
+            # 1.0 Is enter signal check
+            is_enter_signal = False
+            if light.route_type == CELightRouteType.train:
+                try:
+                    element_cell_by_type(start_ni.pn, "BorderCell")
+                except NotFoundCellError:
+                    pass
+                else:
+                    is_enter_signal = True
 
             # 1.1 Slices extraction
             for route in routes:
-                slice_repeats = False
-                not_possible_end_train = False
-                route_slice = None
-                for ni in route.outer_ni_s[1:]:
-                    node = ni.pn
 
-                    # 1.1.1 Check if node is light
-                    light_cell = None
-                    try:
-                        light_cell: LightCell = element_cell_by_type(node, "LightCell")
-                    except NotFoundCellError:
-                        pass
-                    if light_cell:
-                        light_found: LightMO = self.names_mo["Light"][light_cell.name]
-                        if ni.end == light_found.end_forward_tpl1:
-                            if (light.route_type == CELightRouteType.shunt) or\
-                                    (light.route_type == CELightRouteType.train) \
-                                    and (light_found.route_type == CELightRouteType.train):
-                                route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
-                                for old_route_slice in route_slices:
-                                    if set(old_route_slice.nodes) == set(route_slice.nodes):
-                                        slice_repeats = True
+                # 1.1.1 Train routes slices extraction
+                if light.route_type == CELightRouteType.train:
+
+                    train_slice_repeats = False
+                    not_possible_end_train = False
+                    train_route_slice = None
+                    for ni in route.outer_ni_s[1:]:
+                        node = ni.pn
+
+                        # 1.1.1.1 Check if node is light
+                        light_cell = None
+                        try:
+                            light_cell: LightCell = element_cell_by_type(node, "LightCell")
+                        except NotFoundCellError:
+                            pass
+                        if light_cell:
+                            light_found: LightMO = self.names_mo["Light"][light_cell.name]
+                            if ni.end == light_found.end_forward_tpl1:
+                                if light_found.route_type == CELightRouteType.train:
+                                    train_route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
+                                    for old_train_route_slice in train_route_slices:
+                                        if old_train_route_slice == train_route_slice:
+                                            train_slice_repeats = True
+                                            break
+                                    break
+
+                        # 1.1.1.2 Check if node is border
+                        border_cell = None
+                        try:
+                            border_cell: BorderCell = element_cell_by_type(node, "BorderCell")
+                        except NotFoundCellError:
+                            pass
+                        if border_cell:
+                            border_found: BorderMO = self.names_mo["Border"][border_cell.name]
+                            if (light.route_type == CELightRouteType.train) and\
+                               (border_found.border_type == CEBorderType.standoff):
+                                not_possible_end_train = True
+                                break
+                            train_route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
+                            for old_route_slice in train_route_slices:
+                                if old_route_slice == train_route_slice:
+                                    train_slice_repeats = True
+                                    break
+                            break
+
+                    if (not train_slice_repeats) and (not not_possible_end_train) and train_route_slice:
+                        train_route_slices.append(train_route_slice)
+
+                # 1.1.2 Shunting routes slices extraction
+                if not is_enter_signal:
+                    shunting_slice_repeats = False
+                    shunting_route_slice = None
+                    for ni in route.outer_ni_s[1:]:
+                        node = ni.pn
+
+                        # 1.1.2.1 Check if node is light
+                        light_cell = None
+                        try:
+                            light_cell: LightCell = element_cell_by_type(node, "LightCell")
+                        except NotFoundCellError:
+                            pass
+                        if light_cell:
+                            light_found: LightMO = self.names_mo["Light"][light_cell.name]
+                            if ni.end == light_found.end_forward_tpl1:
+                                shunting_route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
+                                for old_shunting_route_slice in shunting_route_slices:
+                                    if old_shunting_route_slice == shunting_route_slice:
+                                        shunting_slice_repeats = True
                                         break
                                 break
 
-                    # 1.1.2 Check if node is border
-                    border_cell = None
-                    try:
-                        border_cell: BorderCell = element_cell_by_type(node, "BorderCell")
-                    except NotFoundCellError:
-                        pass
-                    if border_cell:
-                        border_found: BorderMO = self.names_mo["Border"][border_cell.name]
-                        if (light.route_type == CELightRouteType.train) and\
-                            (border_found.border_type == CEBorderType.standoff):
-                            not_possible_end_train = True
+                        # 1.1.2.2 Check if node is border
+                        border_cell = None
+                        try:
+                            border_cell: BorderCell = element_cell_by_type(node, "BorderCell")
+                        except NotFoundCellError:
+                            pass
+                        if border_cell:
+                            # border_found: BorderMO = self.names_mo["Border"][border_cell.name]
+                            shunting_route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
+                            for old_shunting_route_slice in shunting_route_slices:
+                                if old_shunting_route_slice == shunting_route_slice:
+                                    shunting_slice_repeats = True
+                                    break
                             break
-                        route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
-                        for old_route_slice in route_slices:
-                            if set(old_route_slice.nodes) == set(route_slice.nodes):
-                                slice_repeats = True
-                                break
-                        break
 
-                if (not slice_repeats) and (not not_possible_end_train) and route_slice:
-                    print("Slice append")
-                    route_slices.append(route_slice)
+                    if (not shunting_slice_repeats) and shunting_route_slice:
+                        shunting_route_slices.append(shunting_route_slice)
+
+            print("train_route_slices", len(train_route_slices))
+            print("shunting_route_slices", len(shunting_route_slices))
 
             # 1.2 Route info extraction
+            # rail_routes = []
+            # for train_route_slice in train_route_slices:
+            #     rail_route = RailRoute(len(rail_routes)+1)
 
-
-                # else:
-                #     print("SHUNT SIGNAL")
+                # 1.2.1
+                # rail_route.signal_type
 
 
 MODEL = ModelProcessor()
