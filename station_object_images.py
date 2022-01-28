@@ -1277,97 +1277,6 @@ def form_route_element(signal_element_, route_: RailRoute) -> ElTr.Element:
             cn_element.set("Point", cn_.crsrd_before_route_points)
     return route_element
 
-# 2. List of routes to xml
-
-# def form_route_element(signal_element_, route_: Route) -> ElTr.Element:
-#     if route_.route_type == "PpoTrainRoute":
-#         route_element = ElTr.SubElement(signal_element_, 'TrRoute')
-#     else:
-#         route_element = ElTr.SubElement(signal_element_, 'ShRoute')
-#     route_element.set("Tag", route_.route_tag)
-#     route_element.set("Type", route_.route_type)
-#     route_element.set("Id", route_.id)
-#     if route_.route_pointer_value:
-#         route_element.set("ValueRoutePointer", route_.route_pointer_value)
-#     trace_element = ElTr.SubElement(route_element, 'Trace')
-#     trace_element.set("Start", route_.trace_begin)
-#     trace_element.set("OnCoursePoints", route_.trace_points)
-#     trace_element.set("Finish", route_.trace_end)
-#     if route_.trace_variants:
-#         trace_element.set("Variants", route_.trace_variants)
-#     selectors_element = ElTr.SubElement(route_element, 'OperatorSelectors')
-#     selectors_element.set("Ends", route_.end_selectors)
-#     if route_.route_type == "PpoTrainRoute":
-#         dependence_element = ElTr.SubElement(route_element, 'SignalingDependence')
-#         dependence_element.set("Dark", route_.next_dark)
-#         dependence_element.set("Stop", route_.next_stop)
-#         dependence_element.set("OnMain", route_.next_on_main)
-#         dependence_element.set("OnMainGreen", route_.next_on_main_green)
-#         dependence_element.set("OnSide", route_.next_on_side)
-#         dependence_element.set("OnMainALSO", route_.next_also_on_main)
-#         dependence_element.set("OnMainGrALSO", route_.next_also_on_main_green)
-#         dependence_element.set("OnSideALSO", route_.next_also_on_side)
-#         if route_.route_points_before_route:
-#             before_route_element = ElTr.SubElement(route_element, 'PointsAnDTrack')
-#             before_route_element.set("Points", route_.route_points_before_route)
-#     for cn_ in route_.crossroad_notifications:
-#         if cn_.crsrd_id is None:
-#             continue
-#         cn_element = ElTr.SubElement(route_element, 'CrossroadNotification')
-#         cn_element.set("RailCrossing", cn_.crsrd_id)
-#         cn_element.set("DelayOpenSignal", cn_.crsrd_delay_open)
-#         if route_.signal_type == "PpoTrainSignal":
-#             cn_element.set("DelayStartNotification", cn_.crsrd_delay_start_notif)
-#             cn_element.set("StartNotification", cn_.crsrd_start_notif)
-#         if not (cn_.crsrd_notif_point is None):
-#             cn_element.set("NotificationPoint", cn_.crsrd_notif_point)
-#         if not (cn_.crsrd_before_route_points is None):
-#             cn_element.set("Point", cn_.crsrd_before_route_points)
-#     return route_element
-
-# train_routes_dict = OrderedDict()
-# shunt_trs_routes_dict = OrderedDict()
-# shunt_shs_routes_dict = OrderedDict()
-# for route in routes:
-#     st = route.signal_tag
-#     if route.route_type == "PpoTrainRoute":
-#         if st not in train_routes_dict:
-#             train_routes_dict[st] = []
-#         train_routes_dict[st].append(route)
-#     elif route.signal_type == "PpoTrainSignal":
-#         if st not in shunt_trs_routes_dict:
-#             shunt_trs_routes_dict[st] = []
-#         shunt_trs_routes_dict[st].append(route)
-#     else:
-#         if st not in shunt_shs_routes_dict:
-#             shunt_shs_routes_dict[st] = []
-#         shunt_shs_routes_dict[st].append(route)
-
-# train_route_element = ElTr.Element('Routes')
-# shunt_route_element = ElTr.Element('Routes')
-# for train_signal in train_routes_dict:
-#     signal_element = ElTr.SubElement(train_route_element, 'TrainSignal')
-#     signal_element.set("Tag", train_signal)
-#     signal_element.set("Type", "PpoTrainSignal")
-#     for route in train_routes_dict[train_signal]:
-#         form_route_element(signal_element, route)
-#     if train_signal in shunt_trs_routes_dict:
-#         for route in shunt_trs_routes_dict[train_signal]:
-#             form_route_element(signal_element, route)
-# for shunt_signal in shunt_shs_routes_dict:
-#     signal_element = ElTr.SubElement(shunt_route_element, 'ShuntingSignal')
-#     signal_element.set("Tag", shunt_signal)
-#     signal_element.set("Type", "PpoShuntingSignal")
-#     for route in shunt_shs_routes_dict[shunt_signal]:
-#         form_route_element(signal_element, route)
-#
-# xmlstr_train = xml.dom.minidom.parseString(ElTr.tostring(train_route_element)).toprettyxml()
-# with open('TrainRoute.xml', 'w', encoding='utf-8') as out:
-#     out.write(xmlstr_train)
-# xmlstr_shunt = xml.dom.minidom.parseString(ElTr.tostring(shunt_route_element)).toprettyxml()
-# with open('ShuntingRoute.xml', 'w', encoding='utf-8') as out:
-#     out.write(xmlstr_shunt)
-
 
 # ------------------------------------------------------
 
@@ -2004,6 +1913,10 @@ class ModelProcessor:
 
     def eval_routes(self, train_routes_file_name, shunting_routes_file_name):
 
+        train_light_routes_dict: OrderedDict[str, tuple[list[RailRoute], list[RailRoute]]] = OrderedDict()
+        shunting_light_routes_dict: OrderedDict[str, list[RailRoute]] = OrderedDict()
+
+        route_id = 1
         # 1. Form routes from smg
         light_cells_: dict[LightCell, PolarNode] = all_cells_of_type(self.smg.not_inf_nodes, "LightCell")
         for light_cell in light_cells_:
@@ -2120,11 +2033,11 @@ class ModelProcessor:
             # print("shunting_route_slices", len(shunting_route_slices))
 
             # 1.2 Route info extraction
-            routes = []
             train_routes = []
             shunting_routes = []
+
             for train_route_slice in train_route_slices:
-                train_route = RailRoute(len(routes)+1)
+                train_route = RailRoute(route_id)
 
                 # route_type
                 train_route.route_type = "PpoTrainRoute"
@@ -2170,11 +2083,11 @@ class ModelProcessor:
                     finish_selectors.append(before_end_light_cell.name)
                 train_route.end_selectors = " ".join(finish_selectors)
 
+                route_id += 1
                 train_routes.append(train_route)
-                routes.append(train_route)
 
             for shunting_route_slice in shunting_route_slices:
-                shunting_route = RailRoute(len(routes)+1)
+                shunting_route = RailRoute(route_id)
 
                 # route_type
                 shunting_route.route_type = "PpoShuntingRoute"
@@ -2249,14 +2162,81 @@ class ModelProcessor:
                 shunting_route.end_selectors = " ".join(finish_selectors)
                 # print("end_selectors", shunting_route.end_selectors)
 
+                route_id += 1
                 shunting_routes.append(shunting_route)
-                routes.append(shunting_route)
 
-        # 2. Xml form
-        train_routes_file_full_name = os.path.join(os.getcwd(), "eval_results", train_routes_file_name)
-        shunting_routes_file_full_name = os.path.join(os.getcwd(), "eval_results", shunting_routes_file_name)
+            if light.route_type == CELightRouteType.train:
+                train_light_routes_dict[light.name] = (train_routes, shunting_routes)
+            else:
+                shunting_light_routes_dict[light.name] = shunting_routes
+
+        # 2. Xml formation
+        sub_folder = "eval_results"
+        train_routes_file_full_name = os.path.join(os.getcwd(), sub_folder, train_routes_file_name)
+        shunting_routes_file_full_name = os.path.join(os.getcwd(), sub_folder, shunting_routes_file_name)
         print("train_routes_file_full_name", train_routes_file_full_name)
         print("shunting_routes_file_full_name", shunting_routes_file_full_name)
+        print(train_light_routes_dict)
+
+        train_route_element = ElTr.Element('Routes')
+        shunting_route_element = ElTr.Element('Routes')
+
+        for light_name in train_light_routes_dict:
+            train_routes, shunting_routes = train_light_routes_dict[light_name]
+            signal_element = ElTr.SubElement(train_route_element, 'TrainSignal')
+            signal_element.set("Tag", light_name)
+            signal_element.set("Type", "PpoTrainSignal")
+            for route in train_routes:
+                form_route_element(signal_element, route)
+            for route in shunting_routes:
+                form_route_element(signal_element, route)
+
+        for light_name in shunting_light_routes_dict:
+            shunting_routes = shunting_light_routes_dict[light_name]
+            signal_element = ElTr.SubElement(shunting_route_element, 'ShuntingSignal')
+            signal_element.set("Tag", light_name)
+            signal_element.set("Type", "PpoShuntingSignal")
+            for route in shunting_routes:
+                form_route_element(signal_element, route)
+
+        xml_str_train = xml.dom.minidom.parseString(ElTr.tostring(train_route_element)).toprettyxml()
+        with open(train_routes_file_full_name, 'w', encoding='utf-8') as out:
+            out.write(xml_str_train)
+        xml_str_shunt = xml.dom.minidom.parseString(ElTr.tostring(shunting_route_element)).toprettyxml()
+        with open(shunting_routes_file_full_name, 'w', encoding='utf-8') as out:
+            out.write(xml_str_shunt)
+
+
+# train_routes_dict = OrderedDict()
+# shunt_trs_routes_dict = OrderedDict()
+# shunt_shs_routes_dict = OrderedDict()
+# for route in routes:
+#     st = route.signal_tag
+#     if route.route_type == "PpoTrainRoute":
+#         if st not in train_routes_dict:
+#             train_routes_dict[st] = []
+#         train_routes_dict[st].append(route)
+#     elif route.signal_type == "PpoTrainSignal":
+#         if st not in shunt_trs_routes_dict:
+#             shunt_trs_routes_dict[st] = []
+#         shunt_trs_routes_dict[st].append(route)
+#     else:
+#         if st not in shunt_shs_routes_dict:
+#             shunt_shs_routes_dict[st] = []
+#         shunt_shs_routes_dict[st].append(route)
+# for shunt_signal in shunt_shs_routes_dict:
+#     signal_element = ElTr.SubElement(shunt_route_element, 'ShuntingSignal')
+#     signal_element.set("Tag", shunt_signal)
+#     signal_element.set("Type", "PpoShuntingSignal")
+#     for route in shunt_shs_routes_dict[shunt_signal]:
+#         form_route_element(signal_element, route)
+#
+# xmlstr_train = xml.dom.minidom.parseString(ElTr.tostring(train_route_element)).toprettyxml()
+# with open('TrainRoute.xml', 'w', encoding='utf-8') as out:
+#     out.write(xmlstr_train)
+# xmlstr_shunt = xml.dom.minidom.parseString(ElTr.tostring(shunt_route_element)).toprettyxml()
+# with open('ShuntingRoute.xml', 'w', encoding='utf-8') as out:
+#     out.write(xmlstr_shunt)
 
 
 MODEL = ModelProcessor()
