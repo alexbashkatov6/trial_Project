@@ -17,8 +17,7 @@ class ManyFoundCellError(CellError):
     pass
 
 
-def element_cell_by_type(el: Element, cls: Type) -> CellObject:
-    # cls = eval(cls_name)
+def element_cell_by_type(el: Element, cls: Type[CellObject]) -> CellObject:
     found_cells = set()
     for cell in el.cell_objs:
         if isinstance(cell, cls):
@@ -30,7 +29,7 @@ def element_cell_by_type(el: Element, cls: Type) -> CellObject:
     return found_cells.pop()
 
 
-def all_cells_of_type(elements: Iterable[Element], cls: Type) -> dict[CellObject, Element]:
+def all_cells_of_type(elements: Iterable[Element], cls: Type[CellObject]) -> dict[CellObject, Element]:
     result = {}
     for element in elements:
         try:
@@ -41,7 +40,8 @@ def all_cells_of_type(elements: Iterable[Element], cls: Type) -> dict[CellObject
     return result
 
 
-def find_cell_name(elements: Iterable[Element], cls: Type, name: str) -> Optional[tuple[CellObject, Element]]:
+def find_cell_name(elements: Iterable[Element], cls: Type[CellObject], name: str) -> \
+        Optional[tuple[CellObject, Element]]:
     cell_candidates = all_cells_of_type(elements, cls)
     try:
         co = single_element(lambda x: x.name == name, list(cell_candidates.keys()))

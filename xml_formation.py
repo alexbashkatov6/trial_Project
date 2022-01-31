@@ -38,13 +38,13 @@ def form_route_element(signal_element_, route_: RailRoute) -> ElTr.Element:
             before_route_element = ElTr.SubElement(route_element, 'PointsAnDTrack')
             before_route_element.set("Points", route_.route_points_before_route)
     for cn_ in route_.crossroad_notifications:
-        if cn_.crsrd_id is None:
+        if cn_.crossroad_id is None:
             continue
         cn_element = ElTr.SubElement(route_element, 'CrossroadNotification')
-        cn_element.set("RailCrossing", cn_.crsrd_id)
-        cn_element.set("DelayOpenSignal", cn_.crsrd_delay_open)
+        cn_element.set("RailCrossing", cn_.crossroad_id)
+        cn_element.set("DelayOpenSignal", cn_.crossroad_delay_open)
         if route_.signal_type == "PpoTrainSignal":
-            cn_element.set("DelayStartNotification", cn_.crsrd_delay_start_notif)
+            cn_element.set("DelayStartNotification", cn_.crossroad_delay_start_notif)
             cn_element.set("StartNotification", cn_.crsrd_start_notif)
         if not (cn_.crsrd_notif_point is None):
             cn_element.set("NotificationPoint", cn_.crsrd_notif_point)

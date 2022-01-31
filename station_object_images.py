@@ -24,55 +24,59 @@ from config_names import GLOBAL_CS_NAME, STATION_OUT_CONFIG_FOLDER, STATION_IN_C
 
 # ------------        EXCEPTIONS        ------------ #
 
-class BuildSkeletonError(Exception):
+# ------------        MODEL BUILD EXCEPTIONS        ------------ #
+
+class ModelBuildError(Exception):
     pass
 
 
-class BuildEquipmentError(Exception):
+class MBSkeletonError(ModelBuildError):
     pass
 
 
-class NotImplementedCoError(Exception):
+class MBEquipmentError(ModelBuildError):
     pass
 
 
-class RepeatingPointsCOError(Exception):
+# ------------        ATTRIBUTE EVALUATIONS EXCEPTIONS        ------------ #
+
+
+class AttributeEvaluateError(Exception):
     pass
 
 
-class LineDefinitionByPointsCOError(Exception):
+class AEPreSemanticError(AttributeEvaluateError):
     pass
 
 
-class RequiredAttributeNotDefinedCOError(Exception):
+class AERequiredAttributeError(AttributeEvaluateError):
     pass
 
 
-class ObjectNotFoundCoError(Exception):
+class AEObjectNotFoundError(AttributeEvaluateError):
     pass
 
 
-class NoNameCoError(Exception):
+class AETypeAttributeError(AttributeEvaluateError):
     pass
 
 
-class ExistingNameCoError(Exception):
+# ------------        DEPENDENCIES BUILD EXCEPTIONS        ------------ #
+
+
+class DependenciesBuildError(Exception):
     pass
 
 
-class TypeCoError(Exception):
+class DBNoNameError(DependenciesBuildError):
     pass
 
 
-class SyntaxCoError(Exception):
+class DBExistingNameError(DependenciesBuildError):
     pass
 
 
-class SemanticCoError(Exception):
-    pass
-
-
-class CycleError(Exception):
+class DBCycleError(DependenciesBuildError):
     pass
 
 
@@ -835,18 +839,18 @@ def check_expected_type(str_value: str, attr_name: str, image_object: StationObj
     attr_descr: BaseAttrDescriptor = getattr(image_object.__class__, attr_name)
     if issubclass(attr_descr.expected_type, StationObjectImage):
         if str_value not in names_dict:
-            raise ObjectNotFoundCoError("Object {} not found".format(str_value))
+            raise AEObjectNotFoundError("Object {} not found".format(str_value))
         rel_image = names_dict[str_value]
         if not isinstance(rel_image, attr_descr.expected_type):
-            raise TypeCoError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
+            raise AETypeAttributeError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
         setattr(image_object, "_{}".format(attr_name), names_dict[str_value])
     else:
         try:
             result = eval(str_value)
         except (ValueError, NameError, SyntaxError):
-            raise TypeCoError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
+            raise AETypeAttributeError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
         if not isinstance(result, attr_descr.expected_type):
-            raise TypeCoError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
+            raise AETypeAttributeError("Object {} not satisfy required type {}".format(str_value, attr_descr.str_expected_type))
         setattr(image_object, "_{}".format(attr_name), result)
 
 
@@ -855,7 +859,7 @@ def default_attrib_evaluation(attr_name: str, image: StationObjectImage, names_d
         setattr(image, "_{}".format(attr_name), None)
         str_attr_value = getattr(image, "_str_{}".format(attr_name))
         if not getattr(image, "_str_{}".format(attr_name)):
-            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
         else:
             check_expected_type(str_attr_value, attr_name, image, names_dict)
 
@@ -937,9 +941,9 @@ class ModelProcessor:
             self.refresh_storages()
             for image in images:
                 if not image.name:
-                    raise NoNameCoError("No-name-object in class {} found".format(image.__class__.__name__))
+                    raise DBNoNameError("No-name-object in class {} found".format(image.__class__.__name__))
                 if image.name in self.names_soi:
-                    raise ExistingNameCoError("Name {} already exist".format(image.name))
+                    raise DBExistingNameError("Name {} already exist".format(image.name))
                 node = self.dg.insert_node()
                 node.append_cell_obj(ImageNameCell(image.name))
                 self.names_soi[image.name] = image
@@ -969,7 +973,7 @@ class ModelProcessor:
         dg = self.dg
         routes = dg.walk(dg.inf_pu.ni_nd)
         if any([route_.is_cycle for route_ in routes]):
-            raise CycleError("Cycle in dependencies was found")
+            raise DBCycleError("Cycle in dependencies was found")
 
     def rectify_dg(self):
         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global_CS
@@ -999,7 +1003,7 @@ class ModelProcessor:
                         setattr(image, "_{}".format(attr_name), None)
                         str_attr_value = getattr(image, "_str_{}".format(attr_name))
                         if not getattr(image, "_str_{}".format(attr_name)):
-                            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+                            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
                         else:
                             setattr(image, "_{}".format(attr_name), PicketCoordinate(str_attr_value).value)
 
@@ -1009,24 +1013,24 @@ class ModelProcessor:
                         setattr(image, "_{}".format(attr_name), None)
                         str_attr_value: str = getattr(image, "_str_{}".format(attr_name))
                         if not getattr(image, "_str_{}".format(attr_name)):
-                            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+                            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
                         else:
                             str_points = str_attr_value.split(" ")
                             if len(str_points) < 2:
-                                raise LineDefinitionByPointsCOError("Count of points should be 2, given count <2")
+                                raise AEPreSemanticError("Count of points should be 2, given count <2")
                             if len(str_points) > 2:
-                                raise LineDefinitionByPointsCOError("Count of points should be 2, given count >2")
+                                raise AEPreSemanticError("Count of points should be 2, given count >2")
                             str_points: list[str]
                             if str_points[0] == str_points[1]:
-                                raise LineDefinitionByPointsCOError("Given points are equal, cannot build line")
+                                raise AEPreSemanticError("Given points are equal, cannot build line")
                             pnts_list = []
                             for str_value in str_points:
                                 if str_value not in self.names_soi:
-                                    raise ObjectNotFoundCoError("Object {} not found".format(str_value))
+                                    raise AEObjectNotFoundError("Object {} not found".format(str_value))
                                 rel_image = self.names_soi[str_value]
                                 if not isinstance(rel_image, PointSOI):
-                                    raise TypeCoError("Object {} not satisfy required type {}"
-                                                      .format(str_value, "PointSOI"))
+                                    raise AETypeAttributeError("Object {} not satisfy required type {}"
+                                                               .format(str_value, "PointSOI"))
                                 pnts_list.append(rel_image)
                             setattr(image, "_{}".format(attr_name), pnts_list)
 
@@ -1038,15 +1042,15 @@ class ModelProcessor:
                         setattr(image, "_{}".format(attr_name), None)
                         str_attr_value: str = getattr(image, "_str_{}".format(attr_name))
                         if not getattr(image, "_str_{}".format(attr_name)):
-                            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+                            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
                         else:
                             str_colors = str_attr_value.split(" ")
                             color_counts = dict(Counter(str_colors))
                             for str_color in color_counts:
                                 if str_color not in CELightColor.possible_values:
-                                    raise TypeCoError("Color {} for light not possible".format(str_color))
+                                    raise AETypeAttributeError("Color {} for light not possible".format(str_color))
                                 if color_counts[str_color] > 1 and str_color != "yellow":
-                                    raise TypeCoError("More then 2 lamps for color {} not possible".format(str_color))
+                                    raise AETypeAttributeError("More then 2 lamps for color {} not possible".format(str_color))
                             setattr(image, "_{}".format(attr_name), str_colors)
 
                 if isinstance(image, RailPointSOI):
@@ -1063,19 +1067,19 @@ class ModelProcessor:
                         setattr(image, "_{}".format(attr_name), None)
                         str_attr_value: str = getattr(image, "_str_{}".format(attr_name))
                         if not getattr(image, "_str_{}".format(attr_name)):
-                            raise RequiredAttributeNotDefinedCOError("Attribute {} required".format(attr_name))
+                            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
                         else:
                             str_points = str_attr_value.split(" ")
                             if len(set(str_points)) < len(str_points):
-                                raise RepeatingPointsCOError("Points in section border repeating")
+                                raise AEPreSemanticError("Points in section border repeating")
                             pnts_list = []
                             for str_value in str_points:
                                 if str_value not in self.names_soi:
-                                    raise ObjectNotFoundCoError("Object {} not found".format(str_value))
+                                    raise AEObjectNotFoundError("Object {} not found".format(str_value))
                                 rel_image = self.names_soi[str_value]
                                 if not isinstance(rel_image, PointSOI):
-                                    raise TypeCoError("Object {} not satisfy required type {}"
-                                                      .format(str_value, "PointSOI"))
+                                    raise AETypeAttributeError("Object {} not satisfy required type {}"
+                                                               .format(str_value, "PointSOI"))
                                 pnts_list.append(rel_image)
                             setattr(image, "_{}".format(attr_name), pnts_list)
         else:
@@ -1115,9 +1119,9 @@ class ModelProcessor:
                     center_point_y = center_point_mo.y
                     angle = image.alpha
                     if center_point_soi.on == CEAxisOrLine.line:
-                        raise BuildSkeletonError("Building axis by point on line is impossible")
+                        raise MBSkeletonError("Building axis by point on line is impossible")
                     if Angle(angle) == Angle(math.pi/2):
-                        raise BuildSkeletonError("Building vertical axis is impossible")
+                        raise MBSkeletonError("Building vertical axis is impossible")
                 line2D = Line2D(Point2D(center_point_x, center_point_y), angle=Angle(angle))
 
                 model_object = AxisMO(line2D)
@@ -1130,7 +1134,7 @@ class ModelProcessor:
                     except ParallelLinesException:
                         continue
                     except EquivalentLinesException:
-                        raise BuildSkeletonError("Cannot re-build existing axis")
+                        raise MBSkeletonError("Cannot re-build existing axis")
 
                 if image.creation_method == CEAxisCreationMethod.rotational:
                     center_point_soi: PointSOI = image.center_point
@@ -1149,12 +1153,12 @@ class ModelProcessor:
                         pnt2D_y = line.boundedCurves[0].y_by_x(point_x)
                     except OutBorderException:
                         if len(line.boundedCurves) == 1:
-                            raise BuildSkeletonError("Point out of borders")
+                            raise MBSkeletonError("Point out of borders")
                         else:
                             try:
                                 pnt2D_y = line.boundedCurves[1].y_by_x(point_x)
                             except OutBorderException:
-                                raise BuildSkeletonError("Point out of borders")
+                                raise MBSkeletonError("Point out of borders")
                     pnt2D = Point2D(point_x, pnt2D_y)
 
                 model_object = PointMO(pnt2D)
@@ -1165,7 +1169,7 @@ class ModelProcessor:
                     try:
                         evaluate_vector(model_object.point2D, model_object_2.point2D)
                     except PointsEqualException:
-                        raise BuildSkeletonError("Cannot re-build existing point")
+                        raise MBSkeletonError("Cannot re-build existing point")
 
                 if image.on == CEAxisOrLine.axis:
                     axis: AxisMO = self.names_mo["Axis"][image.axis.name]
@@ -1184,7 +1188,7 @@ class ModelProcessor:
                     if point_so.on == CEAxisOrLine.line:
                         line_mo: LineMO = self.names_mo["Line"][point_so.line.name]
                         if not line_mo.axis:
-                            raise BuildSkeletonError("Cannot build line by point on line")
+                            raise MBSkeletonError("Cannot build line by point on line")
                         axises_mo.append(line_mo.axis)
                     else:
                         axis_mo: AxisMO = self.names_mo["Axis"][point_so.axis.name]
@@ -1263,7 +1267,7 @@ class ModelProcessor:
             if (line.min_point.x > old_line.max_point.x) or (old_line.min_point.x > line.max_point.x):
                 continue
             else:
-                raise BuildSkeletonError("lines intersection on axis found")
+                raise MBSkeletonError("lines intersection on axis found")
         on_line_points = axis_points[axis_points.index(line.min_point):axis_points.index(line.max_point)+1]
         last_nd_interface = self.smg.inf_pu.ni_nd
         for line_point in reversed(on_line_points):
@@ -1298,14 +1302,14 @@ class ModelProcessor:
                 direct_point: PointMO = self.names_mo["Point"][image.direct_point.name]
 
                 if center_point is direct_point:
-                    raise BuildEquipmentError("Direction point is equal to central point")
+                    raise MBEquipmentError("Direction point is equal to central point")
 
                 # check direction
                 center_point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, center_point.name)[1]
                 direct_point_node = find_cell_name(self.smg.not_inf_nodes, PointCell, direct_point.name)[1]
                 routes_node_to_node = self.smg.routes_node_to_node(center_point_node, direct_point_node)
                 if not routes_node_to_node:
-                    raise BuildEquipmentError("Route from central point to direction point not found")
+                    raise MBEquipmentError("Route from central point to direction point not found")
 
                 model_object = LightMO(image.light_route_type, routes_node_to_node[1].end_str,
                                        image.colors, image.light_stick_type)
@@ -1334,15 +1338,15 @@ class ModelProcessor:
                 plus_routes, ni_plus = self.smg.routes_node_to_node(center_point_node, plus_point_node)
                 minus_routes, ni_minus = self.smg.routes_node_to_node(center_point_node, minus_point_node)
                 if not plus_routes:
-                    raise BuildEquipmentError("Route from central point to '+' point not found")
+                    raise MBEquipmentError("Route from central point to '+' point not found")
                 if not minus_routes:
-                    raise BuildEquipmentError("Route from central point to '-' point not found")
+                    raise MBEquipmentError("Route from central point to '-' point not found")
                 for plus_route in plus_routes:
                     for minus_route in minus_routes:
                         if plus_route.partially_overlaps(minus_route):
-                            raise BuildEquipmentError("Cannot understand '+' and '-' directions because their overlaps")
+                            raise MBEquipmentError("Cannot understand '+' and '-' directions because their overlaps")
                 if not (ni_plus is ni_minus):
-                    raise BuildEquipmentError("Defined '+' or '-' direction is equal to 0-direction")
+                    raise MBEquipmentError("Defined '+' or '-' direction is equal to 0-direction")
 
                 # + and - move cells
                 plus_route = plus_routes[0]
@@ -1392,7 +1396,7 @@ class ModelProcessor:
                                                 for point in border_points]
                 closed_links, closed_nodes = self.smg.closed_links_nodes(point_nodes)
                 if not closed_links:
-                    raise BuildEquipmentError("No closed links found")
+                    raise MBEquipmentError("No closed links found")
 
                 # check links sections and make cells
                 for link in closed_links:
@@ -1401,7 +1405,7 @@ class ModelProcessor:
                     except NotFoundCellError:
                         pass
                     else:
-                        raise BuildEquipmentError("Section in link already exists")
+                        raise MBEquipmentError("Section in link already exists")
                     link.append_cell_obj(IsolatedSectionCell(image.name))
 
                 # section type and rail points evaluations
@@ -1425,7 +1429,7 @@ class ModelProcessor:
                             continue
                         light_names[light_cell.name] = ni
                     if not light_names:
-                        raise BuildEquipmentError("Found segment section |-----| with 0 border lights")
+                        raise MBEquipmentError("Found segment section |-----| with 0 border lights")
                     if len(light_names) == 2:
                         section_type = CESectionType(CESectionType.shunt_stop)
                         for light_name in light_names:

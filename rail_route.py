@@ -6,100 +6,100 @@ class CrossroadNotification:
     def __init__(self, cn_route: RailRoute, num: int):
         self.route = cn_route
         self.num = num
-        self._crsrd_id = None
-        self._crsrd_delay_open = None
-        self._crsrd_delay_start_notif = None
-        self._crsrd_start_notif = None
-        self._crsrd_notif_point = None  # not required
-        self._crsrd_before_route_points = None  # not required
+        self._crossroad_id = None
+        self._crossroad_delay_open = None
+        self._crossroad_delay_start_notif = None
+        self._crossroad_start_notif = None
+        self._crossroad_notif_point = None  # not required
+        self._crossroad_before_route_points = None  # not required
 
     @property
-    def crsrd_id(self):
-        return self._crsrd_id
+    def crossroad_id(self):
+        return self._crossroad_id
 
-    @crsrd_id.setter
-    def crsrd_id(self, value):
+    @crossroad_id.setter
+    def crossroad_id(self, value):
         if (not value) or value.isspace():
             return
-        self._crsrd_id = value
+        self._crossroad_id = value
 
     @property
-    def crsrd_delay_open(self):
-        return self._crsrd_delay_open
+    def crossroad_delay_open(self):
+        return self._crossroad_delay_open
 
-    @crsrd_delay_open.setter
-    def crsrd_delay_open(self, value):
+    @crossroad_delay_open.setter
+    def crossroad_delay_open(self, value):
         if (not value) or value.isspace():
             return
-        self.route.int_checker(value, 'crsrd_delay_open_{}'.format(self.num), 0)
-        self._crsrd_delay_open = value
+        self.route.int_checker(value, 'crossroad_delay_open_{}'.format(self.num), 0)
+        self._crossroad_delay_open = value
 
     @property
-    def crsrd_delay_start_notif(self):
-        return self._crsrd_delay_start_notif
+    def crossroad_delay_start_notif(self):
+        return self._crossroad_delay_start_notif
 
-    @crsrd_delay_start_notif.setter
-    def crsrd_delay_start_notif(self, value):
+    @crossroad_delay_start_notif.setter
+    def crossroad_delay_start_notif(self, value):
         if (not value) or value.isspace():
             return
-        self.route.int_checker(value, 'crsrd_delay_start_notif_{}'.format(self.num), 0)
-        self._crsrd_delay_start_notif = value
+        self.route.int_checker(value, 'crossroad_delay_start_notif_{}'.format(self.num), 0)
+        self._crossroad_delay_start_notif = value
 
     @property
     def crsrd_start_notif(self):
-        return self._crsrd_start_notif
+        return self._crossroad_start_notif
 
     @crsrd_start_notif.setter
     def crsrd_start_notif(self, value):
         if (not value) or value.isspace():
             return
         # ! implement here check start_notif in list of available values
-        self._crsrd_start_notif = value
+        self._crossroad_start_notif = value
 
     @property
     def crsrd_notif_point(self):
-        return self._crsrd_notif_point
+        return self._crossroad_notif_point
 
     @crsrd_notif_point.setter
     def crsrd_notif_point(self, value):
         if (not value) or value.isspace():
             return
-        self.route.int_checker(value, 'crsrd_notif_point_{}'.format(self.num))
-        self._crsrd_notif_point = value
+        self.route.int_checker(value, 'crossroad_notif_point_{}'.format(self.num))
+        self._crossroad_notif_point = value
 
     @property
     def crsrd_before_route_points(self):
-        return self._crsrd_before_route_points
+        return self._crossroad_before_route_points
 
     @crsrd_before_route_points.setter
     def crsrd_before_route_points(self, value):
         if (not value) or value.isspace():
             return
-        self.route.route_points_checker(value, 'crsrd_before_route_points_{}'.format(self.num))
-        self._crsrd_before_route_points = value
+        self.route.route_points_checker(value, 'crossroad_before_route_points_{}'.format(self.num))
+        self._crossroad_before_route_points = value
 
     def check_required_params(self):
         if self.route.signal_type == "PpoTrainSignal":
-            if self.crsrd_id is None:
-                assert (self.crsrd_delay_open is None) and (self.crsrd_delay_start_notif is None) and \
+            if self.crossroad_id is None:
+                assert (self.crossroad_delay_open is None) and (self.crossroad_delay_start_notif is None) and \
                        (self.crsrd_start_notif is None) and (self.crsrd_notif_point is None) and \
                        (self.crsrd_before_route_points is None), \
                        "Id expected for Crossroad_{} in line {}".format(self.num, self.route.id)
             else:
-                assert not (self.crsrd_delay_open is None), "Expected delay_open for Crossroad_{} in line {}".\
+                assert not (self.crossroad_delay_open is None), "Expected delay_open for Crossroad_{} in line {}".\
                     format(self.num, self.route.id)
-                assert not (self.crsrd_delay_start_notif is None), \
+                assert not (self.crossroad_delay_start_notif is None), \
                     "Expected delay_start_notif for Crossroad_{} in line {}".format(self.num, self.route.id)
                 assert not (self.crsrd_start_notif is None), "Expected start_notif for Crossroad_{} in line {}".\
                     format(self.num, self.route.id)
         elif self.route.signal_type == "PpoShuntingSignal":
-            if self.crsrd_id is None:
-                assert (self.crsrd_delay_open is None) and (self.crsrd_delay_start_notif is None) and \
+            if self.crossroad_id is None:
+                assert (self.crossroad_delay_open is None) and (self.crossroad_delay_start_notif is None) and \
                        (self.crsrd_start_notif is None) and (self.crsrd_notif_point is None) and \
                        (self.crsrd_before_route_points is None), \
                        "Id expected for Crossroad_{} in line {}".format(self.num, self.route.id)
             else:
-                assert not (self.crsrd_delay_open is None), "Expected delay_open for Crossroad_{} in line {}".\
+                assert not (self.crossroad_delay_open is None), "Expected delay_open for Crossroad_{} in line {}".\
                     format(self.num, self.route.id)
         else:
             assert False, "Signal type {} not exists".format(self.route.signal_type)
