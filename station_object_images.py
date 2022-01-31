@@ -1,26 +1,23 @@
 from __future__ import annotations
-from typing import Type, Optional, Union, Iterable
+from typing import Type, Optional, Union
 from collections import OrderedDict, Counter
-from copy import copy
 import pandas as pd
 import os
-from abc import abstractmethod
-from numbers import Real
 import math
-import re
-import xml.etree.ElementTree as ElTr
-import xml.dom.minidom
 
 from custom_enum import CustomEnum
-from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Element, Route, NodeInterface
+from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Route, NodeInterface
 from cell_object import CellObject
-from extended_itertools import single_element, recursive_map, flatten, EINotFoundError, EIManyFoundError
+from extended_itertools import flatten
 from graphical_object import Point2D, Angle, Line2D, BoundedCurve, lines_intersection, evaluate_vector, \
     ParallelLinesException, EquivalentLinesException, PointsEqualException, OutBorderException
+from cell_access_functions import NotFoundCellError, element_cell_by_type, all_cells_of_type, find_cell_name
+from picket_coordinate import PicketCoordinate
+from rail_route import RailRoute
+from xml_formation import form_rail_routes_xml
 
-GLOBAL_CS_NAME = "GlobalCS"
-STATION_OUT_CONFIG_FOLDER = "station_out_config"
-STATION_IN_CONFIG_FOLDER = "station_in_config"
+from config_names import GLOBAL_CS_NAME, STATION_OUT_CONFIG_FOLDER, STATION_IN_CONFIG_FOLDER
+
 
 # -------------------------        OBJECT IMAGES CLASSES        ------------------------- #
 
@@ -48,10 +45,6 @@ class LineDefinitionByPointsCOError(Exception):
 
 
 class RequiredAttributeNotDefinedCOError(Exception):
-    pass
-
-
-class PicketCoordinateParsingCoError(Exception):
     pass
 
 
@@ -153,55 +146,47 @@ class SOIAttrSeqTemplate:
     def __get__(self, instance, owner) -> list[str]:
 
         if owner == CoordinateSystemSOI:
-            return [x.name for x in
-                    [CoordinateSystemSOI.cs_relative_to,
-                     CoordinateSystemSOI.dependence,
-                     CoordinateSystemSOI.x,
-                     CoordinateSystemSOI.co_x,
-                     CoordinateSystemSOI.co_y]]
+            return ["cs_relative_to",
+                    "dependence",
+                    "x",
+                    "co_x",
+                    "co_y"]
 
         if owner == AxisSOI:
-            return [x.name for x in
-                    [AxisSOI.cs_relative_to,
-                     AxisSOI.creation_method,
-                     AxisSOI.y,
-                     AxisSOI.center_point,
-                     AxisSOI.alpha]]
+            return ["cs_relative_to",
+                    "creation_method",
+                    "y",
+                    "center_point",
+                    "alpha"]
 
         if owner == PointSOI:
-            return [x.name for x in
-                    [PointSOI.on,
-                     PointSOI.axis,
-                     PointSOI.line,
-                     PointSOI.cs_relative_to,
-                     PointSOI.x]]
+            return ["on",
+                    "axis",
+                    "line",
+                    "cs_relative_to",
+                    "x"]
 
         if owner == LineSOI:
-            return [x.name for x in
-                    [LineSOI.points]]
+            return ["points"]
 
         if owner == LightSOI:
-            return [x.name for x in
-                    [LightSOI.light_route_type,
-                     LightSOI.center_point,
-                     LightSOI.direct_point,
-                     LightSOI.colors,
-                     LightSOI.light_stick_type]]
+            return ["light_route_type",
+                    "center_point",
+                    "direct_point",
+                    "colors",
+                    "light_stick_type"]
 
         if owner == RailPointSOI:
-            return [x.name for x in
-                    [RailPointSOI.center_point,
-                     RailPointSOI.dir_plus_point,
-                     RailPointSOI.dir_minus_point]]
+            return ["center_point",
+                    "dir_plus_point",
+                    "dir_minus_point"]
 
         if owner == BorderSOI:
-            return [x.name for x in
-                    [BorderSOI.point,
-                     BorderSOI.border_type]]
+            return ["point",
+                    "border_type"]
 
         if owner == SectionSOI:
-            return [x.name for x in
-                    [SectionSOI.border_points]]
+            return ["border_points"]
 
     def __set__(self, instance, value):
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
@@ -279,14 +264,14 @@ class SOIListValues:
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
 
 
-def predict_name(instance: StationObjectImage) -> str:
-    i = 0
-    cls_name = instance.__class__.__name__
-    while True:
-        i += 1
-        predicted_name = "{}_{}".format(cls_name, i)
-        if predicted_name not in SOIS.names_list:
-            return predicted_name
+# def predict_name(instance: StationObjectImage) -> str:
+#     i = 0
+#     cls_name = instance.__class__.__name__
+#     while True:
+#         i += 1
+#         predicted_name = "{}_{}".format(cls_name, i)
+#         if predicted_name not in SOIS.names_list:
+#             return predicted_name
 
 
 class SOIName:
@@ -531,68 +516,63 @@ class SOIEventHandler:
     pass
 
 
-class SOIStorage:
-    """ dumb class storage  """
-    def __init__(self):
-        self.class_objects: OrderedDict[str, OrderedDict[str, StationObjectImage]] = OrderedDict()
-        for cls in StationObjectImage.__subclasses__():
-            self.class_objects[cls.__name__] = OrderedDict()
-        self.add_new_object(CoordinateSystemSOI(), GLOBAL_CS_NAME)
-
-    def add_new_object(self, obj: StationObjectImage, name: str = None):
-        if name:
-            assert isinstance(obj, CoordinateSystemSOI) and (name == GLOBAL_CS_NAME), "Parameter only for GCS"
-        else:
-            name = obj.name
-        self.class_objects[obj.__class__.__name__][name] = obj
-
-    def get_object(self, name) -> StationObjectImage:
-        for obj_dict in self.class_objects.values():
-            if name in obj_dict:
-                return obj_dict[name]
-        assert False, "Name not found"
-
-    @property
-    def names_list(self) -> list[str]:
-        nl = []
-        for obj_dict in self.class_objects.values():
-            nl.extend(obj_dict.keys())
-        return nl
-
-
-SOIS = SOIStorage()
-
-
-class SOISelector:
-    """ selected object editing """
-    def __init__(self):
-        self.current_object: Optional[StationObjectImage] = None
-        self.is_new_object = True
-
-    def create_empty_object(self, cls_name: str):
-        assert cls_name in SOIS.class_objects, "Class name not found"
-        cls: Type[StationObjectImage] = eval(cls_name)
-        self.current_object: StationObjectImage = cls()
-        self.is_new_object = True
-
-    def edit_existing_object(self, obj_name: str):
-        self.current_object = SOIS.get_object(obj_name)
-        self.is_new_object = False
-
-    def attrib_dict_possible_values(self):
-        if not self.current_object:
-            return OrderedDict()
-        return self.current_object.dict_possible_values
-
-    def attrib_dict_values(self):
-        if not self.current_object:
-            return OrderedDict()
-        return self.current_object.dict_values
+# class SOIStorage:
+#     """ dumb class storage  """
+#     def __init__(self):
+#         self.class_objects: OrderedDict[str, OrderedDict[str, StationObjectImage]] = OrderedDict()
+#         for cls in StationObjectImage.__subclasses__():
+#             self.class_objects[cls.__name__] = OrderedDict()
+#         self.add_new_object(CoordinateSystemSOI(), GLOBAL_CS_NAME)
+#
+#     def add_new_object(self, obj: StationObjectImage, name: str = None):
+#         if name:
+#             assert isinstance(obj, CoordinateSystemSOI) and (name == GLOBAL_CS_NAME), "Parameter only for GCS"
+#         else:
+#             name = obj.name
+#         self.class_objects[obj.__class__.__name__][name] = obj
+#
+#     def get_object(self, name) -> StationObjectImage:
+#         for obj_dict in self.class_objects.values():
+#             if name in obj_dict:
+#                 return obj_dict[name]
+#         assert False, "Name not found"
+#
+#     @property
+#     def names_list(self) -> list[str]:
+#         nl = []
+#         for obj_dict in self.class_objects.values():
+#             nl.extend(obj_dict.keys())
+#         return nl
+#
+#
+# SOIS = SOIStorage()
 
 
-class ImageNameCell(CellObject):
-    def __init__(self, name: str):
-        self.name = name
+# class SOISelector:
+#     """ selected object editing """
+#     def __init__(self):
+#         self.current_object: Optional[StationObjectImage] = None
+#         self.is_new_object = True
+#
+#     def create_empty_object(self, cls_name: str):
+#         assert cls_name in SOIS.class_objects, "Class name not found"
+#         cls: Type[StationObjectImage] = eval(cls_name)
+#         self.current_object: StationObjectImage = cls()
+#         self.is_new_object = True
+#
+#     def edit_existing_object(self, obj_name: str):
+#         self.current_object = SOIS.get_object(obj_name)
+#         self.is_new_object = False
+#
+#     def attrib_dict_possible_values(self):
+#         if not self.current_object:
+#             return OrderedDict()
+#         return self.current_object.dict_possible_values
+#
+#     def attrib_dict_values(self):
+#         if not self.current_object:
+#             return OrderedDict()
+#         return self.current_object.dict_values
 
 
 def make_xlsx_templates(dir_name: str):
@@ -676,56 +656,6 @@ class LengthCell(CellObject):
 class RailPointDirectionCell(CellObject):
     def __init__(self, direction: str):
         self.direction = direction
-
-
-class CellError(Exception):
-    pass
-
-
-class NotFoundCellError(CellError):
-    pass
-
-
-class ManyFoundCellError(CellError):
-    pass
-
-
-# -------------------------        ACCESS FUNCTIONS           -------------------- #
-
-
-def element_cell_by_type(el: Element, cls_name: str) -> CellObject:
-    cls = eval(cls_name)
-    found_cells = set()
-    for cell in el.cell_objs:
-        if isinstance(cell, cls):
-            found_cells.add(cell)
-    if not found_cells:
-        raise NotFoundCellError("Not found")
-    if len(found_cells) != 1:
-        raise ManyFoundCellError("More then 1 cell found")
-    return found_cells.pop()
-
-
-def all_cells_of_type(elements: Iterable[Element], cls_name: str) -> dict[CellObject, Element]:
-    result = {}
-    for element in elements:
-        try:
-            co = element_cell_by_type(element, cls_name)
-        except CellError:
-            continue
-        result[co] = element
-    return result
-
-
-def find_cell_name(elements: Iterable[Element], cls_name: str, name: str) -> Optional[tuple[CellObject, Element]]:
-    cell_candidates = all_cells_of_type(elements, cls_name)
-    try:
-        co = single_element(lambda x: x.name == name, list(cell_candidates.keys()))
-    except EINotFoundError:
-        raise NotFoundCellError("Not found")
-    except EIManyFoundError:
-        raise ManyFoundCellError("More then 1 cell found")
-    return co, cell_candidates[co]
 
 
 # -------------------------        MODEL CLASSES           -------------------- #
@@ -901,386 +831,6 @@ GLOBAL_CS_MO = CoordinateSystemMO()
 GLOBAL_CS_MO._name = GLOBAL_CS_NAME
 
 
-# -------------------------        ROUTE CLASSES           -------------------- #
-
-
-class CrossroadNotification:
-    def __init__(self, cn_route: RailRoute, num: int):
-        self.route = cn_route
-        self.num = num
-        self._crsrd_id = None
-        self._crsrd_delay_open = None
-        self._crsrd_delay_start_notif = None
-        self._crsrd_start_notif = None
-        self._crsrd_notif_point = None  # not required
-        self._crsrd_before_route_points = None  # not required
-
-    @property
-    def crsrd_id(self):
-        return self._crsrd_id
-
-    @crsrd_id.setter
-    def crsrd_id(self, value):
-        if (not value) or value.isspace():
-            return
-        self._crsrd_id = value
-
-    @property
-    def crsrd_delay_open(self):
-        return self._crsrd_delay_open
-
-    @crsrd_delay_open.setter
-    def crsrd_delay_open(self, value):
-        if (not value) or value.isspace():
-            return
-        self.route.int_checker(value, 'crsrd_delay_open_{}'.format(self.num), 0)
-        self._crsrd_delay_open = value
-
-    @property
-    def crsrd_delay_start_notif(self):
-        return self._crsrd_delay_start_notif
-
-    @crsrd_delay_start_notif.setter
-    def crsrd_delay_start_notif(self, value):
-        if (not value) or value.isspace():
-            return
-        self.route.int_checker(value, 'crsrd_delay_start_notif_{}'.format(self.num), 0)
-        self._crsrd_delay_start_notif = value
-
-    @property
-    def crsrd_start_notif(self):
-        return self._crsrd_start_notif
-
-    @crsrd_start_notif.setter
-    def crsrd_start_notif(self, value):
-        if (not value) or value.isspace():
-            return
-        # ! implement here check start_notif in list of available values
-        self._crsrd_start_notif = value
-
-    @property
-    def crsrd_notif_point(self):
-        return self._crsrd_notif_point
-
-    @crsrd_notif_point.setter
-    def crsrd_notif_point(self, value):
-        if (not value) or value.isspace():
-            return
-        self.route.int_checker(value, 'crsrd_notif_point_{}'.format(self.num))
-        self._crsrd_notif_point = value
-
-    @property
-    def crsrd_before_route_points(self):
-        return self._crsrd_before_route_points
-
-    @crsrd_before_route_points.setter
-    def crsrd_before_route_points(self, value):
-        if (not value) or value.isspace():
-            return
-        self.route.route_points_checker(value, 'crsrd_before_route_points_{}'.format(self.num))
-        self._crsrd_before_route_points = value
-
-    def check_required_params(self):
-        if self.route.signal_type == "PpoTrainSignal":
-            if self.crsrd_id is None:
-                assert (self.crsrd_delay_open is None) and (self.crsrd_delay_start_notif is None) and \
-                       (self.crsrd_start_notif is None) and (self.crsrd_notif_point is None) and \
-                       (self.crsrd_before_route_points is None), \
-                       "Id expected for Crossroad_{} in line {}".format(self.num, self.route.id)
-            else:
-                assert not (self.crsrd_delay_open is None), "Expected delay_open for Crossroad_{} in line {}".\
-                    format(self.num, self.route.id)
-                assert not (self.crsrd_delay_start_notif is None), \
-                    "Expected delay_start_notif for Crossroad_{} in line {}".format(self.num, self.route.id)
-                assert not (self.crsrd_start_notif is None), "Expected start_notif for Crossroad_{} in line {}".\
-                    format(self.num, self.route.id)
-        elif self.route.signal_type == "PpoShuntingSignal":
-            if self.crsrd_id is None:
-                assert (self.crsrd_delay_open is None) and (self.crsrd_delay_start_notif is None) and \
-                       (self.crsrd_start_notif is None) and (self.crsrd_notif_point is None) and \
-                       (self.crsrd_before_route_points is None), \
-                       "Id expected for Crossroad_{} in line {}".format(self.num, self.route.id)
-            else:
-                assert not (self.crsrd_delay_open is None), "Expected delay_open for Crossroad_{} in line {}".\
-                    format(self.num, self.route.id)
-        else:
-            assert False, "Signal type {} not exists".format(self.route.signal_type)
-
-
-class RailRoute:
-    def __init__(self, id_):
-        self.id = str(id_)
-        self.route_tag = None
-        self._route_type = None
-        self._signal_tag = None
-        self._signal_type = None
-        self._route_pointer_value = None
-        self._trace_begin = None
-        self.trace_points = ""
-        self._trace_variants = None
-        self._trace_end = None
-        self._end_selectors = None
-        self._route_points_before_route = None
-        self.next_dark = "K"
-        self.next_stop = "K"
-        self.next_on_main = "K"
-        self.next_on_main_green = "K"
-        self.next_on_side = "K"
-        self.next_also_on_main = "K"
-        self.next_also_on_main_green = "K"
-        self.next_also_on_side = "K"
-        self.crossroad_notifications: list[CrossroadNotification] = []
-
-    def signal_light_checker(self, value, column_name):
-        if self.route_type == "PpoShuntingRoute":
-            return
-        assert value in ["K", "ZH", "Z", "ZHM_Z", "ZHM_ZH", "ZM", "DZH", "DZHM"], \
-            "Not supported light value {} in line {} column {}".format(value, self.id, column_name)
-
-    def int_checker(self, value, column_name, min_possible_value: int = 1):
-        if value == "":
-            return
-        assert int(value) >= min_possible_value, "Value should be int >= {}, given value is {} in line {} column {}" \
-            .format(min_possible_value, value, self.id, column_name)
-
-    def route_points_checker(self, value, column_name):
-        points_found = re.findall(r"[+-]\d{1,3}S?[OB]?", value)
-        val_copy = value
-        for point in points_found:
-            val_copy = val_copy.replace(point, "", 1)
-        assert (not val_copy) or val_copy.isspace(), \
-            "Pointers list {} is not valid in line {} column {}".format(value, self.id, column_name)
-
-    @property
-    def route_type(self):
-        return self._route_type
-
-    @route_type.setter
-    def route_type(self, value):
-        assert value in ["PpoTrainRoute", "PpoShuntingRoute"], "Not valid route type {} in line {}" \
-            .format(value, self.id)
-        self._route_type = value
-
-    @property
-    def signal_tag(self):
-        return self._signal_tag
-
-    @signal_tag.setter
-    def signal_tag(self, value):
-        # ! implement here check signal in list of available values
-        self._signal_tag = value
-
-    @property
-    def signal_type(self):
-        return self._signal_type
-
-    @signal_type.setter
-    def signal_type(self, value):
-        assert value in ["PpoTrainSignal", "PpoShuntingSignal"], "Not valid signal type {} in line {}" \
-            .format(value, self.id)
-        self._signal_type = value
-
-    @property
-    def route_pointer_value(self):
-        return self._route_pointer_value
-
-    @route_pointer_value.setter
-    def route_pointer_value(self, value):
-        self.int_checker(value, 'route_pointer_value')
-        self._route_pointer_value = value
-
-    @property
-    def trace_begin(self):
-        return self._trace_begin
-
-    @trace_begin.setter
-    def trace_begin(self, value):
-        # ! implement here check trace_begin in list of available values
-        self._trace_begin = value
-
-    @property
-    def trace_variants(self):
-        return self._trace_variants
-
-    @trace_variants.setter
-    def trace_variants(self, value):
-        if value == "":
-            self._trace_variants = None
-            return
-        # ! implement here check trace_variants in list of available values
-        self._trace_variants = value
-
-    @property
-    def trace_points(self):
-        return self._trace_points
-
-    @trace_points.setter
-    def trace_points(self, value: str):
-        self.route_points_checker(value, 'trace_points')
-        if value:
-            value += " "
-        self._trace_points = value
-
-    @property
-    def trace_end(self):
-        return self._trace_end
-
-    @trace_end.setter
-    def trace_end(self, value):
-        # ! implement here check trace_end in list of available values
-        self._trace_end = value
-
-    @property
-    def end_selectors(self):
-        return self._end_selectors
-
-    @end_selectors.setter
-    def end_selectors(self, value):
-        # ! implement here check end_selectors in list of available values
-        self._end_selectors = value
-
-    @property
-    def route_points_before_route(self):
-        return self._route_points_before_route
-
-    @route_points_before_route.setter
-    def route_points_before_route(self, value):
-        if value == "":
-            self._route_points_before_route = None
-            return
-        # ! implement here check route_points_before_route in list of available values
-        self._route_points_before_route = value + " "
-
-    @property
-    def next_dark(self):
-        return self._next_dark
-
-    @next_dark.setter
-    def next_dark(self, value):
-        self.signal_light_checker(value, "next_dark")
-        self._next_dark = value
-
-    @property
-    def next_stop(self):
-        return self._next_stop
-
-    @next_stop.setter
-    def next_stop(self, value):
-        self.signal_light_checker(value, "next_stop")
-        self._next_stop = value
-
-    @property
-    def next_on_main(self):
-        return self._next_on_main
-
-    @next_on_main.setter
-    def next_on_main(self, value):
-        self.signal_light_checker(value, "next_on_main")
-        self._next_on_main = value
-
-    @property
-    def next_on_main_green(self):
-        return self._next_on_main_green
-
-    @next_on_main_green.setter
-    def next_on_main_green(self, value):
-        self.signal_light_checker(value, "next_on_main_green")
-        self._next_on_main_green = value
-
-    @property
-    def next_on_side(self):
-        return self._next_on_side
-
-    @next_on_side.setter
-    def next_on_side(self, value):
-        self.signal_light_checker(value, "next_on_side")
-        self._next_on_side = value
-
-    @property
-    def next_also_on_main(self):
-        return self._next_also_on_main
-
-    @next_also_on_main.setter
-    def next_also_on_main(self, value):
-        self.signal_light_checker(value, "next_also_on_main")
-        self._next_also_on_main = value
-
-    @property
-    def next_also_on_main_green(self):
-        return self._next_also_on_main_green
-
-    @next_also_on_main_green.setter
-    def next_also_on_main_green(self, value):
-        self.signal_light_checker(value, "next_also_on_main_green")
-        self._next_also_on_main_green = value
-
-    @property
-    def next_also_on_side(self):
-        return self._next_also_on_side
-
-    @next_also_on_side.setter
-    def next_also_on_side(self, value):
-        self.signal_light_checker(value, "next_also_on_side")
-        self._next_also_on_side = value
-
-    def count_crossroad_notification(self):
-        return len(self.crossroad_notifications)
-
-    def add_crossroad_notification(self):
-        cn = CrossroadNotification(self, self.count_crossroad_notification() + 1)
-        self.crossroad_notifications.append(cn)
-
-
-def form_route_element(signal_element_, route_: RailRoute) -> ElTr.Element:
-    if route_.route_type == "PpoTrainRoute":
-        route_element = ElTr.SubElement(signal_element_, 'TrRoute')
-    else:
-        route_element = ElTr.SubElement(signal_element_, 'ShRoute')
-    route_element.set("Tag", route_.route_tag)
-    route_element.set("Type", route_.route_type)
-    route_element.set("Id", route_.id)
-    if route_.route_pointer_value:
-        route_element.set("ValueRoutePointer", route_.route_pointer_value)
-    trace_element = ElTr.SubElement(route_element, 'Trace')
-    trace_element.set("Start", route_.trace_begin)
-    trace_element.set("OnCoursePoints", route_.trace_points)
-    trace_element.set("Finish", route_.trace_end)
-    if route_.trace_variants:
-        trace_element.set("Variants", route_.trace_variants)
-    selectors_element = ElTr.SubElement(route_element, 'OperatorSelectors')
-    selectors_element.set("Ends", route_.end_selectors)
-    if route_.route_type == "PpoTrainRoute":
-        dependence_element = ElTr.SubElement(route_element, 'SignalingDependence')
-        dependence_element.set("Dark", route_.next_dark)
-        dependence_element.set("Stop", route_.next_stop)
-        dependence_element.set("OnMain", route_.next_on_main)
-        dependence_element.set("OnMainGreen", route_.next_on_main_green)
-        dependence_element.set("OnSide", route_.next_on_side)
-        dependence_element.set("OnMainALSO", route_.next_also_on_main)
-        dependence_element.set("OnMainGrALSO", route_.next_also_on_main_green)
-        dependence_element.set("OnSideALSO", route_.next_also_on_side)
-        if route_.route_points_before_route:
-            before_route_element = ElTr.SubElement(route_element, 'PointsAnDTrack')
-            before_route_element.set("Points", route_.route_points_before_route)
-    for cn_ in route_.crossroad_notifications:
-        if cn_.crsrd_id is None:
-            continue
-        cn_element = ElTr.SubElement(route_element, 'CrossroadNotification')
-        cn_element.set("RailCrossing", cn_.crsrd_id)
-        cn_element.set("DelayOpenSignal", cn_.crsrd_delay_open)
-        if route_.signal_type == "PpoTrainSignal":
-            cn_element.set("DelayStartNotification", cn_.crsrd_delay_start_notif)
-            cn_element.set("StartNotification", cn_.crsrd_start_notif)
-        if not (cn_.crsrd_notif_point is None):
-            cn_element.set("NotificationPoint", cn_.crsrd_notif_point)
-        if not (cn_.crsrd_before_route_points is None):
-            cn_element.set("Point", cn_.crsrd_before_route_points)
-    return route_element
-
-
-# ------------------------------------------------------
-
-
 def check_expected_type(str_value: str, attr_name: str, image_object: StationObjectImage, names_dict: OrderedDict):
     attr_descr: BaseAttrDescriptor = getattr(image_object.__class__, attr_name)
     if issubclass(attr_descr.expected_type, StationObjectImage):
@@ -1323,30 +873,6 @@ class Command:
         self.cmd_args = cmd_args
 
 
-class PicketCoordinate:
-    def __init__(self, str_value: str):
-        self.str_value = str_value
-
-    @property
-    def value(self):
-        x = self.str_value
-        if x.startswith("PK"):
-            try:
-                hund_meters = x[x.index("_")+1:x.index("+")]
-                meters = x[x.index("+"):]
-                hund_meters = int(hund_meters)
-                meters = int(meters)
-            except ValueError:
-                raise PicketCoordinateParsingCoError("Expected int value or picket 'PK_xx+xx'")
-            return meters + 100*hund_meters
-        else:
-            try:
-                meters = int(x)
-            except ValueError:
-                raise PicketCoordinateParsingCoError("Expected int value or picket 'PK_xx+xx'")
-            return meters
-
-
 class CommandSupervisor:
     def __init__(self):
         self.commands = []
@@ -1381,6 +907,11 @@ def execute_commands(commands: list[Command]):
             MODEL.build_sections()
 
 
+class ImageNameCell(CellObject):
+    def __init__(self, name: str):
+        self.name = name
+
+
 class ModelProcessor:
     def __init__(self):
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
@@ -1406,7 +937,7 @@ class ModelProcessor:
             self.refresh_storages()
             for image in images:
                 if not image.name:
-                    raise NoNameCoError("Name of object in class {} already exist".format(image.__class__.__name__))
+                    raise NoNameCoError("No-name-object in class {} found".format(image.__class__.__name__))
                 if image.name in self.names_soi:
                     raise ExistingNameCoError("Name {} already exist".format(image.name))
                 node = self.dg.insert_node()
@@ -1427,9 +958,9 @@ class ModelProcessor:
                                 if name == split_name:
 
                                     node_self: PolarNode = find_cell_name(self.dg.not_inf_nodes,
-                                                                          "ImageNameCell", image.name)[1]
+                                                                          ImageNameCell, image.name)[1]
                                     node_parent: PolarNode = find_cell_name(self.dg.not_inf_nodes,
-                                                                            "ImageNameCell", name)[1]
+                                                                            ImageNameCell, name)[1]
                                     self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
         else:
             assert False, "build_dg not from file - not implemented"
@@ -1442,7 +973,7 @@ class ModelProcessor:
 
     def rectify_dg(self):
         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global_CS
-        self.rect_so = [element_cell_by_type(node, "ImageNameCell").name for node in nodes]
+        self.rect_so = [element_cell_by_type(node, ImageNameCell).name for node in nodes]
 
     def evaluate_attributes(self, from_file: bool = False):
         if from_file:
@@ -1690,8 +1221,8 @@ class ModelProcessor:
         assert place_found, "point before inserting not found"
         assert next_point, "end of point list"
 
-        prev_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", prev_point.name)[1]
-        next_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", next_point.name)[1]
+        prev_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, prev_point.name)[1]
+        next_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, next_point.name)[1]
 
         new_point_node = self.smg.insert_node(next_node.ni_nd, prev_node.ni_pu)
         new_point_node.append_cell_obj(PointCell(point.name))
@@ -1712,13 +1243,13 @@ class ModelProcessor:
 
         try:
 
-            min_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", min_point.name)[1]
+            min_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, min_point.name)[1]
         except NotFoundCellError:
             min_node = self.smg.insert_node()
             min_node.append_cell_obj(PointCell(min_point.name))
 
         try:
-            max_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", max_point.name)[1]
+            max_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, max_point.name)[1]
         except NotFoundCellError:
             max_node = self.smg.insert_node()
             max_node.append_cell_obj(PointCell(max_point.name))
@@ -1737,7 +1268,7 @@ class ModelProcessor:
         last_nd_interface = self.smg.inf_pu.ni_nd
         for line_point in reversed(on_line_points):
             try:
-                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", line_point.name)[1]
+                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, line_point.name)[1]
                 self.smg.connect_inf_handling(last_nd_interface, point_node.ni_pu)
             except NotFoundCellError:
                 point_node = self.smg.insert_node(last_nd_interface)
@@ -1750,7 +1281,7 @@ class ModelProcessor:
     def eval_link_length(self):
         for link in self.smg.not_inf_links:
             pn_s_ = [ni.pn for ni in link.ni_s]
-            pnt_cells_: list[PointCell] = [element_cell_by_type(pn, "PointCell") for pn in pn_s_]
+            pnt_cells_: list[PointCell] = [element_cell_by_type(pn, PointCell) for pn in pn_s_]
             link.append_cell_obj(LengthCell(abs(self.names_mo["Point"][pnt_cells_[0].name].x -
                                                 self.names_mo["Point"][pnt_cells_[1].name].x)))
 
@@ -1770,8 +1301,8 @@ class ModelProcessor:
                     raise BuildEquipmentError("Direction point is equal to central point")
 
                 # check direction
-                center_point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", center_point.name)[1]
-                direct_point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", direct_point.name)[1]
+                center_point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, center_point.name)[1]
+                direct_point_node = find_cell_name(self.smg.not_inf_nodes, PointCell, direct_point.name)[1]
                 routes_node_to_node = self.smg.routes_node_to_node(center_point_node, direct_point_node)
                 if not routes_node_to_node:
                     raise BuildEquipmentError("Route from central point to direction point not found")
@@ -1797,9 +1328,9 @@ class ModelProcessor:
                 minus_point: PointMO = self.names_mo["Point"][image.dir_minus_point.name]
 
                 # check direction
-                center_point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", center_point.name)[1]
-                plus_point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", plus_point.name)[1]
-                minus_point_node = find_cell_name(self.smg.not_inf_nodes, "PointCell", minus_point.name)[1]
+                center_point_node = find_cell_name(self.smg.not_inf_nodes, PointCell, center_point.name)[1]
+                plus_point_node = find_cell_name(self.smg.not_inf_nodes, PointCell, plus_point.name)[1]
+                minus_point_node = find_cell_name(self.smg.not_inf_nodes, PointCell, minus_point.name)[1]
                 plus_routes, ni_plus = self.smg.routes_node_to_node(center_point_node, plus_point_node)
                 minus_routes, ni_minus = self.smg.routes_node_to_node(center_point_node, minus_point_node)
                 if not plus_routes:
@@ -1837,8 +1368,7 @@ class ModelProcessor:
             image = self.names_soi[image_name]
 
             if isinstance(image, BorderSOI):
-                point: PointMO = self.names_mo["Point"][image.point.name]
-                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, "PointCell", image.point.name)[1]
+                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, image.point.name)[1]
                 inf_ni_str = None
                 if point_node in self.smg.nodes_inf_connected:
                     inf_ni_str = self.smg.nodes_inf_connected[point_node].opposite_end_str
@@ -1858,7 +1388,7 @@ class ModelProcessor:
 
             if isinstance(image, SectionSOI):
                 border_points: list[PointMO] = [self.names_mo["Point"][point.name] for point in image.border_points]
-                point_nodes: list[PolarNode] = [find_cell_name(self.smg.not_inf_nodes, "PointCell", point.name)[1]
+                point_nodes: list[PolarNode] = [find_cell_name(self.smg.not_inf_nodes, PointCell, point.name)[1]
                                                 for point in border_points]
                 closed_links, closed_nodes = self.smg.closed_links_nodes(point_nodes)
                 if not closed_links:
@@ -1867,7 +1397,7 @@ class ModelProcessor:
                 # check links sections and make cells
                 for link in closed_links:
                     try:
-                        element_cell_by_type(link, "IsolatedSectionCell")
+                        element_cell_by_type(link, IsolatedSectionCell)
                     except NotFoundCellError:
                         pass
                     else:
@@ -1880,7 +1410,7 @@ class ModelProcessor:
                     section_type = CESectionType(CESectionType.non_stop)
                     for node in closed_nodes:
                         try:
-                            rail_cell: RailPointCell = element_cell_by_type(node, "RailPointCell")
+                            rail_cell: RailPointCell = element_cell_by_type(node, RailPointCell)
                         except NotFoundCellError:
                             continue
                         rail_points.append(rail_cell.name)
@@ -1890,7 +1420,7 @@ class ModelProcessor:
                     for ni in link.ni_s:
                         node = ni.pn
                         try:
-                            light_cell: LightCell = element_cell_by_type(node, "LightCell")
+                            light_cell: LightCell = element_cell_by_type(node, LightCell)
                         except NotFoundCellError:
                             continue
                         light_names[light_cell.name] = ni
@@ -1917,10 +1447,10 @@ class ModelProcessor:
         shunting_light_routes_dict: OrderedDict[str, list[RailRoute]] = OrderedDict()
 
         route_id = 1
+
         # 1. Form routes from smg
-        light_cells_: dict[LightCell, PolarNode] = all_cells_of_type(self.smg.not_inf_nodes, "LightCell")
+        light_cells_: dict[LightCell, PolarNode] = all_cells_of_type(self.smg.not_inf_nodes, LightCell)
         for light_cell in light_cells_:
-            # print("For light ", light_cell.name)
             light: LightMO = self.names_mo["Light"][light_cell.name]
             start_ni = light_cells_[light_cell].ni_by_end(light.end_forward_tpl1)
             routes = self.smg.walk(start_ni)
@@ -1931,7 +1461,7 @@ class ModelProcessor:
             is_enter_signal = False
             if light.route_type == CELightRouteType.train:
                 try:
-                    element_cell_by_type(start_ni.pn, "BorderCell")
+                    element_cell_by_type(start_ni.pn, BorderCell)
                 except NotFoundCellError:
                     pass
                 else:
@@ -1952,7 +1482,7 @@ class ModelProcessor:
                         # 1.1.1.1 Check if node is light
                         light_cell = None
                         try:
-                            light_cell: LightCell = element_cell_by_type(node, "LightCell")
+                            light_cell: LightCell = element_cell_by_type(node, LightCell)
                         except NotFoundCellError:
                             pass
                         if light_cell:
@@ -1969,7 +1499,7 @@ class ModelProcessor:
                         # 1.1.1.2 Check if node is border
                         border_cell = None
                         try:
-                            border_cell: BorderCell = element_cell_by_type(node, "BorderCell")
+                            border_cell: BorderCell = element_cell_by_type(node, BorderCell)
                         except NotFoundCellError:
                             pass
                         if border_cell:
@@ -1998,7 +1528,7 @@ class ModelProcessor:
                         # 1.1.2.1 Check if node is light
                         light_cell = None
                         try:
-                            light_cell: LightCell = element_cell_by_type(node, "LightCell")
+                            light_cell: LightCell = element_cell_by_type(node, LightCell)
                         except NotFoundCellError:
                             pass
                         if light_cell:
@@ -2014,11 +1544,10 @@ class ModelProcessor:
                         # 1.1.2.2 Check if node is border
                         border_cell = None
                         try:
-                            border_cell: BorderCell = element_cell_by_type(node, "BorderCell")
+                            border_cell: BorderCell = element_cell_by_type(node, BorderCell)
                         except NotFoundCellError:
                             pass
                         if border_cell:
-                            # border_found: BorderMO = self.names_mo["Border"][border_cell.name]
                             shunting_route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
                             for old_shunting_route_slice in shunting_route_slices:
                                 if old_shunting_route_slice == shunting_route_slice:
@@ -2028,9 +1557,6 @@ class ModelProcessor:
 
                     if (not shunting_slice_repeats) and shunting_route_slice:
                         shunting_route_slices.append(shunting_route_slice)
-
-            # print("train_route_slices", len(train_route_slices))
-            # print("shunting_route_slices", len(shunting_route_slices))
 
             # 1.2 Route info extraction
             train_routes = []
@@ -2044,7 +1570,7 @@ class ModelProcessor:
 
                 # tag_end_eval
                 end_node = train_route_slice.nodes[-1]
-                light_cell: LightCell = element_cell_by_type(end_node, "LightCell")
+                light_cell: LightCell = element_cell_by_type(end_node, LightCell)
                 end_light_name = light_cell.name
                 train_route.route_tag = "{}_{}".format(light.name, end_light_name)
 
@@ -2057,7 +1583,7 @@ class ModelProcessor:
                     for ni in link.ni_s:
                         move_ = ni.get_move_by_link(link)
                         try:
-                            rpdc_: RailPointDirectionCell = element_cell_by_type(move_, "RailPointDirectionCell")
+                            rpdc_: RailPointDirectionCell = element_cell_by_type(move_, RailPointDirectionCell)
                         except NotFoundCellError:
                             pass
                         else:
@@ -2066,20 +1592,20 @@ class ModelProcessor:
 
                 # trace_end
                 try:
-                    border_cell: BorderCell = element_cell_by_type(end_node, "BorderCell")
+                    border_cell: BorderCell = element_cell_by_type(end_node, BorderCell)
                     trace_end = border_cell.name
                 except NotFoundCellError:
-                    trace_end = element_cell_by_type(end_node, "LightCell").name
+                    trace_end = element_cell_by_type(end_node, LightCell).name
                 train_route.trace_end = trace_end
 
                 # finish_selectors
                 end_link = train_route_slice.links[-1]
-                end_section_cell: IsolatedSectionCell = element_cell_by_type(end_link, "IsolatedSectionCell")
+                end_section_cell: IsolatedSectionCell = element_cell_by_type(end_link, IsolatedSectionCell)
                 end_section: SectionMO = self.names_mo["Section"][end_section_cell.name]
                 finish_selectors = [end_light_name]
                 if end_section.section_type == CESectionType.track:
                     node_before_end = train_route_slice.nodes[-2]
-                    before_end_light_cell: LightCell = element_cell_by_type(node_before_end, "LightCell")
+                    before_end_light_cell: LightCell = element_cell_by_type(node_before_end, LightCell)
                     finish_selectors.append(before_end_light_cell.name)
                 train_route.end_selectors = " ".join(finish_selectors)
 
@@ -2094,27 +1620,17 @@ class ModelProcessor:
 
                 # tag_end_eval
                 end_node = shunting_route_slice.nodes[-1]
-                # try:
-                #     end_light: LightCell = element_cell_by_type(end_node, "LightCell")
-                #     end_light_name = end_light.name
-                # except NotFoundCellError:
-                #     before_end_node = shunting_route_slice.nodes[-2]
-                #     light_before_end_cell: LightCell = element_cell_by_type(before_end_node, "LightCell")
-                #     end_light_name = light_before_end_cell.name
-                # else:
                 try:
-                    element_cell_by_type(end_node, "BorderCell")  # border_cell: BorderCell =
+                    element_cell_by_type(end_node, BorderCell)  # border_cell: BorderCell =
                 except NotFoundCellError:
-                    end_light: LightCell = element_cell_by_type(end_node, "LightCell")
+                    end_light: LightCell = element_cell_by_type(end_node, LightCell)
                     end_light_name = end_light.name
                 else:
                     before_end_node = shunting_route_slice.nodes[-2]
-                    light_before_end_cell: LightCell = element_cell_by_type(before_end_node, "LightCell")
+                    light_before_end_cell: LightCell = element_cell_by_type(before_end_node, LightCell)
                     end_light_name = light_before_end_cell.name
 
                 shunting_route.route_tag = "{}_{}".format(light.name, end_light_name)
-                # print()
-                # print("route_tag", shunting_route.route_tag)
 
                 # trace_begin
                 shunting_route.trace_begin = light.name
@@ -2125,22 +1641,21 @@ class ModelProcessor:
                     for ni in link.ni_s:
                         move_ = ni.get_move_by_link(link)
                         try:
-                            rpdc_: RailPointDirectionCell = element_cell_by_type(move_, "RailPointDirectionCell")
+                            rpdc_: RailPointDirectionCell = element_cell_by_type(move_, RailPointDirectionCell)
                         except NotFoundCellError:
                             pass
                         else:
                             trace_point_directions.append(rpdc_.direction)
                 shunting_route.trace_points = " ".join(trace_point_directions)
-                # print("trace_points", shunting_route.trace_points)
 
                 # trace_end
                 end_link = shunting_route_slice.links[-1]
-                end_section_cell: IsolatedSectionCell = element_cell_by_type(end_link, "IsolatedSectionCell")
+                end_section_cell: IsolatedSectionCell = element_cell_by_type(end_link, IsolatedSectionCell)
                 end_section: SectionMO = self.names_mo["Section"][end_section_cell.name]
                 try:
-                    border_cell: BorderCell = element_cell_by_type(end_node, "BorderCell")
+                    border_cell: BorderCell = element_cell_by_type(end_node, BorderCell)
                 except NotFoundCellError:
-                    trace_end = element_cell_by_type(end_node, "LightCell").name
+                    trace_end = element_cell_by_type(end_node, LightCell).name
                 else:
                     if (end_section.section_type == CESectionType.indic) or \
                             (end_section.section_type == CESectionType.shunt_stop):
@@ -2149,18 +1664,16 @@ class ModelProcessor:
                         trace_end = border_cell.name
 
                 shunting_route.trace_end = trace_end
-                # print("trace_end", shunting_route.trace_end)
 
                 # finish_selectors
                 finish_selectors = [end_light_name]
                 if (end_section.section_type == CESectionType.track) or\
                         (end_section.section_type == CESectionType.shunt_stop):
                     node_before_end = shunting_route_slice.nodes[-2]
-                    before_end_light_cell: LightCell = element_cell_by_type(node_before_end, "LightCell")
+                    before_end_light_cell: LightCell = element_cell_by_type(node_before_end, LightCell)
                     if before_end_light_cell.name not in finish_selectors:
                         finish_selectors.append(before_end_light_cell.name)
                 shunting_route.end_selectors = " ".join(finish_selectors)
-                # print("end_selectors", shunting_route.end_selectors)
 
                 route_id += 1
                 shunting_routes.append(shunting_route)
@@ -2171,117 +1684,14 @@ class ModelProcessor:
                 shunting_light_routes_dict[light.name] = shunting_routes
 
         # 2. Xml formation
-        sub_folder = "eval_results"
-        train_routes_file_full_name = os.path.join(os.getcwd(), sub_folder, train_routes_file_name)
-        shunting_routes_file_full_name = os.path.join(os.getcwd(), sub_folder, shunting_routes_file_name)
-        print("train_routes_file_full_name", train_routes_file_full_name)
-        print("shunting_routes_file_full_name", shunting_routes_file_full_name)
-        print(train_light_routes_dict)
-
-        train_route_element = ElTr.Element('Routes')
-        shunting_route_element = ElTr.Element('Routes')
-
-        for light_name in train_light_routes_dict:
-            train_routes, shunting_routes = train_light_routes_dict[light_name]
-            signal_element = ElTr.SubElement(train_route_element, 'TrainSignal')
-            signal_element.set("Tag", light_name)
-            signal_element.set("Type", "PpoTrainSignal")
-            for route in train_routes:
-                form_route_element(signal_element, route)
-            for route in shunting_routes:
-                form_route_element(signal_element, route)
-
-        for light_name in shunting_light_routes_dict:
-            shunting_routes = shunting_light_routes_dict[light_name]
-            signal_element = ElTr.SubElement(shunting_route_element, 'ShuntingSignal')
-            signal_element.set("Tag", light_name)
-            signal_element.set("Type", "PpoShuntingSignal")
-            for route in shunting_routes:
-                form_route_element(signal_element, route)
-
-        xml_str_train = xml.dom.minidom.parseString(ElTr.tostring(train_route_element)).toprettyxml()
-        with open(train_routes_file_full_name, 'w', encoding='utf-8') as out:
-            out.write(xml_str_train)
-        xml_str_shunt = xml.dom.minidom.parseString(ElTr.tostring(shunting_route_element)).toprettyxml()
-        with open(shunting_routes_file_full_name, 'w', encoding='utf-8') as out:
-            out.write(xml_str_shunt)
-
-
-# train_routes_dict = OrderedDict()
-# shunt_trs_routes_dict = OrderedDict()
-# shunt_shs_routes_dict = OrderedDict()
-# for route in routes:
-#     st = route.signal_tag
-#     if route.route_type == "PpoTrainRoute":
-#         if st not in train_routes_dict:
-#             train_routes_dict[st] = []
-#         train_routes_dict[st].append(route)
-#     elif route.signal_type == "PpoTrainSignal":
-#         if st not in shunt_trs_routes_dict:
-#             shunt_trs_routes_dict[st] = []
-#         shunt_trs_routes_dict[st].append(route)
-#     else:
-#         if st not in shunt_shs_routes_dict:
-#             shunt_shs_routes_dict[st] = []
-#         shunt_shs_routes_dict[st].append(route)
-# for shunt_signal in shunt_shs_routes_dict:
-#     signal_element = ElTr.SubElement(shunt_route_element, 'ShuntingSignal')
-#     signal_element.set("Tag", shunt_signal)
-#     signal_element.set("Type", "PpoShuntingSignal")
-#     for route in shunt_shs_routes_dict[shunt_signal]:
-#         form_route_element(signal_element, route)
-#
-# xmlstr_train = xml.dom.minidom.parseString(ElTr.tostring(train_route_element)).toprettyxml()
-# with open('TrainRoute.xml', 'w', encoding='utf-8') as out:
-#     out.write(xmlstr_train)
-# xmlstr_shunt = xml.dom.minidom.parseString(ElTr.tostring(shunt_route_element)).toprettyxml()
-# with open('ShuntingRoute.xml', 'w', encoding='utf-8') as out:
-#     out.write(xmlstr_shunt)
+        form_rail_routes_xml(train_light_routes_dict, shunting_light_routes_dict, "eval_results",
+                             train_routes_file_name, shunting_routes_file_name)
 
 
 MODEL = ModelProcessor()
 
 
 if __name__ == "__main__":
-    test_1 = False
-    if test_1:
-        cs = CoordinateSystemSOI()
-        print(cs.attr_sequence_template)
-        print(cs.dependence)
-        print(cs.active_attrs)
-        cs.dependence = "independent"
-        print()
-        print(cs.active_attrs)
-        cs.dependence = "dependent"
-        print()
-        print(cs.active_attrs)
-        print(SOIS.class_objects)
-        print(getattr(CsDepend, "__set__") == BaseAttrDescriptor.__set__)
-        print(getattr(RailPDirMinusPoint, "__set__") == BaseAttrDescriptor.__set__)
-        cs.cs_relative_to = "GlobalCS"
-        cs.x = "35"
-        cs.co_x = "false"
-
-        for attr in cs.active_attrs:
-            print(getattr(cs, attr))
-
-        print(cs.dict_possible_values)
-        print(cs.dict_values)
-
-    test_2 = False
-    if test_2:
-        pnt = PointSOI()
-        pnt.name = "Point"
-        pnt.on = "line"
-        SOIS.add_new_object(pnt)
-        for attr in pnt.active_attrs:
-            print(getattr(pnt, attr))
-        ax = AxisSOI()
-        ax.creation_method = "rotational"
-        print()
-        ax.center_point = "Point"
-        for attr in ax.active_attrs:
-            print(getattr(ax, attr))
 
     test_3 = False
     if test_3:
@@ -2393,7 +1803,7 @@ if __name__ == "__main__":
         for i in range(20):
             try:
                 pnt_name = "Point_{}".format(str(i+1))
-                pnt_node: PolarNode = find_cell_name(MODEL.smg.not_inf_nodes, "PointCell", pnt_name)[1]
+                pnt_node: PolarNode = find_cell_name(MODEL.smg.not_inf_nodes, PointCell, pnt_name)[1]
                 print(pnt_name+" =>", pnt_node)
                 print("nd-connections", [link.opposite_ni(pnt_node.ni_nd).pn for link in pnt_node.ni_nd.links])
                 print("pu-connections", [link.opposite_ni(pnt_node.ni_pu).pn for link in pnt_node.ni_pu.links])
@@ -2404,20 +1814,20 @@ if __name__ == "__main__":
             print()
             ni_s = link.ni_s
             pn_s = [ni.pn for ni in link.ni_s]
-            pnt_cells: list[PointCell] = [element_cell_by_type(pn, "PointCell") for pn in pn_s]
+            pnt_cells: list[PointCell] = [element_cell_by_type(pn, PointCell) for pn in pn_s]
             print("link between {}, {}".format(pnt_cells[0].name, pnt_cells[1].name))
-            print("length {}".format(element_cell_by_type(link, "LengthCell").length))
+            print("length {}".format(element_cell_by_type(link, LengthCell).length))
             for ni in ni_s:
                 move = ni.get_move_by_link(link)
                 if move.cell_objs:
-                    rpdc = element_cell_by_type(move, "RailPointDirectionCell")
+                    rpdc = element_cell_by_type(move, RailPointDirectionCell)
                     print("Rail point direction = ", rpdc.direction)
-            print("section {}".format(element_cell_by_type(link, "IsolatedSectionCell").name))
+            print("section {}".format(element_cell_by_type(link, IsolatedSectionCell).name))
 
     test_11 = False
     if test_11:
         execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
-        light_cells = all_cells_of_type(MODEL.smg.not_inf_nodes, "LightCell")
+        light_cells = all_cells_of_type(MODEL.smg.not_inf_nodes, LightCell)
         print(len(light_cells))
 
     test_12 = True
