@@ -1,11 +1,8 @@
 from __future__ import annotations
-from typing import Optional
-from collections import OrderedDict, Counter
+from collections import OrderedDict
 import math
 
-from custom_enum import CustomEnum
-from enums_images import CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CELightStickType, \
-    CELightColor, CEBorderType, CESectionType
+from enums_images import CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CEBorderType, CESectionType
 from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
     LightSOI, RailPointSOI, BorderSOI, SectionSOI
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Route, NodeInterface
@@ -15,16 +12,13 @@ from graphical_object import Point2D, Angle, Line2D, BoundedCurve, lines_interse
 from cell_access_functions import NotFoundCellError, element_cell_by_type, all_cells_of_type, find_cell_name
 from rail_route import RailRoute
 from xml_formation import form_rail_routes_xml
-from soi_files_handler import make_xlsx_templates, read_station_config
 from soi_rectifier import SOIRectifier
-from soi_attributes_evaluator import check_expected_type, default_attrib_evaluation, evaluate_attributes
+from soi_attributes_evaluator import evaluate_attributes
+from mo_objects import ModelObject, CoordinateSystemMO, AxisMO, PointMO, LineMO, LightMO, RailPointMO, BorderMO, \
+    SectionMO
 
-from config_names import GLOBAL_CS_NAME, STATION_OUT_CONFIG_FOLDER, STATION_IN_CONFIG_FOLDER
+from config_names import GLOBAL_CS_NAME
 
-
-# ------------        EXCEPTIONS        ------------ #
-
-# ------------        MODEL BUILD EXCEPTIONS        ------------ #
 
 class ModelBuildError(Exception):
     pass
@@ -36,23 +30,6 @@ class MBSkeletonError(ModelBuildError):
 
 class MBEquipmentError(ModelBuildError):
     pass
-
-
-# ------------        ATTRIBUTE EVALUATIONS EXCEPTIONS        ------------ #
-
-
-# ------------        ENUMS        ------------ #
-
-
-class CECommand(CustomEnum):
-    load_config = 0
-    create_object = 1
-    rename_object = 2
-    change_attrib_value = 3
-    delete_object = 4
-
-
-# -------------------------        MODEL GRAPH CELLS           -------------------- #
 
 
 class PointCell(CellObject):
@@ -95,225 +72,11 @@ class RailPointDirectionCell(CellObject):
         self.direction = direction
 
 
-# -------------------------        MODEL CLASSES           -------------------- #
-
-
-class ModelObject:
-    def __init__(self):
-        self.name: str = ""
-
-
-class CoordinateSystemMO(ModelObject):
-    def __init__(self, base_cs: CoordinateSystemMO = None,
-                 x: int = 0, co_x: bool = True, co_y: bool = True):
-        super().__init__()
-        self._base_cs = base_cs
-        self._is_base = base_cs is None
-        self._in_base_x = x
-        self._in_base_co_x = co_x
-        self._in_base_co_y = co_y
-
-    @property
-    def is_base(self) -> bool:
-        return self._is_base
-
-    @property
-    def base_cs(self) -> CoordinateSystemMO:
-        if self.is_base:
-            return self
-        return self._base_cs
-
-    @property
-    def in_base_x(self) -> int:
-        return self._in_base_x
-
-    @property
-    def in_base_co_x(self) -> bool:
-        return self._in_base_co_x
-
-    @property
-    def in_base_co_y(self) -> bool:
-        return self._in_base_co_y
-
-    @property
-    def absolute_x(self) -> int:
-        if self.is_base:
-            return self.in_base_x
-        return int(self.base_cs.absolute_x + self.in_base_x * (-0.5 + int(self.base_cs.absolute_co_x)) * 2)
-
-    @property
-    def absolute_co_x(self) -> bool:
-        if self.is_base:
-            return self.in_base_co_x
-        return self.base_cs.absolute_co_x == self.in_base_co_x
-
-    @property
-    def absolute_co_y(self) -> bool:
-        if self.is_base:
-            return self.in_base_co_y
-        return self.base_cs.absolute_co_y == self.in_base_co_y
-
-
-class AxisMO(ModelObject):
-    def __init__(self, line2D: Line2D):
-        super().__init__()
-        self.line2D = line2D
-        self._points: list[PointMO] = []
-        self._lines: list[LineMO] = []
-
-    def append_point(self, point: PointMO):
-        self._points.append(point)
-
-    def append_line(self, line: LineMO):
-        self._lines.append(line)
-
-    @property
-    def points(self):
-        return sorted(self._points, key=lambda s: s.x)
-
-    @property
-    def lines(self):
-        return self._lines
-
-    @property
-    def angle(self):
-        return self.line2D.angle
-
-
-class PointMO(ModelObject):
-    def __init__(self, point2D: Point2D):
-        super().__init__()
-        self.point2D = point2D
-
-    @property
-    def x(self):
-        return self.point2D.x
-
-    @property
-    def y(self):
-        return self.point2D.y
-
-
-class LineMO(ModelObject):
-    def __init__(self, boundedCurves: list[BoundedCurve], points: list[PointMO] = None):
-        super().__init__()
-        self.boundedCurves = boundedCurves
-        self._points: list[PointMO] = []
-        self._axis = None
-        if points:
-            self._points = points
-
-    def append_point(self, point: PointMO):
-        self._points.append(point)
-
-    @property
-    def points(self):
-        return sorted(self._points, key=lambda s: s.x)
-
-    @property
-    def min_point(self):
-        assert len(self.points) >= 2, "Count of points <2"
-        return self.points[0]
-
-    @property
-    def max_point(self):
-        assert len(self.points) >= 2, "Count of points <2"
-        return self.points[-1]
-
-    @property
-    def axis(self) -> AxisMO:
-        return self._axis
-
-    @axis.setter
-    def axis(self, val: AxisMO):
-        self._axis = val
-
-
-class LightMO(ModelObject):
-    def __init__(self, route_type: CELightRouteType, end_forward_tpl1: str,
-                 colors: list[CELightColor], stick_type: CELightStickType):
-        super().__init__()
-        self.route_type = route_type
-        self.end_forward_tpl1 = end_forward_tpl1
-        self.colors = colors
-        self.stick_type = stick_type
-
-
-class RailPointMO(ModelObject):
-    def __init__(self, end_tpl0: str):
-        super().__init__()
-        self.end_tpl0 = end_tpl0
-
-
-class BorderMO(ModelObject):
-    def __init__(self, border_type: CEBorderType, end_not_inf_tpl0: Optional[str] = None):
-        super().__init__()
-        self.border_type = border_type
-        self.end_not_inf_tpl0 = end_not_inf_tpl0
-
-
-class SectionMO(ModelObject):
-    def __init__(self, section_type: CESectionType, rail_points_names: list[str] = None):
-        super().__init__()
-        self.section_type = section_type
-        if not rail_points_names:
-            self.rail_points_names = []
-        else:
-            self.rail_points_names = rail_points_names
-
-
-GLOBAL_CS_MO = CoordinateSystemMO()
-GLOBAL_CS_MO._name = GLOBAL_CS_NAME
-
-
-class Command:
-    def __init__(self, cmd_type: CECommand, cmd_args: list[str]):
-        """ Commands have next formats:
-        load_config(file_name) (or dir_name)
-        create_object(cls_name)
-        rename_object(old_name, new_name)
-        change_attrib_value(obj_name, attr_name, new_value)
-        delete_object(obj_name)
-        """
-        self.cmd_type = cmd_type
-        self.cmd_args = cmd_args
-
-
-class CommandSupervisor:
-    def __init__(self):
-        self.commands = []
-
-    def add_command(self):
-        pass
-
-    def remove_command(self):
-        pass
-
-    def undo(self):
-        pass
-
-    def redo(self):
-        pass
-
-
-def execute_commands(commands: list[Command]):
-    for command in commands:
-        if command.cmd_type == CECommand.load_config:
-            dir_name = command.cmd_args[0]
-            images = read_station_config(dir_name)
-            MODEL.build_dg(images)
-            MODEL.evaluate_attributes()
-            MODEL.build_skeleton()
-            MODEL.eval_link_length()
-            MODEL.build_lights()
-            MODEL.build_rail_points()
-            MODEL.build_borders()
-            MODEL.build_sections()
-
-
 class ModelBuilder:
     def __init__(self):
         self.rectifier = SOIRectifier()
+        self.mo_gcs = CoordinateSystemMO()
+        self.mo_gcs._name = GLOBAL_CS_NAME
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
         self.rect_so: list[str] = []
 
@@ -326,7 +89,7 @@ class ModelBuilder:
         self.rectifier.refresh_storages()
         self.names_mo: OrderedDict[str, OrderedDict[str, ModelObject]] = OrderedDict()
         self.names_mo["CoordinateSystem"]: OrderedDict[str, CoordinateSystemMO] = OrderedDict()
-        self.names_mo["CoordinateSystem"][GLOBAL_CS_NAME] = GLOBAL_CS_MO
+        self.names_mo["CoordinateSystem"][GLOBAL_CS_NAME] = self.mo_gcs
         self.rect_so: list[str] = []
 
     def build_dg(self, images: list[StationObjectImage]) -> None:
@@ -941,151 +704,3 @@ class ModelBuilder:
         # 2. Xml formation
         form_rail_routes_xml(train_light_routes_dict, shunting_light_routes_dict, "eval_results",
                              train_routes_file_name, shunting_routes_file_name)
-
-
-MODEL = ModelBuilder()
-
-
-if __name__ == "__main__":
-
-    test_3 = False
-    if test_3:
-        pnt = PointSOI()
-        pnt.x = "PK_12+34"
-        print(type(pnt.x))
-        print(pnt.x)
-        print(PointSOI.attr_sequence_template)
-
-    test_4 = False
-    if test_4:
-        cs = CoordinateSystemSOI()
-        print(CoordinateSystemSOI.dict_possible_values)
-        print(cs.dict_possible_values)
-
-    test_5 = False
-    if test_5:
-        make_xlsx_templates(STATION_OUT_CONFIG_FOLDER)
-
-    test_6 = False
-    if test_6:
-        objs = read_station_config(STATION_IN_CONFIG_FOLDER)
-        # pnt = get_object_by_name("Point_15", objs)
-        print(pnt.dict_possible_values)
-        print(pnt.__class__.dict_possible_values)
-        # for attr_ in pnt.active_attrs:
-        #     print(getattr(pnt, attr_))
-
-    test_7 = False
-    if test_7:
-        pnt = PointSOI()
-        pnt.x = "PK_12+34"
-        print(pnt.x)
-
-    test_8 = False
-    if test_8:
-        objs = read_station_config(STATION_IN_CONFIG_FOLDER)
-        # SOIR.build_dg(objs)
-        # SOIR.check_cycle()
-        # print([obj.name for obj in SOIR.rectified_object_list()])
-        # build_model(SOIR.rectified_object_list())
-
-    test_9 = False
-    if test_9:
-        execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
-        print(MODEL.names_soi)
-        print(MODEL.names_mo)
-
-        # cs_1: CoordinateSystemMO = MODEL.names_mo['CS_1']
-        # print(cs_1.absolute_x)
-        # print(cs_1.absolute_y)
-        # print(cs_1.absolute_co_x)
-        # print(cs_1.absolute_co_y)
-        # if 'CS_2' in MODEL.names_mo:
-        #     cs_2 = MODEL.names_mo['CS_2']
-        #     print(cs_2.absolute_x)
-        #     print(cs_2.absolute_y)
-        #     print(cs_2.absolute_co_x)
-        #     print(cs_2.absolute_co_y)
-        # if 'CS_3' in MODEL.names_mo:
-        #     cs_3 = MODEL.names_mo['CS_3']
-        #     print(cs_3.absolute_x)
-        #     print(cs_3.absolute_y)
-        #     print(cs_3.absolute_co_x)
-        #     print(cs_3.absolute_co_y)
-
-        ax_1: AxisMO = MODEL.names_mo['Axis_1']
-        print(ax_1.line2D)
-
-        line_2: LineMO = MODEL.names_mo['Line_7']
-        print(line_2.boundedCurves)
-
-        # pnt_15: PointMO = MODEL.names_mo['Axis_1']
-        # print(ax_1.line2D)
-
-    test_10 = False
-    if test_10:
-
-        execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
-        print(MODEL.names_soi)
-        # print(MODEL.names_soi.keys())  # .rect_so
-        print(MODEL.rect_so)
-        print(MODEL.names_mo)
-
-        # line_1_node = get_point_node_DG("Line_1")
-        # line_6_node = get_point_node_DG("Line_6")
-        # point_16_node = get_point_node_DG("Point_16")
-        # print("line_1_node", line_1_node)
-        # print("line_6_node", line_6_node)
-        # print("line_6 up connections", [link.opposite_ni(line_6_node.ni_pu).pn for link in line_6_node.ni_pu.links])
-        # print("point_16_node", point_16_node)
-        # print("point_16 up connections", [link.opposite_ni(point_16_node.ni_pu).pn for link in point_16_node.ni_pu.links])
-        #
-        # print(MODEL.dg.longest_coverage())
-        # print("len routes", len(MODEL.dg.walk(MODEL.dg.inf_pu.ni_nd)))
-        # i=0
-        # for route in MODEL.dg.walk(MODEL.dg.inf_pu.ni_nd):
-        #     if (line_6_node in route.nodes) or (line_6_node in route.nodes):
-        #         i+=1
-        #         print("i=", i)
-        #         print("nodes", route.nodes)
-
-        # ax_1: AxisMO = MODEL.names_mo['Axis_2']
-        # print([pnt.x for pnt in ax_1.points])
-        print(len(MODEL.smg.not_inf_nodes))
-
-        print("minus inf", MODEL.smg.inf_nd)
-        print("plus inf", MODEL.smg.inf_pu)
-        for i in range(20):
-            try:
-                pnt_name = "Point_{}".format(str(i+1))
-                pnt_node: PolarNode = find_cell_name(MODEL.smg.not_inf_nodes, PointCell, pnt_name)[1]
-                print(pnt_name+" =>", pnt_node)
-                print("nd-connections", [link.opposite_ni(pnt_node.ni_nd).pn for link in pnt_node.ni_nd.links])
-                print("pu-connections", [link.opposite_ni(pnt_node.ni_pu).pn for link in pnt_node.ni_pu.links])
-            except NotFoundCellError:
-                continue
-        print("len of links", len(MODEL.smg.links))
-        for link in MODEL.smg.not_inf_links:
-            print()
-            ni_s = link.ni_s
-            pn_s = [ni.pn for ni in link.ni_s]
-            pnt_cells: list[PointCell] = [element_cell_by_type(pn, PointCell) for pn in pn_s]
-            print("link between {}, {}".format(pnt_cells[0].name, pnt_cells[1].name))
-            print("length {}".format(element_cell_by_type(link, LengthCell).length))
-            for ni in ni_s:
-                move = ni.get_move_by_link(link)
-                if move.cell_objs:
-                    rpdc = element_cell_by_type(move, RailPointDirectionCell)
-                    print("Rail point direction = ", rpdc.direction)
-            print("section {}".format(element_cell_by_type(link, IsolatedSectionCell).name))
-
-    test_11 = False
-    if test_11:
-        execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
-        light_cells = all_cells_of_type(MODEL.smg.not_inf_nodes, LightCell)
-        print(len(light_cells))
-
-    test_12 = True
-    if test_12:
-        execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
-        MODEL.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
