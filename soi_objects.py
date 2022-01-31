@@ -93,7 +93,9 @@ class SOIActiveAttrs:
 
 class SOIListPossibleValues:
     def __get__(self, instance, owner):
+        """ returns Odict[str, list[str]] """
         if instance is None:
+            """ for owner - all enum attributes """
             result = OrderedDict()
             for attr_ in owner.attr_sequence_template:
                 attrib = getattr(owner, attr_)
@@ -102,6 +104,7 @@ class SOIListPossibleValues:
                 else:
                     result[attr_] = []
         else:
+            """ instance - only for active """
             instance: StationObjectImage
             result = OrderedDict()
             for active_attr in instance.active_attrs:
