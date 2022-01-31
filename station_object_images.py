@@ -6,19 +6,18 @@ import math
 from custom_enum import CustomEnum
 from enums_images import CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CELightStickType, \
     CELightColor, CEBorderType, CESectionType
-from soi_objects import BaseAttrDescriptor, StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
+from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
     LightSOI, RailPointSOI, BorderSOI, SectionSOI
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Route, NodeInterface
 from cell_object import CellObject
-from extended_itertools import flatten
 from graphical_object import Point2D, Angle, Line2D, BoundedCurve, lines_intersection, evaluate_vector, \
     ParallelLinesException, EquivalentLinesException, PointsEqualException, OutBorderException
 from cell_access_functions import NotFoundCellError, element_cell_by_type, all_cells_of_type, find_cell_name
-from picket_coordinate import PicketCoordinate
 from rail_route import RailRoute
 from xml_formation import form_rail_routes_xml
 from soi_files_handler import make_xlsx_templates, read_station_config
 from soi_rectifier import SOIRectifier
+from soi_attributes_evaluator import check_expected_type, default_attrib_evaluation, evaluate_attributes
 
 from config_names import GLOBAL_CS_NAME, STATION_OUT_CONFIG_FOLDER, STATION_IN_CONFIG_FOLDER
 
@@ -40,26 +39,6 @@ class MBEquipmentError(ModelBuildError):
 
 
 # ------------        ATTRIBUTE EVALUATIONS EXCEPTIONS        ------------ #
-
-
-class AttributeEvaluateError(Exception):
-    pass
-
-
-class AEPreSemanticError(AttributeEvaluateError):
-    pass
-
-
-class AERequiredAttributeError(AttributeEvaluateError):
-    pass
-
-
-class AEObjectNotFoundError(AttributeEvaluateError):
-    pass
-
-
-class AETypeAttributeError(AttributeEvaluateError):
-    pass
 
 
 # ------------        ENUMS        ------------ #
@@ -287,38 +266,6 @@ GLOBAL_CS_MO = CoordinateSystemMO()
 GLOBAL_CS_MO._name = GLOBAL_CS_NAME
 
 
-def check_expected_type(str_value: str, attr_name: str, image_object: StationObjectImage, names_dict: OrderedDict):
-    attr_descr: BaseAttrDescriptor = getattr(image_object.__class__, attr_name)
-    if issubclass(attr_descr.expected_type, StationObjectImage):
-        if str_value not in names_dict:
-            raise AEObjectNotFoundError("Object {} not found".format(str_value))
-        rel_image = names_dict[str_value]
-        if not isinstance(rel_image, attr_descr.expected_type):
-            raise AETypeAttributeError("Object {} not satisfy required type {}".format(str_value,
-                                                                                       attr_descr.str_expected_type))
-        setattr(image_object, "_{}".format(attr_name), names_dict[str_value])
-    else:
-        try:
-            result = eval(str_value)
-        except (ValueError, NameError, SyntaxError):
-            raise AETypeAttributeError("Object {} not satisfy required type {}".format(str_value,
-                                                                                       attr_descr.str_expected_type))
-        if not isinstance(result, attr_descr.expected_type):
-            raise AETypeAttributeError("Object {} not satisfy required type {}".format(str_value,
-                                                                                       attr_descr.str_expected_type))
-        setattr(image_object, "_{}".format(attr_name), result)
-
-
-def default_attrib_evaluation(attr_name: str, image: StationObjectImage, names_dict: OrderedDict):
-    if attr_name in image.active_attrs:
-        setattr(image, "_{}".format(attr_name), None)
-        str_attr_value = getattr(image, "_str_{}".format(attr_name))
-        if not getattr(image, "_str_{}".format(attr_name)):
-            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
-        else:
-            check_expected_type(str_attr_value, attr_name, image, names_dict)
-
-
 class Command:
     def __init__(self, cmd_type: CECommand, cmd_args: list[str]):
         """ Commands have next formats:
@@ -355,7 +302,7 @@ def execute_commands(commands: list[Command]):
             dir_name = command.cmd_args[0]
             images = read_station_config(dir_name)
             MODEL.build_dg(images)
-            MODEL.evaluate_attributes(True)
+            MODEL.evaluate_attributes()
             MODEL.build_skeleton()
             MODEL.eval_link_length()
             MODEL.build_lights()
@@ -386,111 +333,8 @@ class ModelBuilder:
         self.refresh_storages()
         self.names_soi, self.rect_so = self.rectifier.rectification_results(images)
 
-    def evaluate_attributes(self, from_file: bool = False):
-        if from_file:
-            for image_name in self.rect_so:
-                image = self.names_soi[image_name]
-
-                if isinstance(image, CoordinateSystemSOI):
-                    default_attrib_evaluation("cs_relative_to", image, self.names_soi)
-                    default_attrib_evaluation("x", image, self.names_soi)
-
-                if isinstance(image, AxisSOI):
-                    default_attrib_evaluation("cs_relative_to", image, self.names_soi)
-                    default_attrib_evaluation("y", image, self.names_soi)
-                    default_attrib_evaluation("center_point", image, self.names_soi)
-                    default_attrib_evaluation("alpha", image, self.names_soi)
-
-                if isinstance(image, PointSOI):
-                    default_attrib_evaluation("axis", image, self.names_soi)
-                    default_attrib_evaluation("line", image, self.names_soi)
-                    default_attrib_evaluation("cs_relative_to", image, self.names_soi)
-                    attr_name = "x"
-                    if attr_name in image.active_attrs:
-                        setattr(image, "_{}".format(attr_name), None)
-                        str_attr_value = getattr(image, "_str_{}".format(attr_name))
-                        if not getattr(image, "_str_{}".format(attr_name)):
-                            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
-                        else:
-                            setattr(image, "_{}".format(attr_name), PicketCoordinate(str_attr_value).value)
-
-                if isinstance(image, LineSOI):
-                    attr_name = "points"
-                    if attr_name in image.active_attrs:
-                        setattr(image, "_{}".format(attr_name), None)
-                        str_attr_value: str = getattr(image, "_str_{}".format(attr_name))
-                        if not getattr(image, "_str_{}".format(attr_name)):
-                            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
-                        else:
-                            str_points = str_attr_value.split(" ")
-                            if len(str_points) < 2:
-                                raise AEPreSemanticError("Count of points should be 2, given count <2")
-                            if len(str_points) > 2:
-                                raise AEPreSemanticError("Count of points should be 2, given count >2")
-                            str_points: list[str]
-                            if str_points[0] == str_points[1]:
-                                raise AEPreSemanticError("Given points are equal, cannot build line")
-                            pnts_list = []
-                            for str_value in str_points:
-                                if str_value not in self.names_soi:
-                                    raise AEObjectNotFoundError("Object {} not found".format(str_value))
-                                rel_image = self.names_soi[str_value]
-                                if not isinstance(rel_image, PointSOI):
-                                    raise AETypeAttributeError("Object {} not satisfy required type {}"
-                                                               .format(str_value, "PointSOI"))
-                                pnts_list.append(rel_image)
-                            setattr(image, "_{}".format(attr_name), pnts_list)
-
-                if isinstance(image, LightSOI):
-                    default_attrib_evaluation("center_point", image, self.names_soi)
-                    default_attrib_evaluation("direct_point", image, self.names_soi)
-                    attr_name = "colors"
-                    if attr_name in image.active_attrs:
-                        setattr(image, "_{}".format(attr_name), None)
-                        str_attr_value: str = getattr(image, "_str_{}".format(attr_name))
-                        if not getattr(image, "_str_{}".format(attr_name)):
-                            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
-                        else:
-                            str_colors = str_attr_value.split(" ")
-                            color_counts = dict(Counter(str_colors))
-                            for str_color in color_counts:
-                                if str_color not in CELightColor.possible_values:
-                                    raise AETypeAttributeError("Color {} for light not possible".format(str_color))
-                                if color_counts[str_color] > 1 and str_color != "yellow":
-                                    raise AETypeAttributeError("More then 2 lamps for color {} not possible".format(str_color))
-                            setattr(image, "_{}".format(attr_name), str_colors)
-
-                if isinstance(image, RailPointSOI):
-                    default_attrib_evaluation("center_point", image, self.names_soi)
-                    default_attrib_evaluation("dir_plus_point", image, self.names_soi)
-                    default_attrib_evaluation("dir_minus_point", image, self.names_soi)
-
-                if isinstance(image, BorderSOI):
-                    default_attrib_evaluation("point", image, self.names_soi)
-
-                if isinstance(image, SectionSOI):
-                    attr_name = "border_points"
-                    if attr_name in image.active_attrs:
-                        setattr(image, "_{}".format(attr_name), None)
-                        str_attr_value: str = getattr(image, "_str_{}".format(attr_name))
-                        if not getattr(image, "_str_{}".format(attr_name)):
-                            raise AERequiredAttributeError("Attribute {} required".format(attr_name))
-                        else:
-                            str_points = str_attr_value.split(" ")
-                            if len(set(str_points)) < len(str_points):
-                                raise AEPreSemanticError("Points in section border repeating")
-                            pnts_list = []
-                            for str_value in str_points:
-                                if str_value not in self.names_soi:
-                                    raise AEObjectNotFoundError("Object {} not found".format(str_value))
-                                rel_image = self.names_soi[str_value]
-                                if not isinstance(rel_image, PointSOI):
-                                    raise AETypeAttributeError("Object {} not satisfy required type {}"
-                                                               .format(str_value, "PointSOI"))
-                                pnts_list.append(rel_image)
-                            setattr(image, "_{}".format(attr_name), pnts_list)
-        else:
-            assert False, "evaluate_attributes not from file - not implemented"
+    def evaluate_attributes(self):
+        self.names_soi = evaluate_attributes(self.names_soi, self.rect_so)
 
     def build_skeleton(self):
 
