@@ -44,3 +44,10 @@ class CEBorderType(CustomEnum):
     standoff = 0
     ab = 1
     pab = 2
+
+
+class CESectionType(CustomEnum):
+    track = 0
+    non_stop = 1
+    shunt_stop = 2
+    indic = 3
