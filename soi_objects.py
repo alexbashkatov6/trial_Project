@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Type, Union
 from collections import OrderedDict
+from copy import copy
 
 from custom_enum import CustomEnum
 from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CELightStickType, \
@@ -365,3 +366,14 @@ class BorderSOI(StationObjectImage):
 
 class SectionSOI(StationObjectImage):
     border_points = SectBorderPoints("complex_type")
+
+
+if __name__ == "__main__":
+    cs = CoordinateSystemSOI()
+    cs.cs_relative_to = "Global"
+    print(cs._str_cs_relative_to)
+    cs_2 = copy(cs)
+    cs.cs_relative_to = "NonGlobal"
+    print(cs._str_cs_relative_to)
+    print(cs_2._str_cs_relative_to)
+    print(cs, cs_2)

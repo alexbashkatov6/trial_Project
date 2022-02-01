@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 from custom_enum import CustomEnum
-from soi_files_handler import read_station_config
+from soi_interactive_storage import SOIInteractiveStorage
 from mo_model_builder import ModelBuilder
+from soi_objects import StationObjectImage
 
 from config_names import STATION_IN_CONFIG_FOLDER
 
 
-class CECommand(CustomEnum):
+class CEElementaryCommand(CustomEnum):
+    create_object = 0
+    change_attrib_value = 1
+    elementary_delete_object = 2
+
+
+class CECompositeCommand(CustomEnum):
     load_config = 0
     create_object = 1
     rename_object = 2
@@ -16,7 +23,7 @@ class CECommand(CustomEnum):
 
 
 class Command:
-    def __init__(self, cmd_type: CECommand, cmd_args: list[str]):
+    def __init__(self, cmd_type: CECompositeCommand, cmd_args: list[str]):
         """ Commands have next formats:
         load_config(file_name) (or dir_name)
         create_object(cls_name)
@@ -28,18 +35,66 @@ class Command:
         self.cmd_args = cmd_args
 
 
+class CommandChain:
+    def __init__(self, head: list[StationObjectImage] = None):
+        if head is None:
+            self.head = []
+        else:
+            self.head = head
+        self.command_chain = []
+
+    def append_command(self, command: Command):
+        self.command_chain.append(command)
+
+    def get_slice(self, command: Command):
+        """ command included in list"""
+        new_cc = CommandChain(self.head)
+        new_cc.command_chain = self.command_chain[:self.command_chain.index(command)]
+        return new_cc
+
+    def command_in_chain(self, command: Command) -> int:
+        if command not in self.command_chain:
+            return -1
+        return self.command_chain.index(command)
+
+    # def remove_command(self):
+    #     pass
+
+
 class CommandSupervisor:
     def __init__(self):
-        self.commands = []
+        self.command_chains: list[CommandChain] = [CommandChain()]
+        self.command_pointer = None
 
-    def add_command(self):
+    def save_state(self, soi_is: SOIInteractiveStorage):
+        self.command_chains.append(CommandChain(soi_is.copied_soi_objects))
+
+    def append_command(self, command: Command):
+        self.command_chains[-1].append_command(command)
+
+    # def remove_command(self):
+    #     pass
+
+    def execute_command(self, command: Command):
         pass
 
-    def remove_command(self):
-        pass
+    def execute_commands(self):
+        last_command = False
+        if self.command_pointer:
+            for chain in self.command_chains:
+                for command in chain.command_chain:
+                    self.execute_command(command)
+                    if command is self.command_pointer:
+                        last_command = True
+                        break
+                if last_command:
+                    break
 
     def undo(self):
-        pass
+        if self.command_pointer:
+            for chain in self.command_chains:
+                for command in chain.command_chain:
+                    pass
 
     def redo(self):
         pass
@@ -47,9 +102,10 @@ class CommandSupervisor:
 
 def execute_commands(commands: list[Command]):
     for command in commands:
-        if command.cmd_type == CECommand.load_config:
+        if command.cmd_type == CECompositeCommand.load_config:
             dir_name = command.cmd_args[0]
-            images = read_station_config(dir_name)
+            SOI_IS.read_station_config(dir_name)
+            images = SOI_IS.soi_objects
             MODEL.build_dg(images)
             MODEL.evaluate_attributes()
             MODEL.build_skeleton()
@@ -60,6 +116,7 @@ def execute_commands(commands: list[Command]):
             MODEL.build_sections()
 
 
+SOI_IS = SOIInteractiveStorage()
 MODEL = ModelBuilder()
 
 
@@ -205,5 +262,5 @@ if __name__ == "__main__":
 
     test_12 = True
     if test_12:
-        execute_commands([Command(CECommand(CECommand.load_config), [STATION_IN_CONFIG_FOLDER])])
+        execute_commands([Command(CECompositeCommand(CECompositeCommand.load_config), [STATION_IN_CONFIG_FOLDER])])
         MODEL.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")

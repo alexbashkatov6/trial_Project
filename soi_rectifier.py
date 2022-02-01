@@ -6,8 +6,6 @@ from two_sided_graph import OneComponentTwoSidedPG, PolarNode
 from extended_itertools import flatten
 from cell_access_functions import find_cell_name, element_cell_by_type
 
-from config_names import GLOBAL_CS_NAME
-
 
 class DependenciesBuildError(Exception):
     pass
@@ -32,23 +30,23 @@ class ImageNameCell(CellObject):
 
 class SOIRectifier:
     def __init__(self):
-        self.gcs = CoordinateSystemSOI()
-        self.gcs._name = GLOBAL_CS_NAME
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
         self.rect_so: list[str] = []
         self.refresh_storages()
 
         self.dg = OneComponentTwoSidedPG()
-        gcs_node = self.dg.insert_node()
-        gcs_node.append_cell_obj(ImageNameCell(GLOBAL_CS_NAME))
 
     def refresh_storages(self):
-        self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict({GLOBAL_CS_NAME: self.gcs})
+        self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
         self.rect_so: list[str] = []
 
     def build_dg(self, images: list[StationObjectImage]) -> None:
         self.refresh_storages()
-        for image in images:
+        gcs = images[0]
+        gcs_node = self.dg.insert_node()
+        gcs_node.append_cell_obj(ImageNameCell(gcs.name))
+        self.names_soi[gcs.name] = gcs
+        for image in images[1:]:
             if not image.name:
                 raise DBNoNameError("No-name-object in class {} found".format(image.__class__.__name__))
             if image.name in self.names_soi:
@@ -56,7 +54,7 @@ class SOIRectifier:
             node = self.dg.insert_node()
             node.append_cell_obj(ImageNameCell(image.name))
             self.names_soi[image.name] = image
-        for image in images:
+        for image in images[1:]:
             for attr_name in image.active_attrs:
                 if not getattr(image.__class__, attr_name).enum:
                     attr_value: str = getattr(image, "_str_{}".format(attr_name))
