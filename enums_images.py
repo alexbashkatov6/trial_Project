@@ -7,8 +7,8 @@ class CEDependence(CustomEnum):
 
 
 class CEBool(CustomEnum):
-    false = 0
-    true = 1
+    true = 0
+    false = 1
 
 
 class CEAxisCreationMethod(CustomEnum):

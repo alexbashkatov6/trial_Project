@@ -470,4 +470,5 @@ if __name__ == "__main__":
     if test_17:
         cmd_sup = CommandSupervisor()
         cmd_sup.create_new_object("CoordinateSystemSOI")
-        cmd_sup.change_attribute_value("name", "MyCS")
+        print(cmd_sup.soi_is.current_object.__dict__)
+        # cmd_sup.change_attribute_value("name", "MyCS")

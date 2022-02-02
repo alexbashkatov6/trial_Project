@@ -6,6 +6,7 @@ from copy import copy
 
 from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
     LightSOI, RailPointSOI, BorderSOI, SectionSOI
+from custom_enum import CustomEnum
 
 from config_names import GLOBAL_CS_NAME
 
@@ -82,6 +83,16 @@ class SOIInteractiveStorage:
         cls: Type[StationObjectImage] = eval(cls_name)
         self._current_object: StationObjectImage = cls()
         self.curr_obj_is_new = True
+        ce_attrs = set()
+        for attr_name in cls.dict_possible_values:
+            attrib = getattr(cls, attr_name)
+            ce: Type[CustomEnum] = attrib.enum
+            if ce:
+                ce_attrs.add(attr_name)
+                setattr(self._current_object, attr_name, ce(0).str_value)
+        for attr_name in self._current_object.active_attrs:
+            if attr_name not in ce_attrs:
+                setattr(self._current_object, attr_name, "")
 
     def set_current_object(self, name: str):
         self._current_object = self.get_obj_by_name(name)
