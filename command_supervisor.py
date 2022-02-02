@@ -53,11 +53,12 @@ class CommandChain:
 
 
 class CommandSupervisor:
-    def __init__(self, soi_is: SOIInteractiveStorage, model: ModelBuilder):
+    def __init__(self):
         self.command_chains: list[CommandChain] = []
         self.command_pointer = None
-        self.soi_is = soi_is
-        self.model = model
+        self.soi_is = SOIInteractiveStorage()
+        self.model = ModelBuilder()
+        self.save_state()
 
     def execute_commands(self):
         last_command = False
@@ -85,6 +86,7 @@ class CommandSupervisor:
             self.model.build_borders()
             self.model.build_sections()
         if command.cmd_type == CECommand.create_new_object:
+            # print("here")
             cls_name = command.cmd_args[0]
             self.soi_is.create_new_object(cls_name)
 
@@ -100,7 +102,9 @@ class CommandSupervisor:
 
     def continue_commands(self, new_command: Command):
         chain_with_pointer = None
+        # print("command_pointer", self.command_pointer)
         if self.command_pointer:
+            # print("continue_commands", new_command)
             for chain in self.command_chains:
                 if chain.index_command_in_chain(self.command_pointer) != -1:
                     chain_with_pointer = chain
@@ -165,20 +169,20 @@ class CommandSupervisor:
         self.continue_commands(Command(CECommand(CECommand.create_new_object), [cls_name]))
 
 
-def execute_commands(commands: list[Command]):
-    for command in commands:
-        if command.cmd_type == CECommand.load_objects:
-            dir_name = command.cmd_args[0]
-            SOI_IS.read_station_config(dir_name)
-            images = SOI_IS.soi_objects
-            MODEL.build_dg(images)
-            MODEL.evaluate_attributes()
-            MODEL.build_skeleton()
-            MODEL.eval_link_length()
-            MODEL.build_lights()
-            MODEL.build_rail_points()
-            MODEL.build_borders()
-            MODEL.build_sections()
+# def execute_commands(commands: list[Command]):
+#     for command in commands:
+#         if command.cmd_type == CECommand.load_objects:
+#             dir_name = command.cmd_args[0]
+#             SOI_IS.read_station_config(dir_name)
+#             images = SOI_IS.soi_objects
+#             MODEL.build_dg(images)
+#             MODEL.evaluate_attributes()
+#             MODEL.build_skeleton()
+#             MODEL.eval_link_length()
+#             MODEL.build_lights()
+#             MODEL.build_rail_points()
+#             MODEL.build_borders()
+#             MODEL.build_sections()
 
 
 if __name__ == "__main__":
@@ -369,18 +373,18 @@ if __name__ == "__main__":
         # print("pointer = ", cmd_sup.command_pointer)
         # print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
 
-    test_14 = True
+    test_14 = False
     if test_14:
-        SOI_IS = SOIInteractiveStorage()
-        MODEL = ModelBuilder()
-        cmd_sup = CommandSupervisor(SOI_IS, MODEL)
+        cmd_sup = CommandSupervisor()
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        # cmd_sup.undo()
+        # cmd_sup.undo()
         print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
         cmd_sup.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
 
-    test_15 = False
+    test_15 = True
     if test_15:
-        SOI_IS = SOIInteractiveStorage()
-        MODEL = ModelBuilder()
-        cmd_sup = CommandSupervisor(SOI_IS, MODEL)
+        cmd_sup = CommandSupervisor()
+        cmd_sup.create_new_object("CoordinateSystemSOI")
+        print(cmd_sup.soi_is.current_object)
