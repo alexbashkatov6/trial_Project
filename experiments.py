@@ -37,3 +37,21 @@ s = "abc"
 s = s[:s.index("b")+1]
 print(s)
 
+a = 0
+
+try:
+    a = 1
+    2/0
+except ZeroDivisionError:
+    print(ZeroDivisionError)
+print(a)
+
+
+class MyException(Exception):
+    pass
+
+
+try:
+    raise MyException("first", "second")
+except MyException as e:
+    print("MyException!", e.args[0], e.args[1])

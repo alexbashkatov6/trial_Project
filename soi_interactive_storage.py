@@ -29,12 +29,26 @@ class SOIInteractiveStorage:
         self._current_object: Optional[StationObjectImage] = None
         self.curr_obj_is_new = True
 
+    def get_obj_by_name(self, name: str):
+        result = set()
+        for obj in self.soi_objects:
+            if obj.name == name:
+                result.add(obj)
+        assert result, "Not found"
+        assert len(result) == 1, "More then 1 value"
+        return result.pop()
+
     def clean_soi_objects_list(self):
         self._soi_objects = [self.gcs]
 
     def reset_current_object(self):
         self._current_object = None
         self.curr_obj_is_new = True
+
+    def reset_storages(self):
+        # print("reset_storages")
+        self.clean_soi_objects_list()
+        self.reset_current_object()
 
     def read_station_config(self, dir_name: str):
         self.clean_soi_objects_list()
@@ -58,7 +72,7 @@ class SOIInteractiveStorage:
 
     @property
     def soi_objects(self) -> list[StationObjectImage]:
-        return self._soi_objects
+        return copy(self._soi_objects)
 
     @property
     def copied_soi_objects(self) -> list[StationObjectImage]:
@@ -68,6 +82,13 @@ class SOIInteractiveStorage:
         cls: Type[StationObjectImage] = eval(cls_name)
         self._current_object: StationObjectImage = cls()
         self.curr_obj_is_new = True
+
+    def set_current_object(self, name: str):
+        self._current_object = self.get_obj_by_name(name)
+        self.curr_obj_is_new = False
+
+    def push_new_object(self):
+        self._soi_objects.append(self.current_object)
 
     @property
     def current_object(self) -> Optional[StationObjectImage]:

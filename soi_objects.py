@@ -92,7 +92,7 @@ class SOIActiveAttrs:
         raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
 
 
-class SOIListPossibleValues:
+class SODictPossibleValues:
     def __get__(self, instance, owner):
         """ returns Odict[str, list[str]] """
         if instance is None:
@@ -312,7 +312,7 @@ class SectBorderPoints(BaseAttrDescriptor):
 class StationObjectImage:
     attr_sequence_template = SOIAttrSeqTemplate()
     active_attrs = SOIActiveAttrs()
-    dict_possible_values = SOIListPossibleValues()
+    dict_possible_values = SODictPossibleValues()
     dict_values = SOIListValues()
     name = SOIName()
 
@@ -369,11 +369,17 @@ class SectionSOI(StationObjectImage):
 
 
 if __name__ == "__main__":
-    cs = CoordinateSystemSOI()
-    cs.cs_relative_to = "Global"
-    print(cs._str_cs_relative_to)
-    cs_2 = copy(cs)
-    cs.cs_relative_to = "NonGlobal"
-    print(cs._str_cs_relative_to)
-    print(cs_2._str_cs_relative_to)
-    print(cs, cs_2)
+    test_1 = False
+    if test_1:
+        cs = CoordinateSystemSOI()
+        cs.cs_relative_to = "Global"
+        print(cs._str_cs_relative_to)
+        cs_2 = copy(cs)
+        cs.cs_relative_to = "NonGlobal"
+        print(cs._str_cs_relative_to)
+        print(cs_2._str_cs_relative_to)
+        print(cs, cs_2)
+
+    test_2 = True
+    if test_2:
+        pass

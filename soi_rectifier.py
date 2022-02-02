@@ -34,21 +34,21 @@ class SOIRectifier:
         self.rect_so: list[str] = []
         self.dg = OneComponentTwoSidedPG()
 
-        self.refresh_storages()
+        self.reset_storages()
 
-    def refresh_storages(self):
+    def reset_storages(self):
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
         self.rect_so: list[str] = []
         self.dg = OneComponentTwoSidedPG()
 
     def build_dg(self, images: list[StationObjectImage]) -> None:
-        self.refresh_storages()
+        self.reset_storages()
         gcs = images[0]
         gcs_node = self.dg.insert_node()
         gcs_node.append_cell_obj(ImageNameCell(gcs.name))
         self.names_soi[gcs.name] = gcs
         for image in images[1:]:
-            if not image.name:
+            if not hasattr(image, "_name") or (not image.name) or image.name.isspace():
                 raise DBNoNameError("No-name-object in class {} found".format(image.__class__.__name__))
             if image.name in self.names_soi:
                 raise DBExistingNameError("Name {} already exist".format(image.name))

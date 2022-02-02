@@ -1,11 +1,21 @@
 from __future__ import annotations
+from copy import copy
 
 from custom_enum import CustomEnum
 from soi_interactive_storage import SOIInteractiveStorage
+from soi_rectifier import DBNoNameError, DependenciesBuildError
 from mo_model_builder import ModelBuilder
 from soi_objects import StationObjectImage
 
 from config_names import STATION_IN_CONFIG_FOLDER
+
+
+class AttributeSoiError(Exception):
+    pass
+
+
+class ObjectSoiError(Exception):
+    pass
 
 
 # class CEElementaryCommand(CustomEnum):
@@ -17,9 +27,10 @@ from config_names import STATION_IN_CONFIG_FOLDER
 class CECommand(CustomEnum):
     load_objects = 0
     create_new_object = 1
-    rename_object = 2
-    change_attrib_value = 3
-    delete_object = 4
+    change_current_object = 2
+    rename_object = 3
+    change_attrib_value = 4
+    delete_object = 5
 
 
 class Command:
@@ -60,6 +71,10 @@ class CommandSupervisor:
         self.model = ModelBuilder()
         self.save_state()
 
+    def reset_storages(self):
+        self.soi_is.reset_storages()
+        self.model.reset_storages()
+
     def execute_commands(self):
         last_command = False
         if self.command_pointer:
@@ -74,21 +89,53 @@ class CommandSupervisor:
                 if last_command:
                     break
 
+    def model_building(self, images: list[StationObjectImage]):
+        self.model.build_dg(images)
+        self.model.evaluate_attributes()
+        self.model.build_skeleton()
+        self.model.eval_link_length()
+        self.model.build_lights()
+        self.model.build_rail_points()
+        self.model.build_borders()
+        self.model.build_sections()
+
     def execute_command(self, command: Command):
+        old_images = self.soi_is.copied_soi_objects
+        new_images: list[StationObjectImage] = []
+        attr_name = "name"
+
         if command.cmd_type == CECommand.load_objects:
-            images = command.cmd_args[0]
-            self.model.build_dg(images)
-            self.model.evaluate_attributes()
-            self.model.build_skeleton()
-            self.model.eval_link_length()
-            self.model.build_lights()
-            self.model.build_rail_points()
-            self.model.build_borders()
-            self.model.build_sections()
+            new_images = command.cmd_args[0]
+
         if command.cmd_type == CECommand.create_new_object:
-            # print("here")
             cls_name = command.cmd_args[0]
             self.soi_is.create_new_object(cls_name)
+            new_images = copy(old_images)
+            new_images.append(self.soi_is.current_object)
+
+        if command.cmd_type == CECommand.change_current_object:
+            obj_name = command.cmd_args[0]
+            self.soi_is.set_current_object(obj_name)
+            new_images = copy(old_images)
+
+        if command.cmd_type == CECommand.change_attrib_value:
+            attr_name = command.cmd_args[0]
+            new_attr_value = command.cmd_args[1]
+            setattr(self.soi_is.current_object, attr_name, new_attr_value)
+            if self.soi_is.curr_obj_is_new:
+                new_images = copy(old_images)
+                new_images.append(self.soi_is.current_object)
+            else:
+                new_images = self.soi_is.soi_objects
+
+        try:
+            self.model_building(new_images)
+        except DependenciesBuildError as e:
+            self.attribute_error_handler(attr_name, e.args[0])
+            self.model_building(old_images)
+
+    def attribute_error_handler(self, attr_name: str, message: str):
+        print("Attribute error! \nattr_name: {}\n message: {}".format(attr_name, message))
 
     def cut_slice(self, chain: CommandChain):
         self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
@@ -102,9 +149,7 @@ class CommandSupervisor:
 
     def continue_commands(self, new_command: Command):
         chain_with_pointer = None
-        # print("command_pointer", self.command_pointer)
         if self.command_pointer:
-            # print("continue_commands", new_command)
             for chain in self.command_chains:
                 if chain.index_command_in_chain(self.command_pointer) != -1:
                     chain_with_pointer = chain
@@ -117,8 +162,11 @@ class CommandSupervisor:
             self.execute_commands()
 
     def undo(self):
+        """ not most effective realisation """
+        self.reset_storages()
         pointer_found = False
         if self.command_pointer:
+
             for chain in reversed(self.command_chains):
                 if pointer_found:
                     self.command_pointer = chain.cmd_chain[-1]
@@ -136,7 +184,12 @@ class CommandSupervisor:
             assert pointer_found, "command_pointer not found in chains"
             print("CANNOT UNDO")
 
+            # if self.command_pointer.cmd_type == CECommand.load_objects:
+            # elif self.command_pointer.cmd_type == CECommand.create_new_object:
+            #     print("undo for create_new_object")
+
     def redo(self):
+        self.reset_storages()
         pointer_found = False
         if self.command_pointer:
             for chain in self.command_chains:
@@ -167,6 +220,12 @@ class CommandSupervisor:
 
     def create_new_object(self, cls_name: str):
         self.continue_commands(Command(CECommand(CECommand.create_new_object), [cls_name]))
+
+    def change_current_object(self, name: str):
+        self.continue_commands(Command(CECommand(CECommand.change_current_object), [name]))
+
+    def change_attribute_value(self, attr_name: str, new_value: str):
+        self.continue_commands(Command(CECommand(CECommand.change_attrib_value), [attr_name, new_value]))
 
 
 # def execute_commands(commands: list[Command]):
@@ -378,13 +437,37 @@ if __name__ == "__main__":
         cmd_sup = CommandSupervisor()
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
-        # cmd_sup.undo()
+        cmd_sup.undo()
         # cmd_sup.undo()
         print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
         cmd_sup.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
 
-    test_15 = True
+    test_15 = False
     if test_15:
         cmd_sup = CommandSupervisor()
         cmd_sup.create_new_object("CoordinateSystemSOI")
-        print(cmd_sup.soi_is.current_object)
+        # cmd_sup.create_new_object("AxisSOI")
+        # cmd_sup.create_new_object("LineSOI")
+        curr_obj = cmd_sup.soi_is.current_object
+        curr_obj.x = "5"
+        print(curr_obj)
+        print(curr_obj._str_x)
+        cmd_sup.undo()
+        curr_obj_after_undo = cmd_sup.soi_is.current_object
+        print()
+        print(curr_obj_after_undo)
+
+    test_16 = False
+    if test_16:
+        cmd_sup = CommandSupervisor()
+        cmd_sup.create_new_object("CoordinateSystemSOI")
+        cmd_sup.change_attribute_value("x", "5")
+        curr_obj = cmd_sup.soi_is.current_object
+        print(curr_obj)
+        print(curr_obj._str_x)
+
+    test_17 = True
+    if test_17:
+        cmd_sup = CommandSupervisor()
+        cmd_sup.create_new_object("CoordinateSystemSOI")
+        cmd_sup.change_attribute_value("name", "MyCS")
