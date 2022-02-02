@@ -3,7 +3,8 @@ from copy import copy
 
 from custom_enum import CustomEnum
 from soi_interactive_storage import SOIInteractiveStorage
-from soi_rectifier import DBNoNameError, DependenciesBuildError
+from soi_rectifier import DependenciesBuildError
+from soi_attributes_evaluator import AttributeEvaluateError
 from mo_model_builder import ModelBuilder
 from soi_objects import StationObjectImage
 
@@ -120,6 +121,7 @@ class CommandSupervisor:
 
         if command.cmd_type == CECommand.change_attrib_value:
             attr_name = command.cmd_args[0]
+            print("Attr name = ", attr_name)
             new_attr_value = command.cmd_args[1]
             setattr(self.soi_is.current_object, attr_name, new_attr_value)
             if self.soi_is.curr_obj_is_new:
@@ -130,7 +132,7 @@ class CommandSupervisor:
 
         try:
             self.model_building(new_images)
-        except DependenciesBuildError as e:
+        except (DependenciesBuildError, AttributeEvaluateError) as e:
             self.attribute_error_handler(attr_name, e.args[0])
             self.model_building(old_images)
 
@@ -471,4 +473,4 @@ if __name__ == "__main__":
         cmd_sup = CommandSupervisor()
         cmd_sup.create_new_object("CoordinateSystemSOI")
         print(cmd_sup.soi_is.current_object.__dict__)
-        # cmd_sup.change_attribute_value("name", "MyCS")
+        cmd_sup.change_attribute_value("name", "MyCS")
