@@ -34,5 +34,6 @@ dodict["lala"]["tata"] = "ads"
 print(dodict["lala"])
 
 s = "abc"
-print(s.find("g"))
-print(s[:s.find("c")+1])
+s = s[:s.index("b")+1]
+print(s)
+

@@ -46,11 +46,9 @@ class CommandChain:
     def append_command(self, command: Command):
         self.command_chain.append(command)
 
-    def get_slice(self, command: Command):
+    def cut_slice(self, command: Command):
         """ command included in list"""
-        new_cc = CommandChain(self.head)
-        new_cc.command_chain = self.command_chain[:self.command_chain.index(command)]
-        return new_cc
+        self.command_chain = self.command_chain[:self.command_chain.index(command)+1]
 
     def command_in_chain(self, command: Command) -> int:
         if command not in self.command_chain:
@@ -63,8 +61,11 @@ class CommandChain:
 
 class CommandSupervisor:
     def __init__(self):
-        self.command_chains: list[CommandChain] = [CommandChain()]
+        self.command_chains: list[CommandChain] = []
         self.command_pointer = None
+
+    def init_chains(self, soi_is: SOIInteractiveStorage):
+        self.command_chains.append(CommandChain(soi_is.soi_objects))
 
     def save_state(self, soi_is: SOIInteractiveStorage):
         self.command_chains.append(CommandChain(soi_is.copied_soi_objects))
@@ -72,8 +73,8 @@ class CommandSupervisor:
     def append_command(self, command: Command):
         self.command_chains[-1].append_command(command)
 
-    # def remove_command(self):
-    #     pass
+    def cut_slice(self, chain: CommandChain):
+        self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
 
     def execute_command(self, command: Command):
         pass
@@ -90,14 +91,59 @@ class CommandSupervisor:
                 if last_command:
                     break
 
-    def undo(self):
+    def continue_commands(self, new_command: Command):
+        chain_with_pointer = None
         if self.command_pointer:
             for chain in self.command_chains:
-                for command in chain.command_chain:
-                    pass
+                if chain.command_in_chain(self.command_pointer) != -1:
+                    chain_with_pointer = chain
+                    chain.cut_slice(self.command_pointer)
+                    chain.append_command(new_command)
+                    self.command_pointer = new_command
+                    break
+            assert chain_with_pointer, "chain not found"
+            self.cut_slice(chain_with_pointer)
+            self.execute_commands()
+
+    def undo(self):
+        pointer_found = False
+        if self.command_pointer:
+            for chain in reversed(self.command_chains):
+                if pointer_found:
+                    self.command_pointer = chain.command_chain[-1]
+                    self.execute_commands()
+                    return
+                if chain.command_in_chain(self.command_pointer) != -1:
+                    index = chain.command_chain.index(self.command_pointer)
+                    if index != 0:
+                        self.command_pointer = chain.command_chain[index-1]
+                        self.execute_commands()
+                        return
+                    else:
+                        pointer_found = True
+                        continue
+            assert pointer_found, "command_pointer not found in chains"
+            print("CANNOT UNDO")
 
     def redo(self):
-        pass
+        pointer_found = False
+        if self.command_pointer:
+            for chain in self.command_chains:
+                if pointer_found:
+                    self.command_pointer = chain.command_chain[0]
+                    self.execute_commands()
+                    return
+                if chain.command_in_chain(self.command_pointer) != -1:
+                    index = chain.command_chain.index(self.command_pointer)
+                    if index != len(chain.command_chain)-1:
+                        self.command_pointer = chain.command_chain[index+1]
+                        self.execute_commands()
+                        return
+                    else:
+                        pointer_found = True
+                        continue
+            assert pointer_found, "command_pointer not found in chains"
+            print("CANNOT REDO")
 
 
 def execute_commands(commands: list[Command]):
