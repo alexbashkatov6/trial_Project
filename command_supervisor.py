@@ -8,46 +8,36 @@ from soi_objects import StationObjectImage
 from config_names import STATION_IN_CONFIG_FOLDER
 
 
-class CEElementaryCommand(CustomEnum):
-    create_object = 0
-    change_attrib_value = 1
-    elementary_delete_object = 2
+# class CEElementaryCommand(CustomEnum):
+#     create_object = 0
+#     change_attrib_value = 1
+#     elementary_delete_object = 2
 
 
-class CECompositeCommand(CustomEnum):
-    load_config = 0
+class CECommand(CustomEnum):
+    load_objects = 0
     create_object = 1
     rename_object = 2
     change_attrib_value = 3
     delete_object = 4
 
 
-# class Command:
-#     def __init__(self, cmd_type: CECompositeCommand, cmd_args: list[str]):
-#         """ Commands have next formats:
-#         load_config(file_name) (or dir_name)
-#         create_object(cls_name)
-#         rename_object(old_name, new_name)
-#         change_attrib_value(obj_name, attr_name, new_value)
-#         delete_object(obj_name)
-#         """
-#         self.cmd_type = cmd_type
-#         self.cmd_args = cmd_args
-
 class Command:
-    def __init__(self, name: str):
-        self.name = name
-
-    def __repr__(self):
-        return "{}('{}')".format(self.__class__.__name__, self.name)
-
-    __str__ = __repr__
+    def __init__(self, cmd_type: CECommand, cmd_args: list):
+        """ Commands have next formats:
+        load_objects(objects)
+        create_object(cls_name)
+        rename_object(old_name, new_name)
+        change_attrib_value(obj_name, attr_name, new_value)
+        delete_object(obj_name)
+        """
+        self.cmd_type = cmd_type
+        self.cmd_args = cmd_args
 
 
 class CommandChain:
-    def __init__(self, head: list[StationObjectImage]):
-        self.head = head
-        self.cmd_chain = [Command("load head")]
+    def __init__(self, start_command: Command):
+        self.cmd_chain = [start_command]
 
     def append_command(self, command: Command):
         self.cmd_chain.append(command)
@@ -63,9 +53,11 @@ class CommandChain:
 
 
 class CommandSupervisor:
-    def __init__(self):
+    def __init__(self, soi_is: SOIInteractiveStorage, model: ModelBuilder):
         self.command_chains: list[CommandChain] = []
         self.command_pointer = None
+        self.soi_is = soi_is
+        self.model = model
 
     def execute_commands(self):
         last_command = False
@@ -82,13 +74,23 @@ class CommandSupervisor:
                     break
 
     def execute_command(self, command: Command):
-        print("executing command {}".format(command))
+        if command.cmd_type == CECommand.load_objects:
+            images = command.cmd_args[0]
+            self.model.build_dg(images)
+            self.model.evaluate_attributes()
+            self.model.build_skeleton()
+            self.model.eval_link_length()
+            self.model.build_lights()
+            self.model.build_rail_points()
+            self.model.build_borders()
+            self.model.build_sections()
 
     def cut_slice(self, chain: CommandChain):
         self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
 
-    def save_state(self, soi_is: SOIInteractiveStorage):
-        cc = CommandChain(soi_is.copied_soi_objects)
+    def save_state(self):
+        cc = CommandChain(Command(CECommand(CECommand.load_objects),
+                                  [self.soi_is.copied_soi_objects]))
         self.command_chains.append(cc)
         self.command_pointer = cc.cmd_chain[-1]
         self.execute_commands()
@@ -147,10 +149,19 @@ class CommandSupervisor:
             assert pointer_found, "command_pointer not found in chains"
             print("CANNOT REDO")
 
+    """ High-level operations"""
+
+    def read_station_config(self, dir_name: str):
+        self.soi_is.read_station_config(dir_name)
+        self.save_state()
+
+    def eval_routes(self, train_xml: str, shunt_xml: str):
+        self.model.eval_routes(train_xml, shunt_xml)
+
 
 def execute_commands(commands: list[Command]):
     for command in commands:
-        if command.cmd_type == CECompositeCommand.load_config:
+        if command.cmd_type == CECommand.load_objects:
             dir_name = command.cmd_args[0]
             SOI_IS.read_station_config(dir_name)
             images = SOI_IS.soi_objects
@@ -162,10 +173,6 @@ def execute_commands(commands: list[Command]):
             MODEL.build_rail_points()
             MODEL.build_borders()
             MODEL.build_sections()
-
-
-SOI_IS = SOIInteractiveStorage()
-MODEL = ModelBuilder()
 
 
 if __name__ == "__main__":
@@ -310,31 +317,56 @@ if __name__ == "__main__":
 
     test_12 = False
     if test_12:
-        execute_commands([Command(CECompositeCommand(CECompositeCommand.load_config), [STATION_IN_CONFIG_FOLDER])])
-        MODEL.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
+        pass
+        # execute_commands([Command(CECompositeCommand(CECompositeCommand.load_objects), [STATION_IN_CONFIG_FOLDER])])
+        # MODEL.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
 
-    test_13 = True
+    test_13 = False
     if test_13:
-        cmd_sup = CommandSupervisor()
-        cmd_sup.save_state(SOI_IS)
-        print("pointer = ", cmd_sup.command_pointer)
-        cmd_sup.continue_commands(Command("1"))
-        print("pointer = ", cmd_sup.command_pointer)
-        cmd_sup.continue_commands(Command("2"))
-        print("pointer = ", cmd_sup.command_pointer)
-        cmd_sup.save_state(SOI_IS)
-        print("pointer = ", cmd_sup.command_pointer)
-        cmd_sup.continue_commands(Command("3"))
-        print("pointer = ", cmd_sup.command_pointer)
-        cmd_sup.continue_commands(Command("4"))
-        print("pointer = ", cmd_sup.command_pointer)
-        print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
-        cmd_sup.undo()
-        cmd_sup.undo()
-        cmd_sup.undo()
-        cmd_sup.undo()
-        cmd_sup.undo()
-        cmd_sup.undo()
-        cmd_sup.continue_commands(Command("5"))
-        print("pointer = ", cmd_sup.command_pointer)
-        print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
+        pass
+        # class Command:
+        #     def __init__(self, name: str):
+        #         self.name = name
+        #
+        #     def __repr__(self):
+        #         return "{}('{}')".format(self.__class__.__name__, self.name)
+        #
+        #     __str__ = __repr__
+
+        # cmd_sup = CommandSupervisor()
+        # cmd_sup.save_state(SOI_IS)
+        # print("pointer = ", cmd_sup.command_pointer)
+        # cmd_sup.continue_commands(Command("1"))
+        # print("pointer = ", cmd_sup.command_pointer)
+        # cmd_sup.continue_commands(Command("2"))
+        # print("pointer = ", cmd_sup.command_pointer)
+        # cmd_sup.save_state(SOI_IS)
+        # print("pointer = ", cmd_sup.command_pointer)
+        # cmd_sup.continue_commands(Command("3"))
+        # print("pointer = ", cmd_sup.command_pointer)
+        # cmd_sup.continue_commands(Command("4"))
+        # print("pointer = ", cmd_sup.command_pointer)
+        # print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
+        # cmd_sup.undo()
+        # print()
+        # cmd_sup.undo()
+        # print()
+        # cmd_sup.undo()
+        # print()
+        # cmd_sup.undo()
+        # print()
+        # cmd_sup.undo()
+        # print()
+        # cmd_sup.undo()
+        # print()
+        # cmd_sup.continue_commands(Command("5"))
+        # print("pointer = ", cmd_sup.command_pointer)
+        # print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
+
+    test_14 = True
+    if test_14:
+        SOI_IS = SOIInteractiveStorage()
+        MODEL = ModelBuilder()
+        cmd_sup = CommandSupervisor(SOI_IS, MODEL)
+        cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        cmd_sup.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")

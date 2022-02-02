@@ -1,107 +1,107 @@
 <?xml version="1.0" ?>
 <Routes>
-	<TrainSignal Tag="CH2" Type="PpoTrainSignal">
-		<TrRoute Tag="CH2_N" Type="PpoTrainRoute" Id="1">
-			<Trace Start="CH2" OnCoursePoints="+3 +1 " Finish="AB_N"/>
-			<OperatorSelectors Ends="N"/>
-			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
-		</TrRoute>
-		<ShRoute Tag="CH2_M1" Type="PpoShuntingRoute" Id="2">
-			<Trace Start="CH2" OnCoursePoints="+3 +1 " Finish="NP"/>
-			<OperatorSelectors Ends="M1"/>
-		</ShRoute>
-	</TrainSignal>
-	<TrainSignal Tag="CH1" Type="PpoTrainSignal">
-		<TrRoute Tag="CH1_N" Type="PpoTrainRoute" Id="3">
-			<Trace Start="CH1" OnCoursePoints="-3 +1 " Finish="AB_N"/>
-			<OperatorSelectors Ends="N"/>
-			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
-		</TrRoute>
-		<ShRoute Tag="CH1_M1" Type="PpoShuntingRoute" Id="4">
-			<Trace Start="CH1" OnCoursePoints="-3 +1 " Finish="NP"/>
-			<OperatorSelectors Ends="M1"/>
-		</ShRoute>
-	</TrainSignal>
-	<TrainSignal Tag="N3" Type="PpoTrainSignal">
-		<TrRoute Tag="N3_CH" Type="PpoTrainRoute" Id="5">
-			<Trace Start="N3" OnCoursePoints="-6 -4 +2 " Finish="AB_CH"/>
-			<OperatorSelectors Ends="CH"/>
-			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
-		</TrRoute>
-		<ShRoute Tag="N3_M4" Type="PpoShuntingRoute" Id="6">
-			<Trace Start="N3" OnCoursePoints="+6 " Finish="M4P"/>
-			<OperatorSelectors Ends="M4"/>
-		</ShRoute>
-		<ShRoute Tag="N3_M2" Type="PpoShuntingRoute" Id="7">
-			<Trace Start="N3" OnCoursePoints="-6 -4 +2 " Finish="CHP"/>
-			<OperatorSelectors Ends="M2"/>
-		</ShRoute>
-	</TrainSignal>
 	<TrainSignal Tag="N2" Type="PpoTrainSignal">
-		<TrRoute Tag="N2_CH" Type="PpoTrainRoute" Id="8">
+		<TrRoute Tag="N2_CH" Type="PpoTrainRoute" Id="1">
 			<Trace Start="N2" OnCoursePoints="+4 +2 " Finish="AB_CH"/>
 			<OperatorSelectors Ends="CH"/>
 			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
 		</TrRoute>
-		<ShRoute Tag="N2_M2" Type="PpoShuntingRoute" Id="9">
+		<ShRoute Tag="N2_M2" Type="PpoShuntingRoute" Id="2">
 			<Trace Start="N2" OnCoursePoints="+4 +2 " Finish="CHP"/>
 			<OperatorSelectors Ends="M2"/>
 		</ShRoute>
 	</TrainSignal>
 	<TrainSignal Tag="N1" Type="PpoTrainSignal">
-		<TrRoute Tag="N1_CH" Type="PpoTrainRoute" Id="10">
+		<TrRoute Tag="N1_CH" Type="PpoTrainRoute" Id="3">
 			<Trace Start="N1" OnCoursePoints="-2 " Finish="AB_CH"/>
 			<OperatorSelectors Ends="CH"/>
 			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
 		</TrRoute>
-		<ShRoute Tag="N1_M2" Type="PpoShuntingRoute" Id="11">
+		<ShRoute Tag="N1_M2" Type="PpoShuntingRoute" Id="4">
 			<Trace Start="N1" OnCoursePoints="-2 " Finish="CHP"/>
 			<OperatorSelectors Ends="M2"/>
 		</ShRoute>
 	</TrainSignal>
 	<TrainSignal Tag="CH3" Type="PpoTrainSignal">
-		<TrRoute Tag="CH3_N" Type="PpoTrainRoute" Id="12">
+		<TrRoute Tag="CH3_N" Type="PpoTrainRoute" Id="5">
 			<Trace Start="CH3" OnCoursePoints="-1 " Finish="AB_N"/>
 			<OperatorSelectors Ends="N"/>
 			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
 		</TrRoute>
-		<ShRoute Tag="CH3_M1" Type="PpoShuntingRoute" Id="13">
+		<ShRoute Tag="CH3_M1" Type="PpoShuntingRoute" Id="6">
 			<Trace Start="CH3" OnCoursePoints="-1 " Finish="NP"/>
 			<OperatorSelectors Ends="M1"/>
 		</ShRoute>
 	</TrainSignal>
+	<TrainSignal Tag="CH1" Type="PpoTrainSignal">
+		<TrRoute Tag="CH1_N" Type="PpoTrainRoute" Id="7">
+			<Trace Start="CH1" OnCoursePoints="-3 +1 " Finish="AB_N"/>
+			<OperatorSelectors Ends="N"/>
+			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
+		</TrRoute>
+		<ShRoute Tag="CH1_M1" Type="PpoShuntingRoute" Id="8">
+			<Trace Start="CH1" OnCoursePoints="-3 +1 " Finish="NP"/>
+			<OperatorSelectors Ends="M1"/>
+		</ShRoute>
+	</TrainSignal>
+	<TrainSignal Tag="CH" Type="PpoTrainSignal">
+		<TrRoute Tag="CH_CH1" Type="PpoTrainRoute" Id="9">
+			<Trace Start="CH" OnCoursePoints="-2 " Finish="CH1"/>
+			<OperatorSelectors Ends="CH1 N1"/>
+			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
+		</TrRoute>
+		<TrRoute Tag="CH_CH2" Type="PpoTrainRoute" Id="10">
+			<Trace Start="CH" OnCoursePoints="+2 +4 " Finish="CH2"/>
+			<OperatorSelectors Ends="CH2 N2"/>
+			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
+		</TrRoute>
+		<TrRoute Tag="CH_CH3" Type="PpoTrainRoute" Id="11">
+			<Trace Start="CH" OnCoursePoints="+2 -4 -6 " Finish="CH3"/>
+			<OperatorSelectors Ends="CH3 N3"/>
+			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
+		</TrRoute>
+	</TrainSignal>
 	<TrainSignal Tag="N" Type="PpoTrainSignal">
-		<TrRoute Tag="N_N1" Type="PpoTrainRoute" Id="14">
+		<TrRoute Tag="N_N1" Type="PpoTrainRoute" Id="12">
 			<Trace Start="N" OnCoursePoints="+1 -3 " Finish="N1"/>
 			<OperatorSelectors Ends="N1 CH1"/>
 			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
 		</TrRoute>
-		<TrRoute Tag="N_N2" Type="PpoTrainRoute" Id="15">
+		<TrRoute Tag="N_N2" Type="PpoTrainRoute" Id="13">
 			<Trace Start="N" OnCoursePoints="+1 +3 " Finish="N2"/>
 			<OperatorSelectors Ends="N2 CH2"/>
 			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
 		</TrRoute>
-		<TrRoute Tag="N_N3" Type="PpoTrainRoute" Id="16">
+		<TrRoute Tag="N_N3" Type="PpoTrainRoute" Id="14">
 			<Trace Start="N" OnCoursePoints="-1 " Finish="N3"/>
 			<OperatorSelectors Ends="N3 CH3"/>
 			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
 		</TrRoute>
 	</TrainSignal>
-	<TrainSignal Tag="CH" Type="PpoTrainSignal">
-		<TrRoute Tag="CH_CH1" Type="PpoTrainRoute" Id="24">
-			<Trace Start="CH" OnCoursePoints="-2 " Finish="CH1"/>
-			<OperatorSelectors Ends="CH1 N1"/>
+	<TrainSignal Tag="CH2" Type="PpoTrainSignal">
+		<TrRoute Tag="CH2_N" Type="PpoTrainRoute" Id="22">
+			<Trace Start="CH2" OnCoursePoints="+3 +1 " Finish="AB_N"/>
+			<OperatorSelectors Ends="N"/>
 			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
 		</TrRoute>
-		<TrRoute Tag="CH_CH2" Type="PpoTrainRoute" Id="25">
-			<Trace Start="CH" OnCoursePoints="+2 +4 " Finish="CH2"/>
-			<OperatorSelectors Ends="CH2 N2"/>
+		<ShRoute Tag="CH2_M1" Type="PpoShuntingRoute" Id="23">
+			<Trace Start="CH2" OnCoursePoints="+3 +1 " Finish="NP"/>
+			<OperatorSelectors Ends="M1"/>
+		</ShRoute>
+	</TrainSignal>
+	<TrainSignal Tag="N3" Type="PpoTrainSignal">
+		<TrRoute Tag="N3_CH" Type="PpoTrainRoute" Id="24">
+			<Trace Start="N3" OnCoursePoints="-6 -4 +2 " Finish="AB_CH"/>
+			<OperatorSelectors Ends="CH"/>
 			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
 		</TrRoute>
-		<TrRoute Tag="CH_CH3" Type="PpoTrainRoute" Id="26">
-			<Trace Start="CH" OnCoursePoints="+2 -4 -6 " Finish="CH3"/>
-			<OperatorSelectors Ends="CH3 N3"/>
-			<SignalingDependence Dark="K" Stop="K" OnMain="K" OnMainGreen="K" OnSide="K" OnMainALSO="K" OnMainGrALSO="K" OnSideALSO="K"/>
-		</TrRoute>
+		<ShRoute Tag="N3_M4" Type="PpoShuntingRoute" Id="25">
+			<Trace Start="N3" OnCoursePoints="+6 " Finish="M4P"/>
+			<OperatorSelectors Ends="M4"/>
+		</ShRoute>
+		<ShRoute Tag="N3_M2" Type="PpoShuntingRoute" Id="26">
+			<Trace Start="N3" OnCoursePoints="-6 -4 +2 " Finish="CHP"/>
+			<OperatorSelectors Ends="M2"/>
+		</ShRoute>
 	</TrainSignal>
 </Routes>
