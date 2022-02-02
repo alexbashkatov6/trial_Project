@@ -16,7 +16,7 @@ from config_names import STATION_IN_CONFIG_FOLDER
 
 class CECommand(CustomEnum):
     load_objects = 0
-    create_object = 1
+    create_new_object = 1
     rename_object = 2
     change_attrib_value = 3
     delete_object = 4
@@ -25,8 +25,8 @@ class CECommand(CustomEnum):
 class Command:
     def __init__(self, cmd_type: CECommand, cmd_args: list):
         """ Commands have next formats:
-        load_objects(objects)
-        create_object(cls_name)
+        load_objects(objects)  # Command(CECommand(CECommand.load_objects), [])
+        create_object(cls_name)  # Command(CECommand(CECommand.create_object), [cls_name])
         rename_object(old_name, new_name)
         change_attrib_value(obj_name, attr_name, new_value)
         delete_object(obj_name)
@@ -84,6 +84,9 @@ class CommandSupervisor:
             self.model.build_rail_points()
             self.model.build_borders()
             self.model.build_sections()
+        if command.cmd_type == CECommand.create_new_object:
+            cls_name = command.cmd_args[0]
+            self.soi_is.create_new_object(cls_name)
 
     def cut_slice(self, chain: CommandChain):
         self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
@@ -149,7 +152,7 @@ class CommandSupervisor:
             assert pointer_found, "command_pointer not found in chains"
             print("CANNOT REDO")
 
-    """ High-level operations"""
+    """ High-level operations - by 'buttons' """
 
     def read_station_config(self, dir_name: str):
         self.soi_is.read_station_config(dir_name)
@@ -157,6 +160,9 @@ class CommandSupervisor:
 
     def eval_routes(self, train_xml: str, shunt_xml: str):
         self.model.eval_routes(train_xml, shunt_xml)
+
+    def create_new_object(self, cls_name: str):
+        self.continue_commands(Command(CECommand(CECommand.create_new_object), [cls_name]))
 
 
 def execute_commands(commands: list[Command]):
@@ -369,4 +375,12 @@ if __name__ == "__main__":
         MODEL = ModelBuilder()
         cmd_sup = CommandSupervisor(SOI_IS, MODEL)
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
         cmd_sup.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
+
+    test_15 = False
+    if test_15:
+        SOI_IS = SOIInteractiveStorage()
+        MODEL = ModelBuilder()
+        cmd_sup = CommandSupervisor(SOI_IS, MODEL)

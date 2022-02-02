@@ -32,13 +32,14 @@ class SOIRectifier:
     def __init__(self):
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
         self.rect_so: list[str] = []
-        self.refresh_storages()
-
         self.dg = OneComponentTwoSidedPG()
+
+        self.refresh_storages()
 
     def refresh_storages(self):
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
         self.rect_so: list[str] = []
+        self.dg = OneComponentTwoSidedPG()
 
     def build_dg(self, images: list[StationObjectImage]) -> None:
         self.refresh_storages()

@@ -81,9 +81,9 @@ class ModelBuilder:
         self.rect_so: list[str] = []
 
         self.names_mo: OrderedDict[str, OrderedDict[str, ModelObject]] = OrderedDict()  # cls_name: obj_name: obj
-        self.refresh_storages()
-
         self.smg = OneComponentTwoSidedPG()
+
+        self.refresh_storages()
 
     def refresh_storages(self):
         self.rectifier.refresh_storages()
@@ -91,6 +91,7 @@ class ModelBuilder:
         self.names_mo["CoordinateSystem"]: OrderedDict[str, CoordinateSystemMO] = OrderedDict()
         self.names_mo["CoordinateSystem"][GLOBAL_CS_NAME] = self.mo_gcs
         self.rect_so: list[str] = []
+        self.smg = OneComponentTwoSidedPG()
 
     def build_dg(self, images: list[StationObjectImage]) -> None:
         self.refresh_storages()

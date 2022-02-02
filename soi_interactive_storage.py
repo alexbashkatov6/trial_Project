@@ -4,7 +4,8 @@ import os
 import pandas as pd
 from copy import copy
 
-from soi_objects import StationObjectImage, CoordinateSystemSOI
+from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
+    LightSOI, RailPointSOI, BorderSOI, SectionSOI
 
 from config_names import GLOBAL_CS_NAME
 
@@ -25,9 +26,18 @@ class SOIInteractiveStorage:
         self.gcs = CoordinateSystemSOI()
         self.gcs._name = GLOBAL_CS_NAME
         self._soi_objects: list[StationObjectImage] = [self.gcs]
-        # self._soi_objects: OrderedDict[str, OrderedDict[str, StationObjectImage]] = DefaultOrderedDict(OrderedDict)
+        self._current_object: Optional[StationObjectImage] = None
+        self.curr_obj_is_new = True
+
+    def clean_soi_objects_list(self):
+        self._soi_objects = [self.gcs]
+
+    def reset_current_object(self):
+        self._current_object = None
+        self.curr_obj_is_new = True
 
     def read_station_config(self, dir_name: str):
+        self.clean_soi_objects_list()
         folder = os.path.join(os.getcwd(), dir_name)
         for cls in StationObjectImage.__subclasses__():
             name_soi = cls.__name__
@@ -44,6 +54,7 @@ class SOIInteractiveStorage:
                     attr_val = attr_val.strip()
                     setattr(new_obj, attr_name, attr_val)
                 self._soi_objects.append(new_obj)
+        self.reset_current_object()
 
     @property
     def soi_objects(self) -> list[StationObjectImage]:
@@ -52,6 +63,15 @@ class SOIInteractiveStorage:
     @property
     def copied_soi_objects(self) -> list[StationObjectImage]:
         return [copy(soi_object) for soi_object in self._soi_objects]
+
+    def create_new_object(self, cls_name: str):
+        cls: Type[StationObjectImage] = eval(cls_name)
+        self._current_object: StationObjectImage = cls()
+        self.curr_obj_is_new = True
+
+    @property
+    def current_object(self) -> Optional[StationObjectImage]:
+        return self._current_object
 
 
 SOI_S = SOIInteractiveStorage()
