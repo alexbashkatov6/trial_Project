@@ -56,13 +56,10 @@ class CommandChain:
         """ command included in list"""
         self.cmd_chain = self.cmd_chain[:self.cmd_chain.index(command) + 1]
 
-    def command_in_chain(self, command: Command) -> int:
+    def index_command_in_chain(self, command: Command) -> int:
         if command not in self.cmd_chain:
             return -1
         return self.cmd_chain.index(command)
-
-    # def remove_command(self):
-    #     pass
 
 
 class CommandSupervisor:
@@ -70,27 +67,12 @@ class CommandSupervisor:
         self.command_chains: list[CommandChain] = []
         self.command_pointer = None
 
-    # def init_chains(self, soi_is: SOIInteractiveStorage):
-    #     self.command_chains.append(CommandChain(soi_is.soi_objects))
-
-    def save_state(self, soi_is: SOIInteractiveStorage):
-        cc = CommandChain(soi_is.copied_soi_objects)
-        self.command_chains.append(cc)
-        self.command_pointer = cc.cmd_chain[-1]
-
-    # def append_command(self, command: Command):
-    #     self.command_chains[-1].append_command(command)
-
-    def cut_slice(self, chain: CommandChain):
-        self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
-
-    def execute_command(self, command: Command):
-        pass
-
     def execute_commands(self):
         last_command = False
         if self.command_pointer:
             for chain in self.command_chains:
+                if chain.index_command_in_chain(self.command_pointer) == -1:
+                    continue
                 for command in chain.cmd_chain:
                     self.execute_command(command)
                     if command is self.command_pointer:
@@ -99,11 +81,23 @@ class CommandSupervisor:
                 if last_command:
                     break
 
+    def execute_command(self, command: Command):
+        print("executing command {}".format(command))
+
+    def cut_slice(self, chain: CommandChain):
+        self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
+
+    def save_state(self, soi_is: SOIInteractiveStorage):
+        cc = CommandChain(soi_is.copied_soi_objects)
+        self.command_chains.append(cc)
+        self.command_pointer = cc.cmd_chain[-1]
+        self.execute_commands()
+
     def continue_commands(self, new_command: Command):
         chain_with_pointer = None
         if self.command_pointer:
             for chain in self.command_chains:
-                if chain.command_in_chain(self.command_pointer) != -1:
+                if chain.index_command_in_chain(self.command_pointer) != -1:
                     chain_with_pointer = chain
                     chain.cut_slice(self.command_pointer)
                     chain.append_command(new_command)
@@ -121,7 +115,7 @@ class CommandSupervisor:
                     self.command_pointer = chain.cmd_chain[-1]
                     self.execute_commands()
                     return
-                if chain.command_in_chain(self.command_pointer) != -1:
+                if chain.index_command_in_chain(self.command_pointer) != -1:
                     index = chain.cmd_chain.index(self.command_pointer)
                     if index != 0:
                         self.command_pointer = chain.cmd_chain[index - 1]
@@ -141,7 +135,7 @@ class CommandSupervisor:
                     self.command_pointer = chain.cmd_chain[0]
                     self.execute_commands()
                     return
-                if chain.command_in_chain(self.command_pointer) != -1:
+                if chain.index_command_in_chain(self.command_pointer) != -1:
                     index = chain.cmd_chain.index(self.command_pointer)
                     if index != len(chain.cmd_chain)-1:
                         self.command_pointer = chain.cmd_chain[index + 1]
