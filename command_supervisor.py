@@ -22,38 +22,44 @@ class CECompositeCommand(CustomEnum):
     delete_object = 4
 
 
+# class Command:
+#     def __init__(self, cmd_type: CECompositeCommand, cmd_args: list[str]):
+#         """ Commands have next formats:
+#         load_config(file_name) (or dir_name)
+#         create_object(cls_name)
+#         rename_object(old_name, new_name)
+#         change_attrib_value(obj_name, attr_name, new_value)
+#         delete_object(obj_name)
+#         """
+#         self.cmd_type = cmd_type
+#         self.cmd_args = cmd_args
+
 class Command:
-    def __init__(self, cmd_type: CECompositeCommand, cmd_args: list[str]):
-        """ Commands have next formats:
-        load_config(file_name) (or dir_name)
-        create_object(cls_name)
-        rename_object(old_name, new_name)
-        change_attrib_value(obj_name, attr_name, new_value)
-        delete_object(obj_name)
-        """
-        self.cmd_type = cmd_type
-        self.cmd_args = cmd_args
+    def __init__(self, name: str):
+        self.name = name
+
+    def __repr__(self):
+        return "{}('{}')".format(self.__class__.__name__, self.name)
+
+    __str__ = __repr__
 
 
 class CommandChain:
-    def __init__(self, head: list[StationObjectImage] = None):
-        if head is None:
-            self.head = []
-        else:
-            self.head = head
-        self.command_chain = []
+    def __init__(self, head: list[StationObjectImage]):
+        self.head = head
+        self.cmd_chain = [Command("load head")]
 
     def append_command(self, command: Command):
-        self.command_chain.append(command)
+        self.cmd_chain.append(command)
 
     def cut_slice(self, command: Command):
         """ command included in list"""
-        self.command_chain = self.command_chain[:self.command_chain.index(command)+1]
+        self.cmd_chain = self.cmd_chain[:self.cmd_chain.index(command) + 1]
 
     def command_in_chain(self, command: Command) -> int:
-        if command not in self.command_chain:
+        if command not in self.cmd_chain:
             return -1
-        return self.command_chain.index(command)
+        return self.cmd_chain.index(command)
 
     # def remove_command(self):
     #     pass
@@ -64,14 +70,16 @@ class CommandSupervisor:
         self.command_chains: list[CommandChain] = []
         self.command_pointer = None
 
-    def init_chains(self, soi_is: SOIInteractiveStorage):
-        self.command_chains.append(CommandChain(soi_is.soi_objects))
+    # def init_chains(self, soi_is: SOIInteractiveStorage):
+    #     self.command_chains.append(CommandChain(soi_is.soi_objects))
 
     def save_state(self, soi_is: SOIInteractiveStorage):
-        self.command_chains.append(CommandChain(soi_is.copied_soi_objects))
+        cc = CommandChain(soi_is.copied_soi_objects)
+        self.command_chains.append(cc)
+        self.command_pointer = cc.cmd_chain[-1]
 
-    def append_command(self, command: Command):
-        self.command_chains[-1].append_command(command)
+    # def append_command(self, command: Command):
+    #     self.command_chains[-1].append_command(command)
 
     def cut_slice(self, chain: CommandChain):
         self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
@@ -83,7 +91,7 @@ class CommandSupervisor:
         last_command = False
         if self.command_pointer:
             for chain in self.command_chains:
-                for command in chain.command_chain:
+                for command in chain.cmd_chain:
                     self.execute_command(command)
                     if command is self.command_pointer:
                         last_command = True
@@ -110,13 +118,13 @@ class CommandSupervisor:
         if self.command_pointer:
             for chain in reversed(self.command_chains):
                 if pointer_found:
-                    self.command_pointer = chain.command_chain[-1]
+                    self.command_pointer = chain.cmd_chain[-1]
                     self.execute_commands()
                     return
                 if chain.command_in_chain(self.command_pointer) != -1:
-                    index = chain.command_chain.index(self.command_pointer)
+                    index = chain.cmd_chain.index(self.command_pointer)
                     if index != 0:
-                        self.command_pointer = chain.command_chain[index-1]
+                        self.command_pointer = chain.cmd_chain[index - 1]
                         self.execute_commands()
                         return
                     else:
@@ -130,13 +138,13 @@ class CommandSupervisor:
         if self.command_pointer:
             for chain in self.command_chains:
                 if pointer_found:
-                    self.command_pointer = chain.command_chain[0]
+                    self.command_pointer = chain.cmd_chain[0]
                     self.execute_commands()
                     return
                 if chain.command_in_chain(self.command_pointer) != -1:
-                    index = chain.command_chain.index(self.command_pointer)
-                    if index != len(chain.command_chain)-1:
-                        self.command_pointer = chain.command_chain[index+1]
+                    index = chain.cmd_chain.index(self.command_pointer)
+                    if index != len(chain.cmd_chain)-1:
+                        self.command_pointer = chain.cmd_chain[index + 1]
                         self.execute_commands()
                         return
                     else:
@@ -306,7 +314,33 @@ if __name__ == "__main__":
     #     light_cells = all_cells_of_type(MODEL.smg.not_inf_nodes, LightCell)
     #     print(len(light_cells))
 
-    test_12 = True
+    test_12 = False
     if test_12:
         execute_commands([Command(CECompositeCommand(CECompositeCommand.load_config), [STATION_IN_CONFIG_FOLDER])])
         MODEL.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
+
+    test_13 = True
+    if test_13:
+        cmd_sup = CommandSupervisor()
+        cmd_sup.save_state(SOI_IS)
+        print("pointer = ", cmd_sup.command_pointer)
+        cmd_sup.continue_commands(Command("1"))
+        print("pointer = ", cmd_sup.command_pointer)
+        cmd_sup.continue_commands(Command("2"))
+        print("pointer = ", cmd_sup.command_pointer)
+        cmd_sup.save_state(SOI_IS)
+        print("pointer = ", cmd_sup.command_pointer)
+        cmd_sup.continue_commands(Command("3"))
+        print("pointer = ", cmd_sup.command_pointer)
+        cmd_sup.continue_commands(Command("4"))
+        print("pointer = ", cmd_sup.command_pointer)
+        print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
+        cmd_sup.undo()
+        cmd_sup.undo()
+        cmd_sup.undo()
+        cmd_sup.undo()
+        cmd_sup.undo()
+        cmd_sup.undo()
+        cmd_sup.continue_commands(Command("5"))
+        print("pointer = ", cmd_sup.command_pointer)
+        print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
