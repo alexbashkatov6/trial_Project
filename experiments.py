@@ -55,3 +55,15 @@ try:
     raise MyException("first", "second")
 except MyException as e:
     print("MyException!", e.args[0], e.args[1])
+
+print(s[:2])
+
+print(", ".join(["1", "2", "3"]))
+i = 1_0000_00
+print(type(i))
+# import sys
+# next(sys.stdin)
+# sys.argv[0]
+# s = ""
+# s << "a" << "b"
+# print(s)
