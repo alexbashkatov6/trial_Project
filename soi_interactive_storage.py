@@ -51,25 +51,25 @@ class SOIInteractiveStorage:
         self.clean_soi_objects_list()
         self.reset_current_object()
 
-    def read_station_config(self, dir_name: str):
-        self.clean_soi_objects_list()
-        folder = os.path.join(os.getcwd(), dir_name)
-        for cls in StationObjectImage.__subclasses__():
-            name_soi = cls.__name__
-            name_del_soi = name_soi.replace("SOI", "")
-            file = os.path.join(folder, "{}.xlsx".format(name_del_soi))
-            df: pd.DataFrame = pd.read_excel(file, dtype=str, keep_default_na=False)
-            obj_dict_list: list[OrderedDict] = df.to_dict('records', OrderedDict)
-            for obj_dict in obj_dict_list:
-                new_obj = cls()
-                for attr_name, attr_val in obj_dict.items():
-                    attr_name: str
-                    attr_val: str
-                    attr_name = attr_name.strip()
-                    attr_val = attr_val.strip()
-                    setattr(new_obj, attr_name, attr_val)
-                self._soi_objects.append(new_obj)
-        self.reset_current_object()
+    # def read_station_config(self, dir_name: str):
+    #     self.clean_soi_objects_list()
+    #     folder = os.path.join(os.getcwd(), dir_name)
+    #     for cls in StationObjectImage.__subclasses__():
+    #         name_soi = cls.__name__
+    #         name_del_soi = name_soi.replace("SOI", "")
+    #         file = os.path.join(folder, "{}.xlsx".format(name_del_soi))
+    #         df: pd.DataFrame = pd.read_excel(file, dtype=str, keep_default_na=False)
+    #         obj_dict_list: list[OrderedDict] = df.to_dict('records', OrderedDict)
+    #         for obj_dict in obj_dict_list:
+    #             new_obj = cls()
+    #             for attr_name, attr_val in obj_dict.items():
+    #                 attr_name: str
+    #                 attr_val: str
+    #                 attr_name = attr_name.strip()
+    #                 attr_val = attr_val.strip()
+    #                 setattr(new_obj, attr_name, attr_val)
+    #             self._soi_objects.append(new_obj)
+    #     self.reset_current_object()
 
     @property
     def soi_objects(self) -> list[StationObjectImage]:

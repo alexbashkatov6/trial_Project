@@ -100,7 +100,6 @@ class SOIRectifier:
             if attr_name:
                 raise DBIsolatedNodesError(cls_name, obj_name, attr_name, "Isolated nodes was found")
             else:
-                # print("len", len(obj_names))
                 raise DBIsolatedNodesError("", ", ".join(obj_names), "", "Isolated nodes was found")
         for route_ in routes:
             if route_.is_cycle:
@@ -118,6 +117,11 @@ class SOIRectifier:
     def rectification_results(self, images: list[StationObjectImage]) -> tuple[OrderedDict[str, StationObjectImage],
                                                                                list[str]]:
         self.build_dg(images)
-        # self.check_cycle_dg()
         self.rectify_dg()
         return self.names_soi, self.rect_so
+
+    def dependent_objects_names(self, obj_name: str) -> list[str]:
+        pass
+
+    def rename_object(self, old_name: str, new_name: str):
+        pass

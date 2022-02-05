@@ -8,7 +8,7 @@ from custom_enum import CustomEnum
 from soi_interactive_storage import SOIInteractiveStorage
 from soi_rectifier import DependenciesBuildError
 from soi_attributes_evaluations import AttributeEvaluateError
-from mo_model_builder import ModelBuilder
+from mo_model_builder import ModelBuilder, ModelBuildError
 from soi_objects import StationObjectImage
 from extended_itertools import single_element
 
@@ -23,20 +23,13 @@ class ObjectSoiError(Exception):
     pass
 
 
-# class CEElementaryCommand(CustomEnum):
-#     create_object = 0
-#     change_attrib_value = 1
-#     elementary_delete_object = 2
-
-
 class CECommand(CustomEnum):
     initialize = 0
     load_objects = 1
     create_new_object = 2
     change_current_object = 3
-    rename_object = 4
-    change_attrib_value = 5
-    delete_object = 6
+    change_attrib_value = 4
+    delete_object = 5
 
 
 class Command:
@@ -172,15 +165,17 @@ class CommandSupervisor:
                                 self.model_building(new_images)
                             except (DependenciesBuildError, AttributeEvaluateError) as e:
                                 cls_name, obj_name, attr_name, comment = e.args
-                                # obj_name = e.args[1]
-                                # attr_name = e.args[2]
-                                # comment = e.args[3]
                                 self.error_handler(cls_name, obj_name, attr_name, comment)
+                                self.model_building(old_images)
+                            except ModelBuildError as e:
+                                cls_name, obj_name, comment = e.args
+                                self.error_handler(cls_name, obj_name, "", comment)
                                 self.model_building(old_images)
                             else:
                                 self.new_stable_images = new_images
                                 self.apply_readiness = True
                                 self.apply_changes()
+                                self.soi_iast.reset_current_object()
                             finally:
                                 self.model.rectifier.load_config_mode = False
                         else:
@@ -189,11 +184,14 @@ class CommandSupervisor:
                             except (DependenciesBuildError, AttributeEvaluateError) as e:
                                 cls_name, obj_name, attr_name, comment = e.args
                                 self.error_handler(cls_name, obj_name, attr_name, comment)
-                                self.model_building(old_images)
+                            except ModelBuildError as e:
+                                cls_name, obj_name, comment = e.args
+                                self.error_handler(cls_name, obj_name, "", comment)
                             else:
-                                self.model_building(old_images)
                                 self.new_stable_images = new_images
                                 self.apply_readiness = True
+                            finally:
+                                self.model_building(old_images)
                         last_command = True
                         break
                 if last_command:
@@ -207,13 +205,6 @@ class CommandSupervisor:
 
     def cut_slice(self, chain: CommandChain):
         self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
-
-    # def save_state(self):
-    #     cc = CommandChain(Command(CECommand(CECommand.load_objects),
-    #                               [self.soi_iast.copied_soi_objects]))
-    #     self.command_chains.append(cc)
-    #     self.command_pointer = cc.cmd_chain[-1]
-    #     self.execute_commands()
 
     def continue_commands(self, new_command: Command):
         chain_with_pointer = None
