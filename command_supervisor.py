@@ -7,6 +7,7 @@ from soi_rectifier import DependenciesBuildError
 from soi_attributes_evaluations import AttributeEvaluateError
 from mo_model_builder import ModelBuilder
 from soi_objects import StationObjectImage
+from extended_itertools import single_element
 
 from config_names import STATION_IN_CONFIG_FOLDER
 
@@ -88,9 +89,8 @@ class CommandSupervisor:
         self.model.build_borders()
         self.model.build_sections()
 
-    def execute_command(self, command: Command) -> tuple[list[StationObjectImage], list[StationObjectImage]]:
-        old_images = self.soi_iast.copied_soi_objects
-        new_images: list[StationObjectImage] = []
+    def execute_command(self, command: Command) -> list[StationObjectImage]:
+        new_images = self.soi_iast.copied_soi_objects
 
         if command.cmd_type == CECommand.load_objects:
             new_images = command.cmd_args[0]
@@ -98,25 +98,26 @@ class CommandSupervisor:
         if command.cmd_type == CECommand.create_new_object:
             cls_name = command.cmd_args[0]
             self.soi_iast.create_new_object(cls_name)
-            new_images = copy(old_images)
             new_images.append(self.soi_iast.current_object)
 
         if command.cmd_type == CECommand.change_current_object:
             obj_name = command.cmd_args[0]
             self.soi_iast.set_current_object(obj_name)
-            new_images = copy(old_images)
 
         if command.cmd_type == CECommand.change_attrib_value:
             attr_name = command.cmd_args[0]
             new_attr_value = command.cmd_args[1]
-            setattr(self.soi_iast.current_object, attr_name, new_attr_value)
             if self.soi_iast.curr_obj_is_new:
-                new_images = copy(old_images)
+                setattr(self.soi_iast.current_object, attr_name, new_attr_value)
                 new_images.append(self.soi_iast.current_object)
             else:
-                new_images = self.soi_iast.soi_objects
+                if attr_name != "name":
+                    current_obj = single_element(lambda x: x.name == self.soi_iast.current_object.name, new_images)
+                    setattr(current_obj, attr_name, new_attr_value)
+                else:
+                    raise NotImplementedError("NotImplementedError")
 
-        return old_images, new_images
+        return new_images
 
     def execute_commands(self):
         last_command = False
@@ -125,7 +126,8 @@ class CommandSupervisor:
                 if chain.index_command_in_chain(self.command_pointer) == -1:
                     continue
                 for command in chain.cmd_chain:
-                    old_images, new_images = self.execute_command(command)
+                    old_images = self.soi_iast.copied_soi_objects
+                    new_images = self.execute_command(command)
                     if command is self.command_pointer:
                         self.apply_readiness = False
                         try:
@@ -236,6 +238,7 @@ class CommandSupervisor:
     def apply_changes(self):
         assert self.apply_readiness, "No readiness for apply"
         self.soi_iast.soi_objects = self.new_stable_images
+        self.model_building(self.new_stable_images)
 
 # def execute_commands(commands: list[Command]):
 #     for command in commands:
@@ -494,6 +497,18 @@ if __name__ == "__main__":
         print("name")
         cmd_sup.change_attribute_value("name", "MyCS_2")
         print("cs_relative_to")
-        cmd_sup.change_attribute_value("cs_relative_to", "GlobalCS")
+        cmd_sup.change_attribute_value("cs_relative_to", "MyCS_1")
         print("x")
         cmd_sup.change_attribute_value("x", "0")
+        cmd_sup.apply_changes()
+
+        print("change_current_object")
+        cmd_sup.change_current_object("MyCS_2")
+        print("cs_relative_to")
+        cmd_sup.change_attribute_value("cs_relative_to", "GlobalCS")
+        cmd_sup.apply_changes()
+
+        dg = cmd_sup.model.rectifier.dg
+        print(len(dg.nodes))
+        print(len(dg.links))
+        print(dg.links)

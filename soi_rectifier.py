@@ -76,8 +76,13 @@ class SOIRectifier:
                                 node_parent: PolarNode = find_cell_name(self.dg.not_inf_nodes,
                                                                         ImageNameCell, name)[1]
                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
-                    # check cycles
+                    # check cycles and isolated nodes
                     routes = self.dg.walk(self.dg.inf_pu.ni_nd)
+                    route_nodes = set()
+                    for route in routes:
+                        route_nodes |= set(route.nodes)
+                    if len(route_nodes) < len(self.dg.nodes):
+                        raise DBCycleError(attr_name, "Isolated nodes was found")
                     if any([route_.is_cycle for route_ in routes]):
                         raise DBCycleError(attr_name, "Cycle in dependencies was found")
 
