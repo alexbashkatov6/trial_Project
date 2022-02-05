@@ -33,6 +33,7 @@ class SOIRectifier:
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
         self.rect_so: list[str] = []
         self.dg = OneComponentTwoSidedPG()
+        self.load_config_mode = False
 
         self.reset_storages()
 
@@ -77,20 +78,20 @@ class SOIRectifier:
                                                                         ImageNameCell, name)[1]
                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
                     # check cycles and isolated nodes
-                    routes = self.dg.walk(self.dg.inf_pu.ni_nd)
-                    route_nodes = set()
-                    for route in routes:
-                        route_nodes |= set(route.nodes)
-                    if len(route_nodes) < len(self.dg.nodes):
-                        raise DBCycleError(attr_name, "Isolated nodes was found")
-                    if any([route_.is_cycle for route_ in routes]):
-                        raise DBCycleError(attr_name, "Cycle in dependencies was found")
+                    if not self.load_config_mode:
+                        self.check_cycle_dg(attr_name)
+        if self.load_config_mode:
+            self.check_cycle_dg("empty")
 
-    # def check_cycle_dg(self):
-    #     dg = self.dg
-    #     routes = dg.walk(dg.inf_pu.ni_nd)
-    #     if any([route_.is_cycle for route_ in routes]):
-    #         raise DBCycleError("Cycle in dependencies was found")
+    def check_cycle_dg(self, attr_name: str):
+        routes = self.dg.walk(self.dg.inf_pu.ni_nd)
+        route_nodes = set()
+        for route in routes:
+            route_nodes |= set(route.nodes)
+        if len(route_nodes) < len(self.dg.nodes):
+            raise DBCycleError(attr_name, "Isolated nodes was found")
+        if any([route_.is_cycle for route_ in routes]):
+            raise DBCycleError(attr_name, "Cycle in dependencies was found")
 
     def rectify_dg(self):
         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global CS

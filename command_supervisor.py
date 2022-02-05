@@ -129,6 +129,8 @@ class CommandSupervisor:
                     old_images = self.soi_iast.copied_soi_objects
                     new_images = self.execute_command(command)
                     if command is self.command_pointer:
+                        if command.cmd_type == CECommand.load_objects:
+                            self.model.rectifier.load_config_mode = True
                         self.apply_readiness = False
                         try:
                             self.model_building(new_images)
@@ -141,6 +143,9 @@ class CommandSupervisor:
                             self.model_building(old_images)
                             self.new_stable_images = new_images
                             self.apply_readiness = True
+                        if command.cmd_type == CECommand.load_objects:
+                            self.apply_changes()
+                            self.model.rectifier.load_config_mode = False
                         last_command = True
                         break
                 if last_command:
@@ -444,13 +449,14 @@ if __name__ == "__main__":
         # print("pointer = ", cmd_sup.command_pointer)
         # print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
 
-    test_14 = False
+    test_14 = True
     if test_14:
         cmd_sup = CommandSupervisor()
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
         cmd_sup.undo()
-        # cmd_sup.undo()
+        cmd_sup.undo()
+        print("command_pointer", cmd_sup.command_pointer)
         print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
         cmd_sup.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
 
@@ -478,7 +484,7 @@ if __name__ == "__main__":
         print(curr_obj)
         print(curr_obj._str_x)
 
-    test_17 = True
+    test_17 = False
     if test_17:
         # print(cmd_sup.soi_iast.current_object.__dict__)
         cmd_sup = CommandSupervisor()
