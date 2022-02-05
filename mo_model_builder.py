@@ -13,7 +13,7 @@ from cell_access_functions import NotFoundCellError, element_cell_by_type, all_c
 from rail_route import RailRoute
 from xml_formation import form_rail_routes_xml
 from soi_rectifier import SOIRectifier
-from soi_attributes_evaluator import evaluate_attributes
+from soi_attributes_evaluations import evaluate_attributes
 from mo_objects import ModelObject, CoordinateSystemMO, AxisMO, PointMO, LineMO, LightMO, RailPointMO, BorderMO, \
     SectionMO
 

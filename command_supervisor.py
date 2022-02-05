@@ -4,7 +4,7 @@ from copy import copy
 from custom_enum import CustomEnum
 from soi_interactive_storage import SOIInteractiveStorage
 from soi_rectifier import DependenciesBuildError
-from soi_attributes_evaluator import AttributeEvaluateError
+from soi_attributes_evaluations import AttributeEvaluateError
 from mo_model_builder import ModelBuilder
 from soi_objects import StationObjectImage
 
@@ -68,27 +68,15 @@ class CommandSupervisor:
     def __init__(self):
         self.command_chains: list[CommandChain] = []
         self.command_pointer = None
-        self.soi_is = SOIInteractiveStorage()
+        self.soi_iast = SOIInteractiveStorage()
         self.model = ModelBuilder()
+        self.apply_readiness = False
+        self.new_stable_images = []
         self.save_state()
 
     def reset_storages(self):
-        self.soi_is.reset_storages()
+        self.soi_iast.reset_storages()
         self.model.reset_storages()
-
-    def execute_commands(self):
-        last_command = False
-        if self.command_pointer:
-            for chain in self.command_chains:
-                if chain.index_command_in_chain(self.command_pointer) == -1:
-                    continue
-                for command in chain.cmd_chain:
-                    self.execute_command(command)
-                    if command is self.command_pointer:
-                        last_command = True
-                        break
-                if last_command:
-                    break
 
     def model_building(self, images: list[StationObjectImage]):
         self.model.build_dg(images)
@@ -100,41 +88,61 @@ class CommandSupervisor:
         self.model.build_borders()
         self.model.build_sections()
 
-    def execute_command(self, command: Command):
-        old_images = self.soi_is.copied_soi_objects
+    def execute_command(self, command: Command) -> tuple[list[StationObjectImage], list[StationObjectImage]]:
+        old_images = self.soi_iast.copied_soi_objects
         new_images: list[StationObjectImage] = []
-        attr_name = "name"
 
         if command.cmd_type == CECommand.load_objects:
             new_images = command.cmd_args[0]
 
         if command.cmd_type == CECommand.create_new_object:
             cls_name = command.cmd_args[0]
-            self.soi_is.create_new_object(cls_name)
+            self.soi_iast.create_new_object(cls_name)
             new_images = copy(old_images)
-            new_images.append(self.soi_is.current_object)
+            new_images.append(self.soi_iast.current_object)
 
         if command.cmd_type == CECommand.change_current_object:
             obj_name = command.cmd_args[0]
-            self.soi_is.set_current_object(obj_name)
+            self.soi_iast.set_current_object(obj_name)
             new_images = copy(old_images)
 
         if command.cmd_type == CECommand.change_attrib_value:
             attr_name = command.cmd_args[0]
-            print("Attr name = ", attr_name)
             new_attr_value = command.cmd_args[1]
-            setattr(self.soi_is.current_object, attr_name, new_attr_value)
-            if self.soi_is.curr_obj_is_new:
+            setattr(self.soi_iast.current_object, attr_name, new_attr_value)
+            if self.soi_iast.curr_obj_is_new:
                 new_images = copy(old_images)
-                new_images.append(self.soi_is.current_object)
+                new_images.append(self.soi_iast.current_object)
             else:
-                new_images = self.soi_is.soi_objects
+                new_images = self.soi_iast.soi_objects
 
-        try:
-            self.model_building(new_images)
-        except (DependenciesBuildError, AttributeEvaluateError) as e:
-            self.attribute_error_handler(attr_name, e.args[0])
-            self.model_building(old_images)
+        return old_images, new_images
+
+    def execute_commands(self):
+        last_command = False
+        if self.command_pointer:
+            for chain in self.command_chains:
+                if chain.index_command_in_chain(self.command_pointer) == -1:
+                    continue
+                for command in chain.cmd_chain:
+                    old_images, new_images = self.execute_command(command)
+                    if command is self.command_pointer:
+                        self.apply_readiness = False
+                        try:
+                            self.model_building(new_images)
+                        except (DependenciesBuildError, AttributeEvaluateError) as e:
+                            attr_name = e.args[0]
+                            comment = e.args[1]
+                            self.attribute_error_handler(attr_name, comment)
+                            self.model_building(old_images)
+                        else:
+                            self.model_building(old_images)
+                            self.new_stable_images = new_images
+                            self.apply_readiness = True
+                        last_command = True
+                        break
+                if last_command:
+                    break
 
     def attribute_error_handler(self, attr_name: str, message: str):
         print("Attribute error! \nattr_name: {}\n message: {}".format(attr_name, message))
@@ -144,7 +152,7 @@ class CommandSupervisor:
 
     def save_state(self):
         cc = CommandChain(Command(CECommand(CECommand.load_objects),
-                                  [self.soi_is.copied_soi_objects]))
+                                  [self.soi_iast.copied_soi_objects]))
         self.command_chains.append(cc)
         self.command_pointer = cc.cmd_chain[-1]
         self.execute_commands()
@@ -186,10 +194,6 @@ class CommandSupervisor:
             assert pointer_found, "command_pointer not found in chains"
             print("CANNOT UNDO")
 
-            # if self.command_pointer.cmd_type == CECommand.load_objects:
-            # elif self.command_pointer.cmd_type == CECommand.create_new_object:
-            #     print("undo for create_new_object")
-
     def redo(self):
         self.reset_storages()
         pointer_found = False
@@ -211,10 +215,10 @@ class CommandSupervisor:
             assert pointer_found, "command_pointer not found in chains"
             print("CANNOT REDO")
 
-    """ High-level operations - by 'buttons' """
+    """ High-level interface operations - by 'buttons' """
 
     def read_station_config(self, dir_name: str):
-        self.soi_is.read_station_config(dir_name)
+        self.soi_iast.read_station_config(dir_name)
         self.save_state()
 
     def eval_routes(self, train_xml: str, shunt_xml: str):
@@ -229,6 +233,9 @@ class CommandSupervisor:
     def change_attribute_value(self, attr_name: str, new_value: str):
         self.continue_commands(Command(CECommand(CECommand.change_attrib_value), [attr_name, new_value]))
 
+    def apply_changes(self):
+        assert self.apply_readiness, "No readiness for apply"
+        self.soi_iast.soi_objects = self.new_stable_images
 
 # def execute_commands(commands: list[Command]):
 #     for command in commands:
@@ -450,12 +457,12 @@ if __name__ == "__main__":
         cmd_sup.create_new_object("CoordinateSystemSOI")
         # cmd_sup.create_new_object("AxisSOI")
         # cmd_sup.create_new_object("LineSOI")
-        curr_obj = cmd_sup.soi_is.current_object
+        curr_obj = cmd_sup.soi_iast.current_object
         curr_obj.x = "5"
         print(curr_obj)
         print(curr_obj._str_x)
         cmd_sup.undo()
-        curr_obj_after_undo = cmd_sup.soi_is.current_object
+        curr_obj_after_undo = cmd_sup.soi_iast.current_object
         print()
         print(curr_obj_after_undo)
 
@@ -464,13 +471,29 @@ if __name__ == "__main__":
         cmd_sup = CommandSupervisor()
         cmd_sup.create_new_object("CoordinateSystemSOI")
         cmd_sup.change_attribute_value("x", "5")
-        curr_obj = cmd_sup.soi_is.current_object
+        curr_obj = cmd_sup.soi_iast.current_object
         print(curr_obj)
         print(curr_obj._str_x)
 
     test_17 = True
     if test_17:
+        # print(cmd_sup.soi_iast.current_object.__dict__)
         cmd_sup = CommandSupervisor()
+        print("create_new")
         cmd_sup.create_new_object("CoordinateSystemSOI")
-        print(cmd_sup.soi_is.current_object.__dict__)
-        cmd_sup.change_attribute_value("name", "MyCS")
+        print("name")
+        cmd_sup.change_attribute_value("name", "MyCS_1")
+        print("cs_relative_to")
+        cmd_sup.change_attribute_value("cs_relative_to", "GlobalCS")
+        print("x")
+        cmd_sup.change_attribute_value("x", "0")
+        cmd_sup.apply_changes()
+
+        print("create_new")
+        cmd_sup.create_new_object("CoordinateSystemSOI")
+        print("name")
+        cmd_sup.change_attribute_value("name", "MyCS_2")
+        print("cs_relative_to")
+        cmd_sup.change_attribute_value("cs_relative_to", "GlobalCS")
+        print("x")
+        cmd_sup.change_attribute_value("x", "0")

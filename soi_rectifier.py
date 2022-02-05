@@ -49,9 +49,11 @@ class SOIRectifier:
         self.names_soi[gcs.name] = gcs
         for image in images[1:]:
             if not hasattr(image, "_name") or (not image.name) or image.name.isspace():
-                raise DBNoNameError("No-name-object in class {} found".format(image.__class__.__name__))
+                raise DBNoNameError("name", "No-name-object in class {} found".format(image.__class__.__name__))
+            # print("image.name=", image.name)
+            # print("self.names_soi=", self.names_soi)
             if image.name in self.names_soi:
-                raise DBExistingNameError("Name {} already exist".format(image.name))
+                raise DBExistingNameError("name", "Name {} already exist".format(image.name))
             node = self.dg.insert_node()
             node.append_cell_obj(ImageNameCell(image.name))
             self.names_soi[image.name] = image
@@ -74,12 +76,16 @@ class SOIRectifier:
                                 node_parent: PolarNode = find_cell_name(self.dg.not_inf_nodes,
                                                                         ImageNameCell, name)[1]
                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
+                    # check cycles
+                    routes = self.dg.walk(self.dg.inf_pu.ni_nd)
+                    if any([route_.is_cycle for route_ in routes]):
+                        raise DBCycleError(attr_name, "Cycle in dependencies was found")
 
-    def check_cycle_dg(self):
-        dg = self.dg
-        routes = dg.walk(dg.inf_pu.ni_nd)
-        if any([route_.is_cycle for route_ in routes]):
-            raise DBCycleError("Cycle in dependencies was found")
+    # def check_cycle_dg(self):
+    #     dg = self.dg
+    #     routes = dg.walk(dg.inf_pu.ni_nd)
+    #     if any([route_.is_cycle for route_ in routes]):
+    #         raise DBCycleError("Cycle in dependencies was found")
 
     def rectify_dg(self):
         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global CS
@@ -88,6 +94,6 @@ class SOIRectifier:
     def rectification_results(self, images: list[StationObjectImage]) -> tuple[OrderedDict[str, StationObjectImage],
                                                                                list[str]]:
         self.build_dg(images)
-        self.check_cycle_dg()
+        # self.check_cycle_dg()
         self.rectify_dg()
         return self.names_soi, self.rect_so

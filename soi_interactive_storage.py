@@ -75,6 +75,10 @@ class SOIInteractiveStorage:
     def soi_objects(self) -> list[StationObjectImage]:
         return copy(self._soi_objects)
 
+    @soi_objects.setter
+    def soi_objects(self, value: list[StationObjectImage]):
+        self._soi_objects = value
+
     @property
     def copied_soi_objects(self) -> list[StationObjectImage]:
         return [copy(soi_object) for soi_object in self._soi_objects]
@@ -84,12 +88,14 @@ class SOIInteractiveStorage:
         self._current_object: StationObjectImage = cls()
         self.curr_obj_is_new = True
         ce_attrs = set()
+        # enums init
         for attr_name in cls.dict_possible_values:
             attrib = getattr(cls, attr_name)
             ce: Type[CustomEnum] = attrib.enum
             if ce:
                 ce_attrs.add(attr_name)
                 setattr(self._current_object, attr_name, ce(0).str_value)
+        # not enums init
         for attr_name in self._current_object.active_attrs:
             if attr_name not in ce_attrs:
                 setattr(self._current_object, attr_name, "")
