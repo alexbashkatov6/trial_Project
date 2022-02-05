@@ -53,16 +53,18 @@ class SOIRectifier:
         gcs_node.append_cell_obj(ImageNameCell(gcs.name))
         self.names_soi[gcs.name] = gcs
         for image in images[1:]:
+            cls_name = image.__class__.__name__
             if not hasattr(image, "_name") or (not image.name) or image.name.isspace():
-                raise DBNoNameError("name", "No-name-object in class {} found".format(image.__class__.__name__))
-            # print("image.name=", image.name)
-            # print("self.names_soi=", self.names_soi)
+                raise DBNoNameError(cls_name, "", "name", "No-name-object in class")
+            obj_name = image.name
             if image.name in self.names_soi:
-                raise DBExistingNameError("name", "Name {} already exist".format(image.name))
+                raise DBExistingNameError(cls_name, obj_name, "name", "Name {} already exist".format(image.name))
             node = self.dg.insert_node()
             node.append_cell_obj(ImageNameCell(image.name))
             self.names_soi[image.name] = image
         for image in images[1:]:
+            cls_name = image.__class__.__name__
+            obj_name = image.name
             for attr_name in image.active_attrs:
                 if not getattr(image.__class__, attr_name).enum:
                     attr_value: str = getattr(image, "_str_{}".format(attr_name))
@@ -83,30 +85,31 @@ class SOIRectifier:
                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
                     # check cycles and isolated nodes
                     if not self.load_config_mode:
-                        self.check_cycle_dg(attr_name)
+                        self.check_cycle_dg(cls_name, obj_name, attr_name)
         if self.load_config_mode:
             self.check_cycle_dg()
 
-    def check_cycle_dg(self, attr_name: str = ""):
+    def check_cycle_dg(self, cls_name: str = "", obj_name: str = "", attr_name: str = ""):
         routes = self.dg.walk(self.dg.inf_pu.ni_nd)
         route_nodes = set()
         for route in routes:
             route_nodes |= set(route.nodes)
         if len(route_nodes) < len(self.dg.nodes):
             nodes = self.dg.nodes - route_nodes
-            names: list[str] = [node.cell_objs[0].name for node in nodes]
+            obj_names: list[str] = [node.cell_objs[0].name for node in nodes]
             if attr_name:
-                raise DBIsolatedNodesError(attr_name, "Isolated nodes was found")
+                raise DBIsolatedNodesError(cls_name, obj_name, attr_name, "Isolated nodes was found")
             else:
-                raise DBIsolatedNodesError(", ".join(names), "Isolated nodes was found")
+                # print("len", len(obj_names))
+                raise DBIsolatedNodesError("", ", ".join(obj_names), "", "Isolated nodes was found")
         for route_ in routes:
             if route_.is_cycle:
                 if attr_name:
-                    raise DBCycleError(attr_name, "Cycle in dependencies was found")
+                    raise DBCycleError(cls_name, obj_name, attr_name, "Cycle in dependencies was found")
                 else:
                     end_node = route_.nodes[-1]
-                    name = end_node.cell_objs[0].name
-                    raise DBCycleError(name, "Cycle in dependencies was found")
+                    obj_name = end_node.cell_objs[0].name
+                    raise DBCycleError("", obj_name, "", "Cycle in dependencies was found")
 
     def rectify_dg(self):
         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global CS

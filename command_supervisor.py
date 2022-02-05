@@ -128,7 +128,8 @@ class CommandSupervisor:
 
         if command.cmd_type == CECommand.load_objects:
             dir_name = command.cmd_args[0]
-            new_images = read_station_config(dir_name)
+            new_images = [self.soi_iast.gcs]
+            new_images.extend(read_station_config(dir_name))
 
         if command.cmd_type == CECommand.create_new_object:
             cls_name = command.cmd_args[0]
@@ -166,28 +167,28 @@ class CommandSupervisor:
                     if command is self.command_pointer:
                         self.apply_readiness = False
                         if command.cmd_type == CECommand.load_objects:
-                            # print("here handling 1")
                             self.model.rectifier.load_config_mode = True
                             try:
                                 self.model_building(new_images)
                             except (DependenciesBuildError, AttributeEvaluateError) as e:
-                                attr_name = e.args[0]
-                                comment = e.args[1]
-                                self.attribute_error_handler(attr_name, comment)
+                                cls_name, obj_name, attr_name, comment = e.args
+                                # obj_name = e.args[1]
+                                # attr_name = e.args[2]
+                                # comment = e.args[3]
+                                self.error_handler(cls_name, obj_name, attr_name, comment)
                                 self.model_building(old_images)
                             else:
                                 self.new_stable_images = new_images
                                 self.apply_readiness = True
                                 self.apply_changes()
+                            finally:
                                 self.model.rectifier.load_config_mode = False
                         else:
-                            # print("here handling 2")
                             try:
                                 self.model_building(new_images)
                             except (DependenciesBuildError, AttributeEvaluateError) as e:
-                                attr_name = e.args[0]
-                                comment = e.args[1]
-                                self.attribute_error_handler(attr_name, comment)
+                                cls_name, obj_name, attr_name, comment = e.args
+                                self.error_handler(cls_name, obj_name, attr_name, comment)
                                 self.model_building(old_images)
                             else:
                                 self.model_building(old_images)
@@ -198,8 +199,11 @@ class CommandSupervisor:
                 if last_command:
                     break
 
-    def attribute_error_handler(self, attr_name: str, message: str):
-        print("Attribute error! \nattr_name: {}\n message: {}".format(attr_name, message))
+    def error_handler(self, cls_name: str, obj_name: str, attr_name: str, message: str):
+        if cls_name.endswith("SOI"):
+            cls_name = cls_name.replace("SOI", "")
+        print("Attribute error! \ncls_name: {} \nobj_name: {} \nattr_name: {}\n message: {}"
+              .format(cls_name, obj_name, attr_name, message))
 
     def cut_slice(self, chain: CommandChain):
         self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
@@ -499,12 +503,12 @@ if __name__ == "__main__":
         # print("pointer = ", cmd_sup.command_pointer)
         # print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
 
-    test_14 = True
+    test_14 = False
     if test_14:
         cmd_sup = CommandSupervisor()
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
-        # cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
-        # cmd_sup.undo()
+        cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        cmd_sup.undo()
         # cmd_sup.undo()
         print("command_pointer", cmd_sup.command_pointer)
         print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
@@ -534,7 +538,7 @@ if __name__ == "__main__":
         print(curr_obj)
         print(curr_obj._str_x)
 
-    test_17 = False
+    test_17 = True
     if test_17:
         # print(cmd_sup.soi_iast.current_object.__dict__)
         cmd_sup = CommandSupervisor()
@@ -559,10 +563,10 @@ if __name__ == "__main__":
         cmd_sup.apply_changes()
 
         print("change_current_object")
-        cmd_sup.change_current_object("MyCS_2")
+        cmd_sup.change_current_object("MyCS_1")
         print("cs_relative_to")
-        cmd_sup.change_attribute_value("cs_relative_to", "GlobalCS")
-        cmd_sup.apply_changes()
+        cmd_sup.change_attribute_value("cs_relative_to", "MyCS_2")
+        # cmd_sup.apply_changes()
 
         dg = cmd_sup.model.rectifier.dg
         print(len(dg.nodes))

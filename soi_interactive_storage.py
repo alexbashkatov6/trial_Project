@@ -81,7 +81,9 @@ class SOIInteractiveStorage:
 
     @property
     def copied_soi_objects(self) -> list[StationObjectImage]:
-        return [copy(soi_object) for soi_object in self._soi_objects]
+        result = [self.gcs]
+        result.extend([copy(soi_object) for soi_object in self._soi_objects[1:]])
+        return result
 
     def create_new_object(self, cls_name: str):
         cls: Type[StationObjectImage] = eval(cls_name)
