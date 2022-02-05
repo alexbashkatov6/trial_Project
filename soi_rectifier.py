@@ -23,6 +23,10 @@ class DBCycleError(DependenciesBuildError):
     pass
 
 
+class DBIsolatedNodesError(DependenciesBuildError):
+    pass
+
+
 class ImageNameCell(CellObject):
     def __init__(self, name: str):
         self.name = name
@@ -81,17 +85,28 @@ class SOIRectifier:
                     if not self.load_config_mode:
                         self.check_cycle_dg(attr_name)
         if self.load_config_mode:
-            self.check_cycle_dg("empty")
+            self.check_cycle_dg()
 
-    def check_cycle_dg(self, attr_name: str):
+    def check_cycle_dg(self, attr_name: str = ""):
         routes = self.dg.walk(self.dg.inf_pu.ni_nd)
         route_nodes = set()
         for route in routes:
             route_nodes |= set(route.nodes)
         if len(route_nodes) < len(self.dg.nodes):
-            raise DBCycleError(attr_name, "Isolated nodes was found")
-        if any([route_.is_cycle for route_ in routes]):
-            raise DBCycleError(attr_name, "Cycle in dependencies was found")
+            nodes = self.dg.nodes - route_nodes
+            names: list[str] = [node.cell_objs[0].name for node in nodes]
+            if attr_name:
+                raise DBIsolatedNodesError(attr_name, "Isolated nodes was found")
+            else:
+                raise DBIsolatedNodesError(", ".join(names), "Isolated nodes was found")
+        for route_ in routes:
+            if route_.is_cycle:
+                if attr_name:
+                    raise DBCycleError(attr_name, "Cycle in dependencies was found")
+                else:
+                    end_node = route_.nodes[-1]
+                    name = end_node.cell_objs[0].name
+                    raise DBCycleError(name, "Cycle in dependencies was found")
 
     def rectify_dg(self):
         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global CS

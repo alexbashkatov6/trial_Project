@@ -1,5 +1,8 @@
 from __future__ import annotations
 from copy import copy
+from collections import OrderedDict
+import os
+import pandas as pd
 
 from custom_enum import CustomEnum
 from soi_interactive_storage import SOIInteractiveStorage
@@ -27,12 +30,13 @@ class ObjectSoiError(Exception):
 
 
 class CECommand(CustomEnum):
-    load_objects = 0
-    create_new_object = 1
-    change_current_object = 2
-    rename_object = 3
-    change_attrib_value = 4
-    delete_object = 5
+    initialize = 0
+    load_objects = 1
+    create_new_object = 2
+    change_current_object = 3
+    rename_object = 4
+    change_attrib_value = 5
+    delete_object = 6
 
 
 class Command:
@@ -65,6 +69,27 @@ class CommandChain:
         return self.cmd_chain.index(command)
 
 
+def read_station_config(dir_name: str) -> list[StationObjectImage]:
+    result = []
+    folder = os.path.join(os.getcwd(), dir_name)
+    for cls in StationObjectImage.__subclasses__():
+        name_soi = cls.__name__
+        name_del_soi = name_soi.replace("SOI", "")
+        file = os.path.join(folder, "{}.xlsx".format(name_del_soi))
+        df: pd.DataFrame = pd.read_excel(file, dtype=str, keep_default_na=False)
+        obj_dict_list: list[OrderedDict] = df.to_dict('records', OrderedDict)
+        for obj_dict in obj_dict_list:
+            new_obj = cls()
+            for attr_name, attr_val in obj_dict.items():
+                attr_name: str
+                attr_val: str
+                attr_name = attr_name.strip()
+                attr_val = attr_val.strip()
+                setattr(new_obj, attr_name, attr_val)
+            result.append(new_obj)
+    return result
+
+
 class CommandSupervisor:
     def __init__(self):
         self.command_chains: list[CommandChain] = []
@@ -73,7 +98,13 @@ class CommandSupervisor:
         self.model = ModelBuilder()
         self.apply_readiness = False
         self.new_stable_images = []
-        self.save_state()
+        self.init_chains()
+
+    def init_chains(self):
+        cc = CommandChain(Command(CECommand(CECommand.initialize), []))
+        self.command_chains.append(cc)
+        self.command_pointer = cc.cmd_chain[-1]
+        self.execute_commands()
 
     def reset_storages(self):
         self.soi_iast.reset_storages()
@@ -92,8 +123,12 @@ class CommandSupervisor:
     def execute_command(self, command: Command) -> list[StationObjectImage]:
         new_images = self.soi_iast.copied_soi_objects
 
+        if command.cmd_type == CECommand.initialize:
+            pass
+
         if command.cmd_type == CECommand.load_objects:
-            new_images = command.cmd_args[0]
+            dir_name = command.cmd_args[0]
+            new_images = read_station_config(dir_name)
 
         if command.cmd_type == CECommand.create_new_object:
             cls_name = command.cmd_args[0]
@@ -129,23 +164,35 @@ class CommandSupervisor:
                     old_images = self.soi_iast.copied_soi_objects
                     new_images = self.execute_command(command)
                     if command is self.command_pointer:
-                        if command.cmd_type == CECommand.load_objects:
-                            self.model.rectifier.load_config_mode = True
                         self.apply_readiness = False
-                        try:
-                            self.model_building(new_images)
-                        except (DependenciesBuildError, AttributeEvaluateError) as e:
-                            attr_name = e.args[0]
-                            comment = e.args[1]
-                            self.attribute_error_handler(attr_name, comment)
-                            self.model_building(old_images)
-                        else:
-                            self.model_building(old_images)
-                            self.new_stable_images = new_images
-                            self.apply_readiness = True
                         if command.cmd_type == CECommand.load_objects:
-                            self.apply_changes()
-                            self.model.rectifier.load_config_mode = False
+                            # print("here handling 1")
+                            self.model.rectifier.load_config_mode = True
+                            try:
+                                self.model_building(new_images)
+                            except (DependenciesBuildError, AttributeEvaluateError) as e:
+                                attr_name = e.args[0]
+                                comment = e.args[1]
+                                self.attribute_error_handler(attr_name, comment)
+                                self.model_building(old_images)
+                            else:
+                                self.new_stable_images = new_images
+                                self.apply_readiness = True
+                                self.apply_changes()
+                                self.model.rectifier.load_config_mode = False
+                        else:
+                            # print("here handling 2")
+                            try:
+                                self.model_building(new_images)
+                            except (DependenciesBuildError, AttributeEvaluateError) as e:
+                                attr_name = e.args[0]
+                                comment = e.args[1]
+                                self.attribute_error_handler(attr_name, comment)
+                                self.model_building(old_images)
+                            else:
+                                self.model_building(old_images)
+                                self.new_stable_images = new_images
+                                self.apply_readiness = True
                         last_command = True
                         break
                 if last_command:
@@ -157,12 +204,12 @@ class CommandSupervisor:
     def cut_slice(self, chain: CommandChain):
         self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
 
-    def save_state(self):
-        cc = CommandChain(Command(CECommand(CECommand.load_objects),
-                                  [self.soi_iast.copied_soi_objects]))
-        self.command_chains.append(cc)
-        self.command_pointer = cc.cmd_chain[-1]
-        self.execute_commands()
+    # def save_state(self):
+    #     cc = CommandChain(Command(CECommand(CECommand.load_objects),
+    #                               [self.soi_iast.copied_soi_objects]))
+    #     self.command_chains.append(cc)
+    #     self.command_pointer = cc.cmd_chain[-1]
+    #     self.execute_commands()
 
     def continue_commands(self, new_command: Command):
         chain_with_pointer = None
@@ -225,8 +272,11 @@ class CommandSupervisor:
     """ High-level interface operations - by 'buttons' """
 
     def read_station_config(self, dir_name: str):
-        self.soi_iast.read_station_config(dir_name)
-        self.save_state()
+        cc = CommandChain(Command(CECommand(CECommand.load_objects),
+                                  [dir_name]))
+        self.command_chains.append(cc)
+        self.command_pointer = cc.cmd_chain[-1]
+        self.execute_commands()
 
     def eval_routes(self, train_xml: str, shunt_xml: str):
         self.model.eval_routes(train_xml, shunt_xml)
@@ -453,9 +503,9 @@ if __name__ == "__main__":
     if test_14:
         cmd_sup = CommandSupervisor()
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
-        cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
-        cmd_sup.undo()
-        cmd_sup.undo()
+        # cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        # cmd_sup.undo()
+        # cmd_sup.undo()
         print("command_pointer", cmd_sup.command_pointer)
         print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
         cmd_sup.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
