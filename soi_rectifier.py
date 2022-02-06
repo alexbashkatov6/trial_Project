@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from copy import copy
 
 from cell_object import CellObject
 from soi_objects import StationObjectImage, CoordinateSystemSOI
@@ -37,7 +38,7 @@ class SOIRectifier:
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
         self.rect_so: list[str] = []
         self.dg = OneComponentTwoSidedPG()
-        self.load_config_mode = False
+        self.batch_load_mode = False
 
         self.reset_storages()
 
@@ -69,7 +70,7 @@ class SOIRectifier:
                 if not getattr(image.__class__, attr_name).enum:
                     attr_value: str = getattr(image, "_str_{}".format(attr_name))
                     for name in self.names_soi:
-                        if name.isdigit():  # for rail points
+                        if name.isdigit():  # for rail points - cannot be links on their
                             continue
                         if " " in attr_value:
                             split_names = attr_value.split(" ")
@@ -84,9 +85,9 @@ class SOIRectifier:
                                                                         ImageNameCell, name)[1]
                                 self.dg.connect_inf_handling(node_self.ni_pu, node_parent.ni_nd)
                     # check cycles and isolated nodes
-                    if not self.load_config_mode:
+                    if not self.batch_load_mode:
                         self.check_cycle_dg(cls_name, obj_name, attr_name)
-        if self.load_config_mode:
+        if self.batch_load_mode:
             self.check_cycle_dg()
 
     def check_cycle_dg(self, cls_name: str = "", obj_name: str = "", attr_name: str = ""):
@@ -121,7 +122,36 @@ class SOIRectifier:
         return self.names_soi, self.rect_so
 
     def dependent_objects_names(self, obj_name: str) -> list[str]:
-        pass
+        node_obj: PolarNode = find_cell_name(self.dg.not_inf_nodes, ImageNameCell, obj_name)[1]
+        dependent_nodes = list(flatten(self.dg.shortest_coverage(node_obj.ni_nd)))
+        return [node.cell_objs[0].name for node in dependent_nodes]
 
-    def rename_object(self, old_name: str, new_name: str):
-        pass
+    def rename_object(self, old_name: str, new_name: str) -> list[StationObjectImage]:
+        images_copy_dict = OrderedDict()
+        for img_name, img in self.names_soi.items():
+            images_copy_dict[img_name] = copy(img)
+        node_obj: PolarNode = find_cell_name(self.dg.not_inf_nodes, ImageNameCell, old_name)[1]
+        dependent_nodes = [link.opposite_ni(node_obj.ni_nd).pn for link in node_obj.ni_nd.links]
+        dep_img_names = [node.cell_objs[0].name for node in dependent_nodes]
+        dep_images = [images_copy_dict[dep_img_name] for dep_img_name in dep_img_names]
+        for image in dep_images:
+            for attr_name in image.active_attrs:
+                if not getattr(image.__class__, attr_name).enum:
+                    attr_value: str = getattr(image, "_str_{}".format(attr_name))
+                    if old_name.isdigit():  # for rail points - cannot be links on their
+                        continue
+                    if " " in attr_value:
+                        split_names = attr_value.split(" ")
+                    else:
+                        split_names = [attr_value]
+                    after_replace_result = []
+                    for split_name in split_names:
+                        if old_name == split_name:
+                            after_replace_result.append(new_name)
+                        else:
+                            after_replace_result.append(split_name)
+                    new_attr_value = " ".join(after_replace_result)
+                    setattr(image, "_str_{}".format(attr_name), new_attr_value)
+        old_image = images_copy_dict[old_name]
+        old_image.name = new_name
+        return list(images_copy_dict.values())

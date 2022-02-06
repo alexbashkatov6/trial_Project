@@ -12,7 +12,7 @@ from mo_model_builder import ModelBuilder, ModelBuildError
 from soi_objects import StationObjectImage
 from extended_itertools import single_element
 
-from config_names import STATION_IN_CONFIG_FOLDER
+from config_names import STATION_IN_CONFIG_FOLDER, GLOBAL_CS_NAME
 
 
 class AttributeSoiError(Exception):
@@ -25,17 +25,17 @@ class ObjectSoiError(Exception):
 
 class CECommand(CustomEnum):
     initialize = 0
-    load_objects = 1
+    load_from_file = 1
     create_new_object = 2
     change_current_object = 3
     change_attrib_value = 4
-    delete_object = 5
+    load_after_deletion = 5
 
 
 class Command:
     def __init__(self, cmd_type: CECommand, cmd_args: list):
         """ Commands have next formats:
-        load_objects(objects)  # Command(CECommand(CECommand.load_objects), [])
+        load_from_file(objects)  # Command(CECommand(CECommand.load_from_file), [])
         create_object(cls_name)  # Command(CECommand(CECommand.create_object), [cls_name])
         rename_object(old_name, new_name)
         change_attrib_value(obj_name, attr_name, new_value)
@@ -91,6 +91,7 @@ class CommandSupervisor:
         self.model = ModelBuilder()
         self.apply_readiness = False
         self.new_stable_images = []
+        self.deletion_names = []
         self.init_chains()
 
     def init_chains(self):
@@ -119,7 +120,7 @@ class CommandSupervisor:
         if command.cmd_type == CECommand.initialize:
             pass
 
-        if command.cmd_type == CECommand.load_objects:
+        if command.cmd_type == CECommand.load_from_file:
             dir_name = command.cmd_args[0]
             new_images = [self.soi_iast.gcs]
             new_images.extend(read_station_config(dir_name))
@@ -140,11 +141,14 @@ class CommandSupervisor:
                 setattr(self.soi_iast.current_object, attr_name, new_attr_value)
                 new_images.append(self.soi_iast.current_object)
             else:
+                current_obj = single_element(lambda x: x.name == self.soi_iast.current_object.name, new_images)
                 if attr_name != "name":
-                    current_obj = single_element(lambda x: x.name == self.soi_iast.current_object.name, new_images)
                     setattr(current_obj, attr_name, new_attr_value)
                 else:
-                    raise NotImplementedError("NotImplementedError")
+                    new_images = self.model.rectifier.rename_object(current_obj.name, new_attr_value)
+
+        if command.cmd_type == CECommand.load_after_deletion:
+            new_images = command.cmd_args[0]
 
         return new_images
 
@@ -159,8 +163,9 @@ class CommandSupervisor:
                     new_images = self.execute_command(command)
                     if command is self.command_pointer:
                         self.apply_readiness = False
-                        if command.cmd_type == CECommand.load_objects:
-                            self.model.rectifier.load_config_mode = True
+                        if (command.cmd_type == CECommand.load_from_file) or \
+                                (command.cmd_type == CECommand.load_after_deletion):
+                            self.model.rectifier.batch_load_mode = True
                             try:
                                 self.model_building(new_images)
                             except (DependenciesBuildError, AttributeEvaluateError) as e:
@@ -177,7 +182,7 @@ class CommandSupervisor:
                                 self.apply_changes()
                                 self.soi_iast.reset_current_object()
                             finally:
-                                self.model.rectifier.load_config_mode = False
+                                self.model.rectifier.batch_load_mode = False
                         else:
                             try:
                                 self.model_building(new_images)
@@ -267,7 +272,7 @@ class CommandSupervisor:
     """ High-level interface operations - by 'buttons' """
 
     def read_station_config(self, dir_name: str):
-        cc = CommandChain(Command(CECommand(CECommand.load_objects),
+        cc = CommandChain(Command(CECommand(CECommand.load_from_file),
                                   [dir_name]))
         self.command_chains.append(cc)
         self.command_pointer = cc.cmd_chain[-1]
@@ -290,9 +295,29 @@ class CommandSupervisor:
         self.soi_iast.soi_objects = self.new_stable_images
         self.model_building(self.new_stable_images)
 
+    def delete_obj(self, obj_name: str):
+        assert obj_name != GLOBAL_CS_NAME, "Cannot delete GCS"
+        self.deletion_names = self.model.rectifier.dependent_objects_names(obj_name)
+        self.deletion_warning()
+
+    def deletion_warning(self):
+        print("Will be deleted: ", self.deletion_names)
+
+    def deletion_approved(self):
+        images_after_deletion = [obj for obj in self.soi_iast.copied_soi_objects if obj.name not in self.deletion_names]
+        cc = CommandChain(Command(CECommand(CECommand.load_after_deletion),
+                                  [images_after_deletion]))
+        self.command_chains.append(cc)
+        self.command_pointer = cc.cmd_chain[-1]
+        self.execute_commands()
+        self.deletion_names = []
+
+    def deletion_rejected(self):
+        self.deletion_names = []
+
 # def execute_commands(commands: list[Command]):
 #     for command in commands:
-#         if command.cmd_type == CECommand.load_objects:
+#         if command.cmd_type == CECommand.load_from_file:
 #             dir_name = command.cmd_args[0]
 #             SOI_IS.read_station_config(dir_name)
 #             images = SOI_IS.soi_objects
@@ -449,7 +474,7 @@ if __name__ == "__main__":
     test_12 = False
     if test_12:
         pass
-        # execute_commands([Command(CECompositeCommand(CECompositeCommand.load_objects), [STATION_IN_CONFIG_FOLDER])])
+        # execute_commands([Command(CECompositeCommand(CECompositeCommand.load_from_file), [STATION_IN_CONFIG_FOLDER])])
         # MODEL.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
 
     test_13 = False
@@ -553,11 +578,25 @@ if __name__ == "__main__":
         cmd_sup.change_attribute_value("x", "0")
         cmd_sup.apply_changes()
 
+        # print("dependent", cmd_sup.model.rectifier.dependent_objects_names("MyCS_2"))
+        # print("change_current_object")
+        # cmd_sup.change_current_object("MyCS_1")
+        # print("cs_relative_to")
+        # cmd_sup.change_attribute_value("cs_relative_to", "MyCS_2")
+        # cmd_sup.apply_changes()
+
+        # cmd_sup.delete_obj("MyCS_2")
+        # cmd_sup.deletion_approved()
+
         print("change_current_object")
         cmd_sup.change_current_object("MyCS_1")
-        print("cs_relative_to")
-        cmd_sup.change_attribute_value("cs_relative_to", "MyCS_2")
-        # cmd_sup.apply_changes()
+        print("name")
+        cmd_sup.change_attribute_value("name", "MyCS_0")
+        cmd_sup.apply_changes()
+
+        print("names", [obj.name for obj in cmd_sup.soi_iast.soi_objects])
+        MyCS_2 = cmd_sup.soi_iast.get_obj_by_name("MyCS_2")
+        print("MyCS_2 cs = ", MyCS_2.cs_relative_to.name)
 
         dg = cmd_sup.model.rectifier.dg
         print(len(dg.nodes))

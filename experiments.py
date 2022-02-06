@@ -67,3 +67,4 @@ print(type(i))
 # s = ""
 # s << "a" << "b"
 # print(s)
+print("aaa".replace("a", "b"))
