@@ -68,3 +68,5 @@ print(type(i))
 # s << "a" << "b"
 # print(s)
 print("aaa".replace("a", "b"))
+od = OrderedDict([(1,"1"), (2, "2")])
+print(od)

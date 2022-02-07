@@ -36,6 +36,7 @@ class ImageNameCell(CellObject):
 class SOIRectifier:
     def __init__(self):
         self.names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
+        # self.ordered_names_soi: OrderedDict[str, StationObjectImage] = OrderedDict()
         self.rect_so: list[str] = []
         self.dg = OneComponentTwoSidedPG()
         self.batch_load_mode = False
@@ -114,6 +115,12 @@ class SOIRectifier:
     def rectify_dg(self):
         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global CS
         self.rect_so = [element_cell_by_type(node, ImageNameCell).name for node in nodes]
+
+    # @property
+    # def ordered_names_soi(self) -> OrderedDict[str, StationObjectImage]:
+    #     if hasattr(self, "_ordered_names_soi"):
+    #         return getattr(self, "_ordered_names_soi")
+    #     result = OrderedDict()
 
     def rectification_results(self, images: list[StationObjectImage]) -> tuple[OrderedDict[str, StationObjectImage],
                                                                                list[str]]:
