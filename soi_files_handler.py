@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import Type
 import os
 import pandas as pd
 
@@ -7,27 +8,55 @@ from soi_objects import StationObjectImage, CoordinateSystemSOI
 from config_names import GLOBAL_CS_NAME
 
 
-def read_station_config(dir_name: str) -> list[StationObjectImage]:
-    folder = os.path.join(os.getcwd(), dir_name)
+class ReadFileNameError(Exception):
+    pass
+
+
+class RFNoNameError(ReadFileNameError):
+    pass
+
+
+class RFExistingNameError(ReadFileNameError):
+    pass
+
+
+class DefaultOrderedDict(OrderedDict):
+    def __init__(self, default_type: Type):
+        super().__init__()
+        self.default_type = default_type
+
+    def __getitem__(self, key):
+        if key not in self.keys():
+            self[key] = self.default_type()
+        return super().__getitem__(key)
+
+
+def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]:
+    result: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]] = DefaultOrderedDict(OrderedDict)
     gcs = CoordinateSystemSOI()
     gcs._name = GLOBAL_CS_NAME
-    objs_ = [gcs]
+    result["CoordinateSystemSOI"][GLOBAL_CS_NAME] = gcs
+    folder = os.path.join(os.getcwd(), dir_name)
     for cls in StationObjectImage.__subclasses__():
-        name_soi = cls.__name__
-        name_del_soi = name_soi.replace("SOI", "")
-        file = os.path.join(folder, "{}.xlsx".format(name_del_soi))
+        cls_name_soi = cls.__name__
+        cls_name_del_soi = cls_name_soi.replace("SOI", "")
+        file = os.path.join(folder, "{}.xlsx".format(cls_name_del_soi))
         df: pd.DataFrame = pd.read_excel(file, dtype=str, keep_default_na=False)
-        obj_dict_list: list[OrderedDict] = df.to_dict('records', OrderedDict)
+        obj_dict_list: list[OrderedDict[str, str]] = df.to_dict('records', OrderedDict)
         for obj_dict in obj_dict_list:
             new_obj = cls()
+            assert "name" in obj_dict, "No column 'name'"
             for attr_name, attr_val in obj_dict.items():
-                attr_name: str
-                attr_val: str
                 attr_name = attr_name.strip()
                 attr_val = attr_val.strip()
+                if attr_name == "name":
+                    if not attr_val:
+                        raise RFNoNameError(cls_name_del_soi, "", "name", "No-name-object in class")
+                    if attr_val in result[cls_name_soi]:
+                        raise RFExistingNameError(cls_name_del_soi, attr_val, "name", "Name already exists")
+                    result[cls_name_soi][attr_val] = new_obj
                 setattr(new_obj, attr_name, attr_val)
-            objs_.append(new_obj)
-    return objs_
+    return result
 
 
 def make_xlsx_templates(dir_name: str):
@@ -47,3 +76,7 @@ def make_xlsx_templates(dir_name: str):
             od[key] = val_list
         df = pd.DataFrame(data=od)
         df.to_excel(file, index=False)
+
+
+if __name__ == "__main__":
+    print(read_station_config("station_in_config"))
