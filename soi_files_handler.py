@@ -1,11 +1,9 @@
 from collections import OrderedDict
-from typing import Type
 import os
 import pandas as pd
 
-from soi_objects import StationObjectImage, CoordinateSystemSOI
-
-from config_names import GLOBAL_CS_NAME
+from new_soi_objects import StationObjectImage
+from default_ordered_dict import DefaultOrderedDict
 
 
 class ReadFileNameError(Exception):
@@ -20,22 +18,8 @@ class RFExistingNameError(ReadFileNameError):
     pass
 
 
-class DefaultOrderedDict(OrderedDict):
-    def __init__(self, default_type: Type):
-        super().__init__()
-        self.default_type = default_type
-
-    def __getitem__(self, key):
-        if key not in self.keys():
-            self[key] = self.default_type()
-        return super().__getitem__(key)
-
-
 def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]:
     result: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]] = DefaultOrderedDict(OrderedDict)
-    gcs = CoordinateSystemSOI()
-    gcs._name = GLOBAL_CS_NAME
-    result["CoordinateSystemSOI"][GLOBAL_CS_NAME] = gcs
     folder = os.path.join(os.getcwd(), dir_name)
     for cls in StationObjectImage.__subclasses__():
         cls_name_soi = cls.__name__
@@ -49,6 +33,8 @@ def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[st
             for attr_name, attr_val in obj_dict.items():
                 attr_name = attr_name.strip()
                 attr_val = attr_val.strip()
+                if " " in attr_val:
+                    attr_val = attr_val.split(" ")
                 if attr_name == "name":
                     if not attr_val:
                         raise RFNoNameError(cls_name_del_soi, "", "name", "No-name-object in class")

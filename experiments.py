@@ -76,3 +76,7 @@ print(p, q)
 od.pop(1)
 print(p, q)
 print(len(od))
+print([""]*8)
+a = [1, 2, 3]
+a.pop(0)
+print(a)
