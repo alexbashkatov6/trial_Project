@@ -10,6 +10,7 @@ from new_soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, Po
 from soi_files_handler import read_station_config
 from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CELightStickType, \
     CEBorderType, CELightColor
+from attrib_index import CompositeAttributeIndex
 
 from config_names import GLOBAL_CS_NAME
 

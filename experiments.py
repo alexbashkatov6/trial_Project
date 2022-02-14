@@ -1,82 +1,189 @@
-from collections import Counter, defaultdict, OrderedDict
-from typing import Optional, Type
-
-c = Counter(["odin", "dva", "tri", "dva", "tri", "tri"])
-print(dict(c))
-# a=2
-for a in range(5):
-    if 1<a<3:
-        print("ok", a)
-b = [1 ,2 ,3,4,5,6,7,8]
-print(b[b.index(2):b.index(5)+1])
-print(type(abs(2-1)))
-print(set([1,2,3]) == set([1,2,3]))
-
-c=[1]
-print(c[1:])
-# a = defaultdict(Or)
+from __future__ import annotations
+from typing import Union
+from dataclasses import dataclass
 
 
-class DefaultOrderedDict(OrderedDict):
-    def __init__(self, default_type: Type):
-        super().__init__()
-        self.default_type = default_type
-
-    def __getitem__(self, key):
-        if key not in self.keys():
-            # super().__setitem__(key, self.default_type())
-            self[key] = self.default_type()
-        return super().__getitem__(key)
+@dataclass
+class AttribProperties:
+    name: str = ""
+    suggested_value: str = ""
+    last_input_value: str = ""
+    last_confirmed_value: str = ""
+    check_status: str = ""
 
 
-dodict = DefaultOrderedDict(OrderedDict)
-dodict["lala"]["tata"] = "ads"
-print(dodict["lala"])
-
-s = "abc"
-s = s[:s.index("b")+1]
-print(s)
-
-a = 0
-
-try:
-    a = 1
-    2/0
-except ZeroDivisionError:
-    print(ZeroDivisionError)
-print(a)
+# self.possible_values = ["red", "green", "blue"]
 
 
-class MyException(Exception):
+class BoundedDescriptor:
+
+    def __set_name__(self, owner, name):
+        self.name = name
+
+    def __get__(self, instance, owner) -> Union[list[AttribProperties], BoundedDescriptor]:
+        if not instance:
+            return self
+        result = []
+        i = 0
+        while True:
+            attr_candidate_name = "_{}_{}".format(self.name[:-1], i)
+            if attr_candidate_name not in instance.__dict__:
+                break
+            else:
+                result.append(instance.__dict__[attr_candidate_name])
+                i += 1
+        return result
+
+
+class LightDescriptor:
+    def __init__(self):
+        self.possible_values = ["red", "green", "blue"]
+
+
+def get_all_attr_values(instance, attr_name):
+    result = []
+    i = 0
+    while True:
+        attr_candidate_name = "_{}_{}".format(attr_name[:-1], i)
+        if attr_candidate_name not in instance.__dict__:
+            break
+        else:
+            result.append(instance.__dict__[attr_candidate_name])
+            i += 1
+    return result
+
+
+class IndividualDescriptor:
     pass
 
 
-try:
-    raise MyException("first", "second")
-except MyException as e:
-    print("MyException!", e.args[0], e.args[1])
+class BaseClass:
+    light = IndividualDescriptor()
 
-print(s[:2])
 
-print(", ".join(["1", "2", "3"]))
-i = 1_0000_00
-print(type(i))
-# import sys
-# next(sys.stdin)
-# sys.argv[0]
-# s = ""
-# s << "a" << "b"
-# print(s)
-print("aaa".replace("a", "b"))
-od = OrderedDict([(1,"1"), (2, "2")])
-print(od)
-p = list(od.keys())
-q = od.keys()
-print(p, q)
-od.pop(1)
-print(p, q)
-print(len(od))
-print([""]*8)
-a = [1, 2, 3]
-a.pop(0)
+class MyClass(BaseClass):
+
+    def bounded_descriptor_list_attribute(self, attr_name: str) -> bool:
+        index = attr_name.rfind("_")
+        if index == -1:
+            return False
+        attr_descriptor_name = attr_name[:index] + "_list"
+        try:
+            descriptor = getattr(self.__class__, attr_descriptor_name)
+        except AttributeError:
+            print("AttributeError, descriptor not found")
+            return False
+        else:
+            assert isinstance(descriptor, BoundedDescriptor)
+            descriptor: BoundedDescriptor
+            assert descriptor.is_list
+            return True
+    #
+    # def __setattr__(self, key: str, value):
+    #     if self.bounded_descriptor_list_attribute(key):
+    #         pass
+    #     else:
+    #         object.__setattr__(self, key, value)
+
+        # for cls_attr_name in self.__class__.__dict__:
+        #     cls_attr_name: str
+        #     if cls_attr_name.startswith("__"):
+        #         continue
+        #     if key.startswith(cls_attr_name[:-1]) and
+        #     isinstance(descr := self.__class__.__dict__[cls_attr_name], BoundedDescriptor):
+        #         descr.__set__(self, value)
+        #     else:
+        #         object.__setattr__(self, key, value)
+
+    def __getattr__(self, item: str):
+        pass
+
+    def __delattr__(self, item: str):
+        pass
+
+
+
+mc = MyClass()
+mc.light_1 = 45
+print(mc.__dict__)
+mc.c = 45
+print(mc.__dict__)
+
+print("sdsd".rfind("_"))
+# del mc.light_1
+# print(mc.__dict__)
+
+# mc.d1 = 10
+# print(mc.d2)
+
+# "sdsd".removeprefix()
+# if a := "lala":
+#     print(a)
+#     print("success")
+#
+# from dataclasses import dataclass, field
+# from typing import List
+#
+# @dataclass  # (frozen=True)
+# class Book:
+#     title: str = "Default"
+#     author: str = "Default"
+#
+# book = Book()
+# book.title = "sdasd"
+# print(book.title)
+#
+# @dataclass
+# class Bookshelf:
+#     books: List[Book] = field(default_factory=list)
+
+# class Descr:
+#     def __set_name__(self, owner, name):
+#         self.name = name
+#
+#     def __get__(self, instance, owner):
+#         if not instance:
+#             return self
+#         return 20
+#
+#     # def __set__(self, instance, value):
+#     #     setattr(instance, "_{}".format(self.name), value)
+#
+#
+# class MyClass:
+#     d = Descr()
+#
+#     def __init__(self):
+#         pass
+#         # self.d = 42
+#
+# mc = MyClass()
+
+# print(mc.d)
+
+# return self._get_list(instance)
+
+# def __set__(self, instance, value: str):
+#     print("set here")
+
+# def _get_list(self, instance) -> list[AttribProperties]:
+#     result = []
+#     i = 0
+#     while True:
+#         attr_candidate_name = "_{}_{}".format(self.name[:-1], i)
+#         if attr_candidate_name not in instance.__dict__:
+#             break
+#         else:
+#             result.append(instance.__dict__[attr_candidate_name])
+#             i += 1
+#     return result
+
+# def set_list_index_value(self, instance, index, value: str):
+#     attr_prop_list = self._get_list(instance)
+
+
+# requirements = ["1", "2", "3"]
+
+a = [1 , 2, 3]
+a.insert(1, 4)
 print(a)

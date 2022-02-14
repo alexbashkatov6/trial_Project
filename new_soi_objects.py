@@ -8,24 +8,9 @@ from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLin
     CEBorderType, CELightColor
 from picket_coordinate import PicketCoordinate
 from default_ordered_dict import DefaultOrderedDict
+from attrib_properties import AttribProperties
 
 from config_names import GLOBAL_CS_NAME
-
-
-# class AttributeEvaluateError(Exception):
-#     pass
-#
-#
-# class AERequiredAttributeError(AttributeEvaluateError):
-#     pass
-#
-#
-# class AEObjectNotFoundError(AttributeEvaluateError):
-#     pass
-#
-#
-# class AETypeAttributeError(AttributeEvaluateError):
-#     pass
 
 
 # ------------        ORIGINAL DESCRIPTORS        ------------ #
@@ -111,11 +96,14 @@ class SOIName:
 
 # ------------        BASE SOI-ATTRIBUTE DESCRIPTORS        ------------ #
 
+
 class BaseDescriptor:
     """ Contains single value or list of values """
 
-    def __init__(self, count_requirement: int = 1):
+    def __init__(self, is_list: bool = False, count_requirement: int = 1, is_min_count: bool = False):
+        self.is_list = is_list
         self.count_requirement = count_requirement
+        self.is_min_count = is_min_count
 
     def __set_name__(self, owner, name):
         self.name = name
@@ -123,22 +111,23 @@ class BaseDescriptor:
     def __get__(self, instance, owner):
         if not instance:
             return self
-        elif hasattr(instance, "_{}".format(self.name)):
-            return getattr(instance, "_{}".format(self.name))
-        else:
-            if self.count_requirement == 1:
-                setattr(instance, "_{}".format(self.name), "")
-                setattr(instance, "_str_{}".format(self.name), "")
-                setattr(instance, "_check_status_{}".format(self.name), "")
-            elif self.count_requirement == -1:
-                setattr(instance, "_{}".format(self.name), [""] * 1)
-                setattr(instance, "_str_{}".format(self.name), [""] * 1)
-                setattr(instance, "_check_status_{}".format(self.name), [""] * 1)
-            else:
-                setattr(instance, "_{}".format(self.name), [""] * self.count_requirement)
-                setattr(instance, "_str_{}".format(self.name), [""] * self.count_requirement)
-                setattr(instance, "_check_status_{}".format(self.name), [""] * self.count_requirement)
-            return getattr(instance, "_{}".format(self.name))
+
+        # elif hasattr(instance, "_{}".format(self.name)):
+        #     return getattr(instance, "_{}".format(self.name))
+        # else:
+        #     if self.count_requirement == 1:
+        #         setattr(instance, "_{}".format(self.name), "")
+        #         setattr(instance, "_str_{}".format(self.name), "")
+        #         setattr(instance, "_check_status_{}".format(self.name), "")
+        #     elif self.count_requirement == -1:
+        #         setattr(instance, "_{}".format(self.name), [""] * 1)
+        #         setattr(instance, "_str_{}".format(self.name), [""] * 1)
+        #         setattr(instance, "_check_status_{}".format(self.name), [""] * 1)
+        #     else:
+        #         setattr(instance, "_{}".format(self.name), [""] * self.count_requirement)
+        #         setattr(instance, "_str_{}".format(self.name), [""] * self.count_requirement)
+        #         setattr(instance, "_check_status_{}".format(self.name), [""] * self.count_requirement)
+        #     return getattr(instance, "_{}".format(self.name))
 
     def __set__(self, instance: StationObjectImage, value: Union[str, list[str]]):
         setattr(instance, "_str_"+self.name, value)
@@ -240,16 +229,62 @@ class BoundedSetOfValuesDescriptor(BaseDescriptor):
 # ------------        IMAGE OBJECTS CLASSES        ------------ #
 
 class StationObjectImage:
-    attr_sequence_template = SOIAttrSeqTemplate()
-    active_attrs = SOIActiveAttrs()
-    odict_enum_possible_values = SODictEnumPossibleValues()
-    odict_values = SOIListValues()
     name = SOIName()
+
+    def __init__(self):
+        self.active_attrs = [attr_name for attr_name in self.__class__.__dict__ if not attr_name.startswith("__")]
+
+    def changed_attrib_value(self, attr_name: str, attr_value: str):
+
+        if isinstance(self, CoordinateSystemSOI):
+            if (attr_name == "dependence") and (attr_value == "independent"):
+                if "cs_relative_to" in self.active_attrs:
+                    self.active_attrs.remove("cs_relative_to")
+                    self.active_attrs.remove("x")
+                    self.active_attrs.remove("co_x")
+                    self.active_attrs.remove("co_y")
+            if (attr_name == "dependence") and (attr_value == "dependent"):
+                index_insert = self.active_attrs.index(attr_name) + 1
+                if "cs_relative_to" not in self.active_attrs:
+                    self.active_attrs.insert(index_insert, "co_y")
+                    self.active_attrs.insert(index_insert, "co_x")
+                    self.active_attrs.insert(index_insert, "x")
+                    self.active_attrs.insert(index_insert, "cs_relative_to")
+
+        if isinstance(self, AxisSOI):
+            if (attr_name == "creation_method") and (attr_value == "rotational"):
+                index_insert = self.active_attrs.index(attr_name) + 1
+                if "y" in self.active_attrs:
+                    self.active_attrs.remove("y")
+                if "center_point" not in self.active_attrs:
+                    self.active_attrs.insert(index_insert, "alpha")
+                    self.active_attrs.insert(index_insert, "center_point")
+            if (attr_name == "creation_method") and (attr_value == "translational"):
+                index_insert = self.active_attrs.index(attr_name) + 1
+                if "center_point" in self.active_attrs:
+                    self.active_attrs.remove("alpha")
+                    self.active_attrs.remove("center_point")
+                if "y" not in self.active_attrs:
+                    self.active_attrs.insert(index_insert, "y")
+
+        if isinstance(self, PointSOI):
+            if (attr_name == "on") and (attr_value == "axis"):
+                index_insert = self.active_attrs.index(attr_name) + 1
+                if "line" in self.active_attrs:
+                    self.active_attrs.remove("line")
+                if "axis" not in self.active_attrs:
+                    self.active_attrs.insert(index_insert, "axis")
+            if (attr_name == "on") and (attr_value == "line"):
+                index_insert = self.active_attrs.index(attr_name) + 1
+                if "axis" in self.active_attrs:
+                    self.active_attrs.remove("axis")
+                if "line" not in self.active_attrs:
+                    self.active_attrs.insert(index_insert, "line")
 
 
 class CoordinateSystemSOI(StationObjectImage):
-    cs_relative_to = BoundedSetOfValuesDescriptor()
     dependence = BoundedSetOfValuesDescriptor()
+    cs_relative_to = BoundedSetOfValuesDescriptor()
     x = IntTypeDescriptor()
     co_x = BoundedSetOfValuesDescriptor()
     co_y = BoundedSetOfValuesDescriptor()
@@ -319,6 +354,39 @@ if __name__ == "__main__":
         print(cs.active_attrs)
         print(cs.odict_values)
 
-    test_3 = False
+    test_3 = True
     if test_3:
-        pass
+
+        cs = CoordinateSystemSOI()
+        print(cs.active_attrs)
+        cs.changed_attrib_value("dependence", "dependent")
+        print(cs.active_attrs)
+        cs.changed_attrib_value("dependence", "independent")
+        print(cs.active_attrs)
+        cs.changed_attrib_value("dependence", "dependent")
+        print(cs.active_attrs)
+
+        cs = AxisSOI()
+        # cs.creation_method
+        print(cs.active_attrs)
+        cs.changed_attrib_value("creation_method", "translational")
+        print(cs.active_attrs)
+        cs.changed_attrib_value("creation_method", "rotational")
+        print(cs.active_attrs)
+        cs.changed_attrib_value("creation_method", "translational")
+        print(cs.active_attrs)
+
+        cs = PointSOI()
+        # cs.creation_method
+        print(cs.active_attrs)
+        cs.changed_attrib_value("on", "axis")
+        print(cs.active_attrs)
+        cs.changed_attrib_value("on", "line")
+        print(cs.active_attrs)
+        cs.changed_attrib_value("on", "axis")
+        print(cs.active_attrs)
+
+        cs = BorderSOI()
+        # cs.creation_method
+        print(cs.active_attrs)
+

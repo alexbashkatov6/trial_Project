@@ -42,10 +42,12 @@ def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[st
                         raise RFExistingNameError(cls_name_del_soi, attr_val, "name", "Name already exists")
                     result[cls_name_soi][attr_val] = new_obj
                 setattr(new_obj, attr_name, attr_val)
+                new_obj.changed_attrib_value(attr_name, attr_val)
     return result
 
 
 def make_xlsx_templates(dir_name: str):
+    # needs to reimplement because of absence of enum values
     folder = os.path.join(os.getcwd(), dir_name)
     for cls in StationObjectImage.__subclasses__():
         name_soi = cls.__name__
