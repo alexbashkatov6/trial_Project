@@ -2,8 +2,11 @@ from typing import Union
 
 
 class CompositeAttributeIndex:
-    def __init__(self):
-        self.indexes = []
+    def __init__(self, indexes: list[Union[str, int]] = None):
+        if not indexes:
+            self.indexes = []
+        else:
+            self.indexes = indexes
 
     def append(self, item: Union[str, int]):
         self.indexes.append(item)

@@ -2,13 +2,15 @@ from __future__ import annotations
 from typing import Type, Union, Iterable
 from collections import OrderedDict
 from copy import copy
+from dataclasses import dataclass
 
 from custom_enum import CustomEnum
 from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CELightStickType, \
     CEBorderType, CELightColor
 from picket_coordinate import PicketCoordinate
 from default_ordered_dict import DefaultOrderedDict
-from attrib_properties import AttribProperties
+# from attrib_properties import AttribProperties
+# from attrib_index import CompositeAttributeIndex
 
 from config_names import GLOBAL_CS_NAME
 
@@ -228,109 +230,193 @@ class BoundedSetOfValuesDescriptor(BaseDescriptor):
 
 # ------------        IMAGE OBJECTS CLASSES        ------------ #
 
+class ChangeAttribList:
+    def __init__(self, attr_value_add_dict: OrderedDict[str, list[str]]):
+        self.attr_value_add_dict = attr_value_add_dict
+
+    @property
+    def preferred_value(self):
+        return list(self.attr_value_add_dict.keys())[0]
+
+    def add_list(self, attr_value):
+        return self.attr_value_add_dict[attr_value]
+
+    def remove_list(self, attr_value):
+        result = []
+        for attr_val in self.attr_value_add_dict:
+            if attr_val != attr_value:
+                result.extend(self.attr_value_add_dict[attr_val])
+        return result
+
+
+@dataclass
+class AttribProperties:
+    last_input_value: str = ""
+    # last_confirmed_value: str = ""
+    # suggested_value: str = ""
+    #
+    # is_required: str = ""
+    # count_requirement: str = ""
+    # min_count: str = ""
+    # exactly_count: str = ""
+    # check_status: str = ""
+
+
+@dataclass
+class IndexManagementCommand:
+    command: str
+    index: int = -1
+
+
+class UniversalDescriptor:
+
+    def __init__(self, is_required: bool = True, is_list: bool = False,
+                 /, min_count: int = -1, exactly_count: int = -1):
+        self.is_required = is_required
+        self.is_list = is_list
+        assert (min_count == -1) or (exactly_count == -1)
+        self.min_count = min_count
+        self.exactly_count = exactly_count
+
+    def __set_name__(self, owner, name):
+        self.name = name
+
+    def __get__(self, instance, owner) -> Union[UniversalDescriptor, AttribProperties, list[AttribProperties]]:
+        if not instance:
+            return self
+        return getattr(instance, "_{}".format(self.name))
+
+    def __set__(self, instance, value: Union[str, tuple[str, IndexManagementCommand]]):
+
+        if not self.is_list:
+            assert isinstance(value, str)
+            str_value = value
+            if not hasattr(instance, "_{}".format(self.name)):
+                ap_for_handle = AttribProperties()
+                setattr(instance, "_{}".format(self.name), ap_for_handle)
+            else:
+                ap_for_handle = getattr(instance, "_{}".format(self.name))
+        else:
+            assert isinstance(value, tuple)
+            str_value = value[0]
+            command = value[1].command
+            index = value[1].index
+
+            if not hasattr(instance, "_{}".format(self.name)):
+                setattr(instance, "_{}".format(self.name), [])
+            if command == "remove_index":
+                old_list: list[AttribProperties] = getattr(instance, "_{}".format(self.name))
+                old_list.pop(index)
+                return
+            if command == "append":
+                ap_for_handle = AttribProperties()
+                old_list: list[AttribProperties] = getattr(instance, "_{}".format(self.name))
+                old_list.append(ap_for_handle)
+            if command == "set_index":
+                old_list: list[AttribProperties] = getattr(instance, "_{}".format(self.name))
+                ap_for_handle = old_list[index]
+
+        self.handling_ap(ap_for_handle, str_value)
+
+    def handling_ap(self, ap: AttribProperties, new_str_value: str):
+        ap.last_input_value = new_str_value
+
+
 class StationObjectImage:
     name = SOIName()
 
     def __init__(self):
         self.active_attrs = [attr_name for attr_name in self.__class__.__dict__ if not attr_name.startswith("__")]
+        self.change_attr_lists = {CoordinateSystemSOI: {"dependence": ChangeAttribList(OrderedDict({"independent": [],
+                                                                                   "dependent": ["cs_relative_to",
+                                                                                                 "x",
+                                                                                                 "co_x",
+                                                                                                 "co_y"]}))},
+                                  AxisSOI: {"creation_method": ChangeAttribList(OrderedDict({"rotational": ["center_point",
+                                                                                            "alpha"],
+                                                                             "translational": ["y"]}))},
+                                  PointSOI: {"on": ChangeAttribList(OrderedDict({"axis": ["axis"],
+                                                                 "line": ["line"]}))}
+                                  }
+        for attr_name in self.active_attrs:
+            descr: UniversalDescriptor = getattr(self.__class__, attr_name)
+            if not descr.is_list:
+                setattr(self, attr_name, "")
+            else:
+                if descr.min_count != -1:
+                    for _ in range(descr.min_count):
+                        setattr(self, attr_name, ("", IndexManagementCommand(command="append")))
+                if descr.exactly_count != -1:
+                    for _ in range(descr.exactly_count):
+                        setattr(self, attr_name, ("", IndexManagementCommand(command="append")))
+        if self.__class__ in self.change_attr_lists:
+            for attr_name in self.change_attr_lists[self.__class__]:
+                chal: ChangeAttribList = self.change_attr_lists[self.__class__][attr_name]
+                self.changed_attrib_value(attr_name, chal.preferred_value)
 
     def changed_attrib_value(self, attr_name: str, attr_value: str):
 
-        if isinstance(self, CoordinateSystemSOI):
-            if (attr_name == "dependence") and (attr_value == "independent"):
-                if "cs_relative_to" in self.active_attrs:
-                    self.active_attrs.remove("cs_relative_to")
-                    self.active_attrs.remove("x")
-                    self.active_attrs.remove("co_x")
-                    self.active_attrs.remove("co_y")
-            if (attr_name == "dependence") and (attr_value == "dependent"):
-                index_insert = self.active_attrs.index(attr_name) + 1
-                if "cs_relative_to" not in self.active_attrs:
-                    self.active_attrs.insert(index_insert, "co_y")
-                    self.active_attrs.insert(index_insert, "co_x")
-                    self.active_attrs.insert(index_insert, "x")
-                    self.active_attrs.insert(index_insert, "cs_relative_to")
-
-        if isinstance(self, AxisSOI):
-            if (attr_name == "creation_method") and (attr_value == "rotational"):
-                index_insert = self.active_attrs.index(attr_name) + 1
-                if "y" in self.active_attrs:
-                    self.active_attrs.remove("y")
-                if "center_point" not in self.active_attrs:
-                    self.active_attrs.insert(index_insert, "alpha")
-                    self.active_attrs.insert(index_insert, "center_point")
-            if (attr_name == "creation_method") and (attr_value == "translational"):
-                index_insert = self.active_attrs.index(attr_name) + 1
-                if "center_point" in self.active_attrs:
-                    self.active_attrs.remove("alpha")
-                    self.active_attrs.remove("center_point")
-                if "y" not in self.active_attrs:
-                    self.active_attrs.insert(index_insert, "y")
-
-        if isinstance(self, PointSOI):
-            if (attr_name == "on") and (attr_value == "axis"):
-                index_insert = self.active_attrs.index(attr_name) + 1
-                if "line" in self.active_attrs:
-                    self.active_attrs.remove("line")
-                if "axis" not in self.active_attrs:
-                    self.active_attrs.insert(index_insert, "axis")
-            if (attr_name == "on") and (attr_value == "line"):
-                index_insert = self.active_attrs.index(attr_name) + 1
-                if "axis" in self.active_attrs:
-                    self.active_attrs.remove("axis")
-                if "line" not in self.active_attrs:
-                    self.active_attrs.insert(index_insert, "line")
+        setattr(self, attr_name, attr_value)
+        if (self.__class__ in self.change_attr_lists) and (attr_name in self.change_attr_lists[self.__class__]):
+            chal: ChangeAttribList = self.change_attr_lists[self.__class__][attr_name]
+            for remove_value in chal.remove_list(attr_value):
+                if remove_value in self.active_attrs:
+                    self.active_attrs.remove(remove_value)
+            index_insert = self.active_attrs.index(attr_name) + 1
+            for add_value in reversed(chal.add_list(attr_value)):
+                if add_value not in self.active_attrs:
+                    self.active_attrs.insert(index_insert, add_value)
 
 
 class CoordinateSystemSOI(StationObjectImage):
-    dependence = BoundedSetOfValuesDescriptor()
-    cs_relative_to = BoundedSetOfValuesDescriptor()
-    x = IntTypeDescriptor()
-    co_x = BoundedSetOfValuesDescriptor()
-    co_y = BoundedSetOfValuesDescriptor()
+    dependence = UniversalDescriptor()
+    cs_relative_to = UniversalDescriptor(True, exactly_count=2)
+    x = UniversalDescriptor()
+    co_x = UniversalDescriptor()
+    co_y = UniversalDescriptor()
 
 
 class AxisSOI(StationObjectImage):
-    cs_relative_to = BoundedSetOfValuesDescriptor()
-    creation_method = BoundedSetOfValuesDescriptor()
-    y = IntTypeDescriptor()
-    center_point = BoundedSetOfValuesDescriptor()
-    alpha = IntTypeDescriptor()
+    cs_relative_to = UniversalDescriptor()
+    creation_method = UniversalDescriptor()
+    y = UniversalDescriptor()
+    center_point = UniversalDescriptor()
+    alpha = UniversalDescriptor()
 
 
 class PointSOI(StationObjectImage):
-    on = BoundedSetOfValuesDescriptor()
-    axis = BoundedSetOfValuesDescriptor()
-    line = BoundedSetOfValuesDescriptor()
-    cs_relative_to = BoundedSetOfValuesDescriptor()
-    x = IntTypeDescriptor()
+    on = UniversalDescriptor()
+    axis = UniversalDescriptor()
+    line = UniversalDescriptor()
+    cs_relative_to = UniversalDescriptor()
+    x = UniversalDescriptor()
 
 
 class LineSOI(StationObjectImage):
-    points = BoundedSetOfValuesDescriptor(count_requirement=2)
+    points = UniversalDescriptor()
 
 
 class LightSOI(StationObjectImage):
-    light_route_type = BoundedSetOfValuesDescriptor()
-    center_point = BoundedSetOfValuesDescriptor()
-    direct_point = BoundedSetOfValuesDescriptor()
-    colors = BoundedSetOfValuesDescriptor(count_requirement=-1)
-    light_stick_type = BoundedSetOfValuesDescriptor()
+    light_route_type = UniversalDescriptor()
+    center_point = UniversalDescriptor()
+    direct_point = UniversalDescriptor()
+    colors = UniversalDescriptor()
+    light_stick_type = UniversalDescriptor()
 
 
 class RailPointSOI(StationObjectImage):
-    center_point = BoundedSetOfValuesDescriptor()
-    dir_plus_point = BoundedSetOfValuesDescriptor()
-    dir_minus_point = BoundedSetOfValuesDescriptor()
+    center_point = UniversalDescriptor()
+    dir_plus_point = UniversalDescriptor()
+    dir_minus_point = UniversalDescriptor()
 
 
 class BorderSOI(StationObjectImage):
-    point = BoundedSetOfValuesDescriptor()
-    border_type = BoundedSetOfValuesDescriptor()
+    point = UniversalDescriptor()
+    border_type = UniversalDescriptor()
 
 
 class SectionSOI(StationObjectImage):
-    border_points = BoundedSetOfValuesDescriptor(count_requirement=-1)
+    border_points = UniversalDescriptor()
 
 
 if __name__ == "__main__":
@@ -365,6 +451,7 @@ if __name__ == "__main__":
         print(cs.active_attrs)
         cs.changed_attrib_value("dependence", "dependent")
         print(cs.active_attrs)
+        print("attr_values", [(active_attr, getattr(cs, active_attr)) for active_attr in cs.active_attrs])
 
         cs = AxisSOI()
         # cs.creation_method
