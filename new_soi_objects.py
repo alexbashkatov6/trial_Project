@@ -270,8 +270,8 @@ class IndexManagementCommand:
 
 class UniversalDescriptor:
 
-    def __init__(self, is_required: bool = True, is_list: bool = False,
-                 /, min_count: int = -1, exactly_count: int = -1):
+    def __init__(self, *, is_required: bool = True, is_list: bool = False,
+                 min_count: int = -1, exactly_count: int = -1):
         self.is_required = is_required
         self.is_list = is_list
         assert (min_count == -1) or (exactly_count == -1)
@@ -288,6 +288,8 @@ class UniversalDescriptor:
 
     def __set__(self, instance, value: Union[str, tuple[str, IndexManagementCommand]]):
 
+        ap_for_handle_list = []
+        # print("got value = ", value, type(value))
         if not self.is_list:
             assert isinstance(value, str)
             str_value = value
@@ -296,27 +298,36 @@ class UniversalDescriptor:
                 setattr(instance, "_{}".format(self.name), ap_for_handle)
             else:
                 ap_for_handle = getattr(instance, "_{}".format(self.name))
+            self.handling_ap(ap_for_handle, str_value)
         else:
             assert isinstance(value, tuple)
-            str_value = value[0]
             command = value[1].command
             index = value[1].index
 
             if not hasattr(instance, "_{}".format(self.name)):
                 setattr(instance, "_{}".format(self.name), [])
-            if command == "remove_index":
-                old_list: list[AttribProperties] = getattr(instance, "_{}".format(self.name))
-                old_list.pop(index)
-                return
-            if command == "append":
-                ap_for_handle = AttribProperties()
-                old_list: list[AttribProperties] = getattr(instance, "_{}".format(self.name))
-                old_list.append(ap_for_handle)
-            if command == "set_index":
-                old_list: list[AttribProperties] = getattr(instance, "_{}".format(self.name))
-                ap_for_handle = old_list[index]
+            old_ap_list: list[AttribProperties] = getattr(instance, "_{}".format(self.name))
+            if command in ["remove_index", "append", "set_index"]:
+                str_value = value[0]
+                if command == "remove_index":
+                    old_ap_list.pop(index)
+                    return
+                if command == "append":
+                    ap_for_handle = AttribProperties()
+                    old_ap_list.append(ap_for_handle)
+                if command == "set_index":
+                    ap_for_handle = old_ap_list[index]
+                self.handling_ap(ap_for_handle, str_value)
+            elif command == "set_list":
+                old_ap_list.clear()
+                str_list = value[0]
+                for str_value in str_list:
+                    ap_for_handle = AttribProperties()
+                    self.handling_ap(ap_for_handle, str_value)
+                    old_ap_list.append(ap_for_handle)
 
-        self.handling_ap(ap_for_handle, str_value)
+        for ap_for_handle_ in ap_for_handle_list:
+            self.handling_ap(ap_for_handle_, str_value)
 
     def handling_ap(self, ap: AttribProperties, new_str_value: str):
         ap.last_input_value = new_str_value
@@ -338,6 +349,7 @@ class StationObjectImage:
                                   PointSOI: {"on": ChangeAttribList(OrderedDict({"axis": ["axis"],
                                                                  "line": ["line"]}))}
                                   }
+        # all attrs initialization
         for attr_name in self.active_attrs:
             descr: UniversalDescriptor = getattr(self.__class__, attr_name)
             if not descr.is_list:
@@ -349,14 +361,30 @@ class StationObjectImage:
                 if descr.exactly_count != -1:
                     for _ in range(descr.exactly_count):
                         setattr(self, attr_name, ("", IndexManagementCommand(command="append")))
+
+        # switch attrs initialization
         if self.__class__ in self.change_attr_lists:
             for attr_name in self.change_attr_lists[self.__class__]:
                 chal: ChangeAttribList = self.change_attr_lists[self.__class__][attr_name]
+                # print("preferred_value", chal.preferred_value)
                 self.changed_attrib_value(attr_name, chal.preferred_value)
 
-    def changed_attrib_value(self, attr_name: str, attr_value: str):
+    def changed_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]]):
 
-        setattr(self, attr_name, attr_value)
+        # set attr
+        if attr_name == "name":
+            setattr(self, attr_name, attr_value)
+            return
+        else:
+            descr: UniversalDescriptor = getattr(self.__class__, attr_name)
+            if not descr.is_list:
+                assert isinstance(attr_value, str)
+                setattr(self, attr_name, attr_value)
+            else:
+                assert isinstance(attr_value, list)
+                setattr(self, attr_name, (attr_value, IndexManagementCommand(command="set_list")))
+
+        # switch attr
         if (self.__class__ in self.change_attr_lists) and (attr_name in self.change_attr_lists[self.__class__]):
             chal: ChangeAttribList = self.change_attr_lists[self.__class__][attr_name]
             for remove_value in chal.remove_list(attr_value):
@@ -370,7 +398,7 @@ class StationObjectImage:
 
 class CoordinateSystemSOI(StationObjectImage):
     dependence = UniversalDescriptor()
-    cs_relative_to = UniversalDescriptor(True, exactly_count=2)
+    cs_relative_to = UniversalDescriptor()
     x = UniversalDescriptor()
     co_x = UniversalDescriptor()
     co_y = UniversalDescriptor()
@@ -393,14 +421,14 @@ class PointSOI(StationObjectImage):
 
 
 class LineSOI(StationObjectImage):
-    points = UniversalDescriptor()
+    points = UniversalDescriptor(is_list=True)
 
 
 class LightSOI(StationObjectImage):
     light_route_type = UniversalDescriptor()
     center_point = UniversalDescriptor()
     direct_point = UniversalDescriptor()
-    colors = UniversalDescriptor()
+    colors = UniversalDescriptor(is_list=True)
     light_stick_type = UniversalDescriptor()
 
 
@@ -416,7 +444,7 @@ class BorderSOI(StationObjectImage):
 
 
 class SectionSOI(StationObjectImage):
-    border_points = UniversalDescriptor()
+    border_points = UniversalDescriptor(is_list=True)
 
 
 if __name__ == "__main__":

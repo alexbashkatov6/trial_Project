@@ -41,7 +41,8 @@ def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[st
                     if attr_val in result[cls_name_soi]:
                         raise RFExistingNameError(cls_name_del_soi, attr_val, "name", "Name already exists")
                     result[cls_name_soi][attr_val] = new_obj
-                setattr(new_obj, attr_name, attr_val)
+                # print("attr_val", attr_val)
+                # setattr(new_obj, attr_name, attr_val)
                 new_obj.changed_attrib_value(attr_name, attr_val)
     return result
 
