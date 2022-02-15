@@ -603,3 +603,132 @@ class AlwaysTrueValidator(QValidator):
         #     if not (current_layout is self.main_layout):
         #         current_layout.setParent(None)
 
+
+# class BaseDescriptor:
+#     """ Contains single value or list of values """
+#
+#     def __init__(self, is_list: bool = False, count_requirement: int = 1, is_min_count: bool = False):
+#         self.is_list = is_list
+#         self.count_requirement = count_requirement
+#         self.is_min_count = is_min_count
+#
+#     def __set_name__(self, owner, name):
+#         self.name = name
+#
+#     def __get__(self, instance, owner):
+#         if not instance:
+#             return self
+#
+#         # elif hasattr(instance, "_{}".format(self.name)):
+#         #     return getattr(instance, "_{}".format(self.name))
+#         # else:
+#         #     if self.count_requirement == 1:
+#         #         setattr(instance, "_{}".format(self.name), "")
+#         #         setattr(instance, "_str_{}".format(self.name), "")
+#         #         setattr(instance, "_check_status_{}".format(self.name), "")
+#         #     elif self.count_requirement == -1:
+#         #         setattr(instance, "_{}".format(self.name), [""] * 1)
+#         #         setattr(instance, "_str_{}".format(self.name), [""] * 1)
+#         #         setattr(instance, "_check_status_{}".format(self.name), [""] * 1)
+#         #     else:
+#         #         setattr(instance, "_{}".format(self.name), [""] * self.count_requirement)
+#         #         setattr(instance, "_str_{}".format(self.name), [""] * self.count_requirement)
+#         #         setattr(instance, "_check_status_{}".format(self.name), [""] * self.count_requirement)
+#         #     return getattr(instance, "_{}".format(self.name))
+#
+#     def __set__(self, instance: StationObjectImage, value: Union[str, list[str]]):
+#         setattr(instance, "_str_" + self.name, value)
+#
+#
+# class IntTypeDescriptor(BaseDescriptor):
+#     """ Contains standard value as int, float, str """
+#
+#     def __init__(self, count_requirement: int = 1):
+#         super().__init__(count_requirement)
+#
+#     def __set__(self, instance: StationObjectImage, input_value: Union[str, list[str]]):
+#         super().__set__(instance, input_value)
+#         if isinstance(input_value, str):
+#             input_value = input_value.strip()
+#         else:
+#             input_value = [val.strip() for val in input_value]
+#         if isinstance(input_value, str):
+#             if input_value.isdigit() and (self.count_requirement == 1):
+#                 setattr(instance, "_" + self.name, input_value)
+#                 setattr(instance, "_check_status_" + self.name, "")
+#             else:
+#                 setattr(instance, "_check_status_" + self.name, "Value {} is not single int".format(input_value))
+#         else:
+#             if not hasattr(instance, "_{}".format(self.name)):
+#                 if self.count_requirement == -1:
+#                     setattr(instance, "_{}".format(self.name), [""] * 1)
+#                 else:
+#                     setattr(instance, "_{}".format(self.name), [""] * self.count_requirement)
+#             old_destination_list = getattr(instance, "_{}".format(self.name))
+#             destination_list = []
+#             check_list = []
+#             for i, value in enumerate(input_value):
+#                 destination_list.append("")
+#                 check_list.append("")
+#                 if value.isdigit():
+#                     destination_list[-1] = value
+#                     check_list[-1] = ""
+#                 else:
+#                     check_list[-1] = "Value {} is not int".format(value)
+#                     if i < len(old_destination_list):
+#                         destination_list[i] = old_destination_list[i]
+#             setattr(instance, "_{}".format(self.name), destination_list)
+#             setattr(instance, "_check_status_{}".format(self.name), check_list)
+#
+#
+# class BoundedSetOfValuesDescriptor(BaseDescriptor):
+#
+#     def __init__(self, count_requirement: int = 1):
+#         super().__init__(count_requirement)
+#         self._possible_values = []
+#
+#     def __set__(self, instance: StationObjectImage, input_value: Union[str, list[str]]):
+#         super().__set__(instance, input_value)
+#         if isinstance(input_value, str):
+#             input_value = input_value.strip()
+#         else:
+#             input_value = [val.strip() for val in input_value]
+#         if isinstance(input_value, str):
+#             if (input_value in self.possible_values) and (self.count_requirement == 1):
+#                 setattr(instance, "_" + self.name, input_value)
+#                 setattr(instance, "_check_status_" + self.name, "")
+#             else:
+#                 setattr(instance, "_check_status_" + self.name,
+#                         "Value {} not in list of possible values: {}".format(input_value, self.possible_values))
+#         else:
+#             if not hasattr(instance, "_{}".format(self.name)):
+#                 if self.count_requirement == -1:
+#                     setattr(instance, "_{}".format(self.name), [""] * 1)
+#                 else:
+#                     setattr(instance, "_{}".format(self.name), [""] * self.count_requirement)
+#             old_destination_list = getattr(instance, "_{}".format(self.name))
+#             destination_list = []
+#             check_list = []
+#             for i, value in enumerate(input_value):
+#                 destination_list.append("")
+#                 check_list.append("")
+#                 if value in self.possible_values:
+#                     destination_list[-1] = value
+#                     check_list[-1] = ""
+#                 else:
+#                     check_list[-1] = "Value {} not in list of possible values: {}".format(value,
+#                                                                                           self.possible_values)
+#                     if i < len(old_destination_list):
+#                         destination_list[i] = old_destination_list[i]
+#             setattr(instance, "_{}".format(self.name), destination_list)
+#             setattr(instance, "_check_status_{}".format(self.name), check_list)
+#
+#     @property
+#     def possible_values(self) -> list[str]:
+#         result = list(self._possible_values)
+#         return result
+#
+#     @possible_values.setter
+#     def possible_values(self, values: Iterable[str]):
+#         self._possible_values = values
+

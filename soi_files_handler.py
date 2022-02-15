@@ -68,4 +68,9 @@ def make_xlsx_templates(dir_name: str):
 
 
 if __name__ == "__main__":
-    print(read_station_config("station_in_config"))
+    cls_obj_dict = read_station_config("station_in_config")
+    print(cls_obj_dict)
+    print(cls_obj_dict["LineSOI"]["Line_2"].points)
+    print(cls_obj_dict["PointSOI"]["Point_14"].active_attrs)
+    print(cls_obj_dict["PointSOI"]["Point_15"].active_attrs)
+    print(cls_obj_dict["LightSOI"]["M1"].colors)

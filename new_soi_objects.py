@@ -20,7 +20,6 @@ from config_names import GLOBAL_CS_NAME
 
 class SOIAttrSeqTemplate:
     def __get__(self, instance, owner) -> list[str]:
-
         return [attr_name for attr_name in owner.__dict__ if not attr_name.startswith("__")]
 
     def __set__(self, instance, value):
@@ -97,135 +96,6 @@ class SOIName:
 
 
 # ------------        BASE SOI-ATTRIBUTE DESCRIPTORS        ------------ #
-
-
-class BaseDescriptor:
-    """ Contains single value or list of values """
-
-    def __init__(self, is_list: bool = False, count_requirement: int = 1, is_min_count: bool = False):
-        self.is_list = is_list
-        self.count_requirement = count_requirement
-        self.is_min_count = is_min_count
-
-    def __set_name__(self, owner, name):
-        self.name = name
-
-    def __get__(self, instance, owner):
-        if not instance:
-            return self
-
-        # elif hasattr(instance, "_{}".format(self.name)):
-        #     return getattr(instance, "_{}".format(self.name))
-        # else:
-        #     if self.count_requirement == 1:
-        #         setattr(instance, "_{}".format(self.name), "")
-        #         setattr(instance, "_str_{}".format(self.name), "")
-        #         setattr(instance, "_check_status_{}".format(self.name), "")
-        #     elif self.count_requirement == -1:
-        #         setattr(instance, "_{}".format(self.name), [""] * 1)
-        #         setattr(instance, "_str_{}".format(self.name), [""] * 1)
-        #         setattr(instance, "_check_status_{}".format(self.name), [""] * 1)
-        #     else:
-        #         setattr(instance, "_{}".format(self.name), [""] * self.count_requirement)
-        #         setattr(instance, "_str_{}".format(self.name), [""] * self.count_requirement)
-        #         setattr(instance, "_check_status_{}".format(self.name), [""] * self.count_requirement)
-        #     return getattr(instance, "_{}".format(self.name))
-
-    def __set__(self, instance: StationObjectImage, value: Union[str, list[str]]):
-        setattr(instance, "_str_"+self.name, value)
-
-
-class IntTypeDescriptor(BaseDescriptor):
-    """ Contains standard value as int, float, str """
-
-    def __init__(self, count_requirement: int = 1):
-        super().__init__(count_requirement)
-
-    def __set__(self, instance: StationObjectImage, input_value: Union[str, list[str]]):
-        super().__set__(instance, input_value)
-        if isinstance(input_value, str):
-            input_value = input_value.strip()
-        else:
-            input_value = [val.strip() for val in input_value]
-        if isinstance(input_value, str):
-            if input_value.isdigit() and (self.count_requirement == 1):
-                setattr(instance, "_"+self.name, input_value)
-                setattr(instance, "_check_status_"+self.name, "")
-            else:
-                setattr(instance, "_check_status_"+self.name, "Value {} is not single int".format(input_value))
-        else:
-            if not hasattr(instance, "_{}".format(self.name)):
-                if self.count_requirement == -1:
-                    setattr(instance, "_{}".format(self.name), [""] * 1)
-                else:
-                    setattr(instance, "_{}".format(self.name), [""] * self.count_requirement)
-            old_destination_list = getattr(instance, "_{}".format(self.name))
-            destination_list = []
-            check_list = []
-            for i, value in enumerate(input_value):
-                destination_list.append("")
-                check_list.append("")
-                if value.isdigit():
-                    destination_list[-1] = value
-                    check_list[-1] = ""
-                else:
-                    check_list[-1] = "Value {} is not int".format(value)
-                    if i < len(old_destination_list):
-                        destination_list[i] = old_destination_list[i]
-            setattr(instance, "_{}".format(self.name), destination_list)
-            setattr(instance, "_check_status_{}".format(self.name), check_list)
-
-
-class BoundedSetOfValuesDescriptor(BaseDescriptor):
-
-    def __init__(self, count_requirement: int = 1):
-        super().__init__(count_requirement)
-        self._possible_values = []
-
-    def __set__(self, instance: StationObjectImage, input_value: Union[str, list[str]]):
-        super().__set__(instance, input_value)
-        if isinstance(input_value, str):
-            input_value = input_value.strip()
-        else:
-            input_value = [val.strip() for val in input_value]
-        if isinstance(input_value, str):
-            if (input_value in self.possible_values) and (self.count_requirement == 1):
-                setattr(instance, "_"+self.name, input_value)
-                setattr(instance, "_check_status_"+self.name, "")
-            else:
-                setattr(instance, "_check_status_"+self.name,
-                        "Value {} not in list of possible values: {}".format(input_value, self.possible_values))
-        else:
-            if not hasattr(instance, "_{}".format(self.name)):
-                if self.count_requirement == -1:
-                    setattr(instance, "_{}".format(self.name), [""] * 1)
-                else:
-                    setattr(instance, "_{}".format(self.name), [""] * self.count_requirement)
-            old_destination_list = getattr(instance, "_{}".format(self.name))
-            destination_list = []
-            check_list = []
-            for i, value in enumerate(input_value):
-                destination_list.append("")
-                check_list.append("")
-                if value in self.possible_values:
-                    destination_list[-1] = value
-                    check_list[-1] = ""
-                else:
-                    check_list[-1] = "Value {} not in list of possible values: {}".format(value,
-                                                                                          self.possible_values)
-                    if i < len(old_destination_list):
-                        destination_list[i] = old_destination_list[i]
-            setattr(instance, "_{}".format(self.name), destination_list)
-            setattr(instance, "_check_status_{}".format(self.name), check_list)
-
-    @property
-    def possible_values(self) -> list[str]:
-        result = list(self._possible_values)
-        return result
-
-    @possible_values.setter
-    def possible_values(self, values: Iterable[str]):
-        self._possible_values = values
 
 
 # ------------        IMAGE OBJECTS CLASSES        ------------ #
@@ -333,21 +203,74 @@ class UniversalDescriptor:
         ap.last_input_value = new_str_value
 
 
+class BoundedStrSetDescriptor(UniversalDescriptor):
+
+    def __init__(self, possible_values: list[str] = None, *, is_required: bool = True, is_list: bool = False,
+                 min_count: int = -1, exactly_count: int = -1):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
+        if not possible_values:
+            self._possible_values = []
+        else:
+            self._possible_values = possible_values
+
+    @property
+    def possible_values(self) -> list[str]:
+        result = list(self._possible_values)
+        return result
+
+    @possible_values.setter
+    def possible_values(self, values: Iterable[str]):
+        self._possible_values = values
+
+    def handling_ap(self, ap: AttribProperties, new_str_value: str):
+        super().handling_ap(ap, new_str_value)
+        if self.possible_values:
+            if new_str_value and (new_str_value not in self.possible_values):
+                raise ValueError("Value {} not in possible list: {}".format(new_str_value, self.possible_values))
+            # print("POSSIBLE VALUES DEFINED")
+
+
+class IntDescriptor(UniversalDescriptor):
+
+    def __init__(self, *, is_required: bool = True, is_list: bool = False,
+                 min_count: int = -1, exactly_count: int = -1):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
+
+    def handling_ap(self, ap: AttribProperties, new_str_value: str):
+        super().handling_ap(ap, new_str_value)
+        if new_str_value:
+            int(new_str_value)
+
+
+class PicketDescriptor(UniversalDescriptor):
+
+    def __init__(self, *, is_required: bool = True, is_list: bool = False,
+                 min_count: int = -1, exactly_count: int = -1):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
+
+    def handling_ap(self, ap: AttribProperties, new_str_value: str):
+        super().handling_ap(ap, new_str_value)
+        if new_str_value:
+            PicketCoordinate(new_str_value)
+
+
 class StationObjectImage:
     name = SOIName()
 
     def __init__(self):
         self.active_attrs = [attr_name for attr_name in self.__class__.__dict__ if not attr_name.startswith("__")]
-        self.change_attr_lists = {CoordinateSystemSOI: {"dependence": ChangeAttribList(OrderedDict({"independent": [],
-                                                                                   "dependent": ["cs_relative_to",
-                                                                                                 "x",
-                                                                                                 "co_x",
-                                                                                                 "co_y"]}))},
-                                  AxisSOI: {"creation_method": ChangeAttribList(OrderedDict({"rotational": ["center_point",
-                                                                                            "alpha"],
-                                                                             "translational": ["y"]}))},
+        self.switch_attr_lists = {CoordinateSystemSOI: {"dependence": ChangeAttribList(OrderedDict({"independent": [],
+                                                                                                    "dependent": [
+                                                                                                       "cs_relative_to",
+                                                                                                       "x",
+                                                                                                       "co_x",
+                                                                                                       "co_y"]}))},
+                                  AxisSOI: {"creation_method": ChangeAttribList(OrderedDict({"rotational": [
+                                                                                                  "center_point",
+                                                                                                  "alpha"],
+                                                                                             "translational": ["y"]}))},
                                   PointSOI: {"on": ChangeAttribList(OrderedDict({"axis": ["axis"],
-                                                                 "line": ["line"]}))}
+                                                                                 "line": ["line"]}))}
                                   }
         # all attrs initialization
         for attr_name in self.active_attrs:
@@ -363,9 +286,9 @@ class StationObjectImage:
                         setattr(self, attr_name, ("", IndexManagementCommand(command="append")))
 
         # switch attrs initialization
-        if self.__class__ in self.change_attr_lists:
-            for attr_name in self.change_attr_lists[self.__class__]:
-                chal: ChangeAttribList = self.change_attr_lists[self.__class__][attr_name]
+        if self.__class__ in self.switch_attr_lists:
+            for attr_name in self.switch_attr_lists[self.__class__]:
+                chal: ChangeAttribList = self.switch_attr_lists[self.__class__][attr_name]
                 # print("preferred_value", chal.preferred_value)
                 self.changed_attrib_value(attr_name, chal.preferred_value)
 
@@ -385,8 +308,8 @@ class StationObjectImage:
                 setattr(self, attr_name, (attr_value, IndexManagementCommand(command="set_list")))
 
         # switch attr
-        if (self.__class__ in self.change_attr_lists) and (attr_name in self.change_attr_lists[self.__class__]):
-            chal: ChangeAttribList = self.change_attr_lists[self.__class__][attr_name]
+        if (self.__class__ in self.switch_attr_lists) and (attr_name in self.switch_attr_lists[self.__class__]):
+            chal: ChangeAttribList = self.switch_attr_lists[self.__class__][attr_name]
             for remove_value in chal.remove_list(attr_value):
                 if remove_value in self.active_attrs:
                     self.active_attrs.remove(remove_value)
@@ -397,54 +320,54 @@ class StationObjectImage:
 
 
 class CoordinateSystemSOI(StationObjectImage):
-    dependence = UniversalDescriptor()
-    cs_relative_to = UniversalDescriptor()
-    x = UniversalDescriptor()
-    co_x = UniversalDescriptor()
-    co_y = UniversalDescriptor()
+    dependence = BoundedStrSetDescriptor(CEDependence.possible_values)
+    cs_relative_to = BoundedStrSetDescriptor()
+    x = IntDescriptor()
+    co_x = BoundedStrSetDescriptor(CEBool.possible_values)
+    co_y = BoundedStrSetDescriptor(CEBool.possible_values)
 
 
 class AxisSOI(StationObjectImage):
-    cs_relative_to = UniversalDescriptor()
-    creation_method = UniversalDescriptor()
-    y = UniversalDescriptor()
-    center_point = UniversalDescriptor()
-    alpha = UniversalDescriptor()
+    cs_relative_to = BoundedStrSetDescriptor()
+    creation_method = BoundedStrSetDescriptor(CEAxisCreationMethod.possible_values)
+    y = IntDescriptor()
+    center_point = BoundedStrSetDescriptor()
+    alpha = BoundedStrSetDescriptor()
 
 
 class PointSOI(StationObjectImage):
-    on = UniversalDescriptor()
-    axis = UniversalDescriptor()
-    line = UniversalDescriptor()
-    cs_relative_to = UniversalDescriptor()
-    x = UniversalDescriptor()
+    on = BoundedStrSetDescriptor(CEAxisOrLine.possible_values)
+    axis = BoundedStrSetDescriptor()
+    line = BoundedStrSetDescriptor()
+    cs_relative_to = BoundedStrSetDescriptor()
+    x = PicketDescriptor()
 
 
 class LineSOI(StationObjectImage):
-    points = UniversalDescriptor(is_list=True)
+    points = BoundedStrSetDescriptor(is_list=True)
 
 
 class LightSOI(StationObjectImage):
-    light_route_type = UniversalDescriptor()
-    center_point = UniversalDescriptor()
-    direct_point = UniversalDescriptor()
-    colors = UniversalDescriptor(is_list=True)
-    light_stick_type = UniversalDescriptor()
+    light_route_type = BoundedStrSetDescriptor(CELightRouteType.possible_values)
+    center_point = BoundedStrSetDescriptor()
+    direct_point = BoundedStrSetDescriptor()
+    colors = BoundedStrSetDescriptor(CELightColor.possible_values, is_list=True)
+    light_stick_type = BoundedStrSetDescriptor(CELightStickType.possible_values)
 
 
 class RailPointSOI(StationObjectImage):
-    center_point = UniversalDescriptor()
-    dir_plus_point = UniversalDescriptor()
-    dir_minus_point = UniversalDescriptor()
+    center_point = BoundedStrSetDescriptor()
+    dir_plus_point = BoundedStrSetDescriptor()
+    dir_minus_point = BoundedStrSetDescriptor()
 
 
 class BorderSOI(StationObjectImage):
-    point = UniversalDescriptor()
-    border_type = UniversalDescriptor()
+    point = BoundedStrSetDescriptor()
+    border_type = BoundedStrSetDescriptor(CEBorderType.possible_values)
 
 
 class SectionSOI(StationObjectImage):
-    border_points = UniversalDescriptor(is_list=True)
+    border_points = BoundedStrSetDescriptor(is_list=True)
 
 
 if __name__ == "__main__":
@@ -470,7 +393,6 @@ if __name__ == "__main__":
 
     test_3 = True
     if test_3:
-
         cs = CoordinateSystemSOI()
         print(cs.active_attrs)
         cs.changed_attrib_value("dependence", "dependent")
@@ -504,4 +426,3 @@ if __name__ == "__main__":
         cs = BorderSOI()
         # cs.creation_method
         print(cs.active_attrs)
-
