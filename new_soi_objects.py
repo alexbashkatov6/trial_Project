@@ -17,75 +17,6 @@ from config_names import GLOBAL_CS_NAME
 
 # ------------        ORIGINAL DESCRIPTORS        ------------ #
 
-
-class SOIAttrSeqTemplate:
-    def __get__(self, instance, owner) -> list[str]:
-        return [attr_name for attr_name in owner.__dict__ if not attr_name.startswith("__")]
-
-    def __set__(self, instance, value):
-        raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
-
-
-class SOIActiveAttrs:
-    def __get__(self, instance, owner):
-        assert instance, "Only for instance"
-        instance: StationObjectImage
-        instance._active_attrs = instance.attr_sequence_template
-
-        if owner == CoordinateSystemSOI:
-            instance: CoordinateSystemSOI
-            if instance.dependence == CEDependence.independent:
-                instance._active_attrs.remove(CoordinateSystemSOI.x.name)
-                instance._active_attrs.remove(CoordinateSystemSOI.co_x.name)
-                instance._active_attrs.remove(CoordinateSystemSOI.co_y.name)
-
-        if owner == AxisSOI:
-            instance: AxisSOI
-            if instance.creation_method == CEAxisCreationMethod.rotational:
-                instance._active_attrs.remove(AxisSOI.y.name)
-            else:
-                instance._active_attrs.remove(AxisSOI.alpha.name)
-                instance._active_attrs.remove(AxisSOI.center_point.name)
-
-        if owner == PointSOI:
-            instance: PointSOI
-            if instance.on == CEAxisOrLine.axis:
-                instance._active_attrs.remove(PointSOI.line.name)
-            else:
-                instance._active_attrs.remove(PointSOI.axis.name)
-
-        return instance._active_attrs
-
-    def __set__(self, instance, value):
-        raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
-
-
-class SODictEnumPossibleValues:
-    def __get__(self, instance, owner) -> OrderedDict[str, list[str]]:
-        result = OrderedDict()
-        for attr_ in owner.attr_sequence_template:
-            attrib = getattr(owner, attr_)
-            if attrib.enum:
-                result[attr_] = attrib.enum.possible_values
-        return result
-
-    def __set__(self, instance, value):
-        raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
-
-
-class SOIListValues:
-    def __get__(self, instance, owner):
-        assert instance, "Only for instance"
-        instance: StationObjectImage
-        result = OrderedDict()
-        for active_attr in instance.active_attrs:
-            result[active_attr] = getattr(instance, active_attr)
-        return result
-
-    def __set__(self, instance, value):
-        raise NotImplementedError('{} setter not implemented'.format(self.__class__.__name__))
-
-
 class SOIName:
     def __get__(self, instance, owner):
         assert instance, "Only for instance"
@@ -156,13 +87,13 @@ class UniversalDescriptor:
             return self
         return getattr(instance, "_{}".format(self.name))
 
-    def __set__(self, instance, value: Union[str, tuple[str, IndexManagementCommand]]):
+    def __set__(self, instance, value: Union[Union[str, list[str]], tuple[str, IndexManagementCommand]]):
 
         ap_for_handle_list = []
         # print("got value = ", value, type(value))
         if not self.is_list:
             assert isinstance(value, str)
-            str_value = value
+            str_value = value.strip()
             if not hasattr(instance, "_{}".format(self.name)):
                 ap_for_handle = AttribProperties()
                 setattr(instance, "_{}".format(self.name), ap_for_handle)
@@ -178,7 +109,7 @@ class UniversalDescriptor:
                 setattr(instance, "_{}".format(self.name), [])
             old_ap_list: list[AttribProperties] = getattr(instance, "_{}".format(self.name))
             if command in ["remove_index", "append", "set_index"]:
-                str_value = value[0]
+                str_value = value[0].strip()
                 if command == "remove_index":
                     old_ap_list.pop(index)
                     return
@@ -190,8 +121,9 @@ class UniversalDescriptor:
                 self.handling_ap(ap_for_handle, str_value)
             elif command == "set_list":
                 old_ap_list.clear()
-                str_list = value[0]
+                str_list: list[str] = value[0]
                 for str_value in str_list:
+                    str_value = str_value.strip()
                     ap_for_handle = AttribProperties()
                     self.handling_ap(ap_for_handle, str_value)
                     old_ap_list.append(ap_for_handle)
