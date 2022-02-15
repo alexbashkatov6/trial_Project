@@ -5,8 +5,7 @@ from collections import OrderedDict
 from cell_object import CellObject
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode
 from default_ordered_dict import DefaultOrderedDict
-from new_soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
-    LightSOI, RailPointSOI, BorderSOI, SectionSOI
+from new_soi_objects import StationObjectImage, CoordinateSystemSOI, StationObjectDescriptor
 from soi_files_handler import read_station_config
 from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CELightStickType, \
     CEBorderType, CELightColor
@@ -67,36 +66,11 @@ class Rectifier:
                 node.append_cell_obj(ObjNodeCell(cls_name, obj_name))
 
         # Stage 2 - evaluate descriptor connections
-        CoordinateSystemSOI.cs_relative_to.possible_values = self.soi_objects["CoordinateSystemSOI"].keys()
-        CoordinateSystemSOI.dependence.possible_values = CEDependence.possible_values
-        CoordinateSystemSOI.co_x.possible_values = CEBool.possible_values
-        CoordinateSystemSOI.co_y.possible_values = CEBool.possible_values
-
-        AxisSOI.cs_relative_to.possible_values = self.soi_objects["CoordinateSystemSOI"].keys()
-        AxisSOI.creation_method.possible_values = CEAxisCreationMethod.possible_values
-        AxisSOI.center_point.possible_values = self.soi_objects["PointSOI"].keys()
-
-        PointSOI.on.possible_values = CEAxisOrLine.possible_values
-        PointSOI.axis.possible_values = self.soi_objects["AxisSOI"]
-        PointSOI.line.possible_values = self.soi_objects["LineSOI"]
-        PointSOI.cs_relative_to.possible_values = self.soi_objects["CoordinateSystemSOI"].keys()
-
-        LineSOI.points.possible_values = self.soi_objects["PointSOI"].keys()
-
-        LightSOI.light_route_type.possible_values = CELightRouteType.possible_values
-        LightSOI.center_point.possible_values = self.soi_objects["PointSOI"].keys()
-        LightSOI.direct_point.possible_values = self.soi_objects["PointSOI"].keys()
-        LightSOI.colors.possible_values = CELightColor.possible_values
-        LightSOI.light_stick_type.possible_values = CELightStickType.possible_values
-
-        RailPointSOI.center_point.possible_values = self.soi_objects["PointSOI"].keys()
-        RailPointSOI.dir_plus_point.possible_values = self.soi_objects["PointSOI"].keys()
-        RailPointSOI.dir_minus_point.possible_values = self.soi_objects["PointSOI"].keys()
-
-        BorderSOI.point.possible_values = self.soi_objects["PointSOI"].keys()
-        BorderSOI.border_type.possible_values = CEBorderType.possible_values
-
-        SectionSOI.border_points.possible_values = self.soi_objects["PointSOI"].keys()
+        for cls in StationObjectImage.__subclasses__():
+            for attr_name in cls.__dict__:
+                if (not attr_name.startswith("__")) and \
+                        isinstance(descr := getattr(cls, attr_name), StationObjectDescriptor):
+                    descr.obj_dict = self.soi_objects[descr.contains_cls_name]
 
         # Stage 3 - check formal requirements to attributes, nodes connections and link cells initialization
         for cls_name in od:

@@ -203,7 +203,7 @@ class UniversalDescriptor:
         ap.last_input_value = new_str_value
 
 
-class BoundedStrSetDescriptor(UniversalDescriptor):
+class EnumDescriptor(UniversalDescriptor):
 
     def __init__(self, possible_values: list[str] = None, *, is_required: bool = True, is_list: bool = False,
                  min_count: int = -1, exactly_count: int = -1):
@@ -215,19 +215,38 @@ class BoundedStrSetDescriptor(UniversalDescriptor):
 
     @property
     def possible_values(self) -> list[str]:
-        result = list(self._possible_values)
-        return result
+        return self._possible_values
 
     @possible_values.setter
     def possible_values(self, values: Iterable[str]):
-        self._possible_values = values
+        self._possible_values = list(values)
 
     def handling_ap(self, ap: AttribProperties, new_str_value: str):
         super().handling_ap(ap, new_str_value)
         if self.possible_values:
             if new_str_value and (new_str_value not in self.possible_values):
                 raise ValueError("Value {} not in possible list: {}".format(new_str_value, self.possible_values))
-            # print("POSSIBLE VALUES DEFINED")
+
+
+class StationObjectDescriptor(UniversalDescriptor):
+
+    def __init__(self, contains_cls_name: str, *, is_required: bool = True, is_list: bool = False,
+                 min_count: int = -1, exactly_count: int = -1):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
+        self.contains_cls_name = contains_cls_name
+        self._obj_dict = OrderedDict()
+
+    @property
+    def obj_dict(self) -> OrderedDict[str, StationObjectImage]:
+        return self._obj_dict
+
+    @obj_dict.setter
+    def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
+        # print("odict initialized, values", odict.keys())
+        self._obj_dict = odict
+
+    def handling_ap(self, ap: AttribProperties, new_str_value: str):
+        super().handling_ap(ap, new_str_value)
 
 
 class IntDescriptor(UniversalDescriptor):
@@ -320,54 +339,54 @@ class StationObjectImage:
 
 
 class CoordinateSystemSOI(StationObjectImage):
-    dependence = BoundedStrSetDescriptor(CEDependence.possible_values)
-    cs_relative_to = BoundedStrSetDescriptor()
+    dependence = EnumDescriptor(CEDependence.possible_values)
+    cs_relative_to = StationObjectDescriptor("CoordinateSystemSOI")
     x = IntDescriptor()
-    co_x = BoundedStrSetDescriptor(CEBool.possible_values)
-    co_y = BoundedStrSetDescriptor(CEBool.possible_values)
+    co_x = EnumDescriptor(CEBool.possible_values)
+    co_y = EnumDescriptor(CEBool.possible_values)
 
 
 class AxisSOI(StationObjectImage):
-    cs_relative_to = BoundedStrSetDescriptor()
-    creation_method = BoundedStrSetDescriptor(CEAxisCreationMethod.possible_values)
+    cs_relative_to = StationObjectDescriptor("CoordinateSystemSOI")
+    creation_method = EnumDescriptor(CEAxisCreationMethod.possible_values)
     y = IntDescriptor()
-    center_point = BoundedStrSetDescriptor()
-    alpha = BoundedStrSetDescriptor()
+    center_point = StationObjectDescriptor("PointSOI")
+    alpha = IntDescriptor()
 
 
 class PointSOI(StationObjectImage):
-    on = BoundedStrSetDescriptor(CEAxisOrLine.possible_values)
-    axis = BoundedStrSetDescriptor()
-    line = BoundedStrSetDescriptor()
-    cs_relative_to = BoundedStrSetDescriptor()
+    on = EnumDescriptor(CEAxisOrLine.possible_values)
+    axis = StationObjectDescriptor("AxisSOI")
+    line = StationObjectDescriptor("LineSOI")
+    cs_relative_to = StationObjectDescriptor("CoordinateSystemSOI")
     x = PicketDescriptor()
 
 
 class LineSOI(StationObjectImage):
-    points = BoundedStrSetDescriptor(is_list=True)
+    points = StationObjectDescriptor("PointSOI", is_list=True)
 
 
 class LightSOI(StationObjectImage):
-    light_route_type = BoundedStrSetDescriptor(CELightRouteType.possible_values)
-    center_point = BoundedStrSetDescriptor()
-    direct_point = BoundedStrSetDescriptor()
-    colors = BoundedStrSetDescriptor(CELightColor.possible_values, is_list=True)
-    light_stick_type = BoundedStrSetDescriptor(CELightStickType.possible_values)
+    light_route_type = EnumDescriptor(CELightRouteType.possible_values)
+    center_point = StationObjectDescriptor("PointSOI")
+    direct_point = StationObjectDescriptor("PointSOI")
+    colors = EnumDescriptor(CELightColor.possible_values, is_list=True)
+    light_stick_type = EnumDescriptor(CELightStickType.possible_values)
 
 
 class RailPointSOI(StationObjectImage):
-    center_point = BoundedStrSetDescriptor()
-    dir_plus_point = BoundedStrSetDescriptor()
-    dir_minus_point = BoundedStrSetDescriptor()
+    center_point = StationObjectDescriptor("PointSOI")
+    dir_plus_point = StationObjectDescriptor("PointSOI")
+    dir_minus_point = StationObjectDescriptor("PointSOI")
 
 
 class BorderSOI(StationObjectImage):
-    point = BoundedStrSetDescriptor()
-    border_type = BoundedStrSetDescriptor(CEBorderType.possible_values)
+    point = StationObjectDescriptor("PointSOI")
+    border_type = EnumDescriptor(CEBorderType.possible_values)
 
 
 class SectionSOI(StationObjectImage):
-    border_points = BoundedStrSetDescriptor(is_list=True)
+    border_points = StationObjectDescriptor("PointSOI", is_list=True)
 
 
 if __name__ == "__main__":

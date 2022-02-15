@@ -732,3 +732,26 @@ class AlwaysTrueValidator(QValidator):
 #     def possible_values(self, values: Iterable[str]):
 #         self._possible_values = values
 
+
+        CoordinateSystemSOI.cs_relative_to.obj_dict = self.soi_objects["CoordinateSystemSOI"].keys()
+
+        AxisSOI.cs_relative_to.possible_values = self.soi_objects["CoordinateSystemSOI"].keys()
+        AxisSOI.center_point.possible_values = self.soi_objects["PointSOI"].keys()
+
+        PointSOI.axis.possible_values = self.soi_objects["AxisSOI"].keys()
+        PointSOI.line.possible_values = self.soi_objects["LineSOI"].keys()
+        PointSOI.cs_relative_to.possible_values = self.soi_objects["CoordinateSystemSOI"].keys()
+
+        LineSOI.points.possible_values = self.soi_objects["PointSOI"].keys()
+
+        LightSOI.center_point.possible_values = self.soi_objects["PointSOI"].keys()
+        LightSOI.direct_point.possible_values = self.soi_objects["PointSOI"].keys()
+
+        RailPointSOI.center_point.possible_values = self.soi_objects["PointSOI"].keys()
+        RailPointSOI.dir_plus_point.possible_values = self.soi_objects["PointSOI"].keys()
+        RailPointSOI.dir_minus_point.possible_values = self.soi_objects["PointSOI"].keys()
+
+        BorderSOI.point.possible_values = self.soi_objects["PointSOI"].keys()
+
+        SectionSOI.border_points.possible_values = self.soi_objects["PointSOI"].keys()
+
