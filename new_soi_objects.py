@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, Union, Iterable
+from typing import Type, Union, Iterable, Any
 from collections import OrderedDict
 from copy import copy
 from dataclasses import dataclass
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from custom_enum import CustomEnum
 from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CELightStickType, \
     CEBorderType, CELightColor
-from picket_coordinate import PicketCoordinate
+from picket_coordinate import PicketCoordinate, PicketCoordinateParsingCoError
 from default_ordered_dict import DefaultOrderedDict
 # from attrib_properties import AttribProperties
 # from attrib_index import CompositeAttributeIndex
@@ -19,11 +19,15 @@ class AttributeEvaluateError(Exception):
     pass
 
 
-class AERequiredAttributeError(AttributeEvaluateError):
+class AEEnumValueAttributeError(AttributeEvaluateError):
     pass
 
 
 class AEObjectNotFoundError(AttributeEvaluateError):
+    pass
+
+
+class AERequiredAttributeError(AttributeEvaluateError):
     pass
 
 
@@ -69,7 +73,7 @@ class ChangeAttribList:
 @dataclass
 class AttribProperties:
     last_input_value: str = ""
-    # last_confirmed_value: str = ""
+    confirmed_value: Any = ""
     # suggested_value: str = ""
     #
     # is_required: str = ""
@@ -106,7 +110,6 @@ class UniversalDescriptor:
     def __set__(self, instance, value: Union[Union[str, list[str]], tuple[str, IndexManagementCommand]]):
 
         ap_for_handle_list = []
-        # print("got value = ", value, type(value))
         if not self.is_list:
             assert isinstance(value, str)
             str_value = value.strip()
@@ -133,7 +136,6 @@ class UniversalDescriptor:
                     ap_for_handle = AttribProperties()
                     old_ap_list.append(ap_for_handle)
                 if command == "set_index":
-                    # print("set_index")
                     ap_for_handle = old_ap_list[index]
                 self.handling_ap(ap_for_handle, str_value)
             elif command == "set_list":
@@ -172,9 +174,11 @@ class EnumDescriptor(UniversalDescriptor):
 
     def handling_ap(self, ap: AttribProperties, new_str_value: str):
         super().handling_ap(ap, new_str_value)
-        if self.possible_values:
-            if new_str_value and (new_str_value not in self.possible_values):
-                raise ValueError("Value {} not in possible list: {}".format(new_str_value, self.possible_values))
+        if new_str_value and self.possible_values:
+            if new_str_value not in self.possible_values:
+                raise AEEnumValueAttributeError("Value {} not in possible list: {}".format(new_str_value,
+                                                                                           self.possible_values))
+            ap.confirmed_value = new_str_value
 
 
 class StationObjectDescriptor(UniversalDescriptor):
@@ -191,11 +195,15 @@ class StationObjectDescriptor(UniversalDescriptor):
 
     @obj_dict.setter
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
-        # print("odict initialized, values", odict.keys())
         self._obj_dict = odict
 
     def handling_ap(self, ap: AttribProperties, new_str_value: str):
         super().handling_ap(ap, new_str_value)
+        if new_str_value and self.obj_dict:
+            if new_str_value not in self.obj_dict:
+                raise AEObjectNotFoundError("Object {} not found in class {}".format(new_str_value,
+                                                                                     self.contains_cls_name))
+            ap.confirmed_value = self.obj_dict[new_str_value]
 
 
 class IntDescriptor(UniversalDescriptor):
@@ -207,7 +215,10 @@ class IntDescriptor(UniversalDescriptor):
     def handling_ap(self, ap: AttribProperties, new_str_value: str):
         super().handling_ap(ap, new_str_value)
         if new_str_value:
-            int(new_str_value)
+            try:
+                ap.confirmed_value = int(new_str_value)
+            except ValueError:
+                raise AETypeAttributeError("Value {} is not int".format(new_str_value))
 
 
 class PicketDescriptor(UniversalDescriptor):
@@ -219,27 +230,18 @@ class PicketDescriptor(UniversalDescriptor):
     def handling_ap(self, ap: AttribProperties, new_str_value: str):
         super().handling_ap(ap, new_str_value)
         if new_str_value:
-            PicketCoordinate(new_str_value)
+            try:
+                ap.confirmed_value = PicketCoordinate(new_str_value).value
+            except PicketCoordinateParsingCoError:
+                raise AETypeAttributeError("Value {} is not picket coordinate".format(new_str_value))
 
 
 class StationObjectImage:
     name = SOIName()
 
     def __init__(self):
-        self.active_attrs = [attr_name for attr_name in self.__class__.__dict__ if not attr_name.startswith("__")]
-        self.switch_attr_lists = {CoordinateSystemSOI: {"dependence": ChangeAttribList(OrderedDict({"independent": [],
-                                                                                                    "dependent": [
-                                                                                                       "cs_relative_to",
-                                                                                                       "x",
-                                                                                                       "co_x",
-                                                                                                       "co_y"]}))},
-                                  AxisSOI: {"creation_method": ChangeAttribList(OrderedDict({"rotational": [
-                                                                                                  "center_point",
-                                                                                                  "alpha"],
-                                                                                             "translational": ["y"]}))},
-                                  PointSOI: {"on": ChangeAttribList(OrderedDict({"axis": ["axis"],
-                                                                                 "line": ["line"]}))}
-                                  }
+        self.active_attrs: list[str] = [attr_name for attr_name in self.__class__.__dict__
+                                        if not attr_name.startswith("__")]
         # all attrs initialization
         for attr_name in self.active_attrs:
             descr: UniversalDescriptor = getattr(self.__class__, attr_name)
@@ -254,11 +256,12 @@ class StationObjectImage:
                         setattr(self, attr_name, ("", IndexManagementCommand(command="append")))
 
         # switch attrs initialization
-        if self.__class__ in self.switch_attr_lists:
-            for attr_name in self.switch_attr_lists[self.__class__]:
-                chal: ChangeAttribList = self.switch_attr_lists[self.__class__][attr_name]
+        if self.__class__ in SWITCH_ATTR_LISTS:
+            for attr_name in SWITCH_ATTR_LISTS[self.__class__]:
+                chal: ChangeAttribList = SWITCH_ATTR_LISTS[self.__class__][attr_name]
                 # print("preferred_value", chal.preferred_value)
                 self.changed_attrib_value(attr_name, chal.preferred_value)
+        # print("init success")
 
     def changed_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]]):
 
@@ -272,12 +275,13 @@ class StationObjectImage:
                 assert isinstance(attr_value, str)
                 setattr(self, attr_name, attr_value)
             else:
-                assert isinstance(attr_value, list)
+                if isinstance(attr_value, str):
+                    attr_value = [attr_value]
                 setattr(self, attr_name, (attr_value, IndexManagementCommand(command="set_list")))
 
         # switch attr
-        if (self.__class__ in self.switch_attr_lists) and (attr_name in self.switch_attr_lists[self.__class__]):
-            chal: ChangeAttribList = self.switch_attr_lists[self.__class__][attr_name]
+        if (self.__class__ in SWITCH_ATTR_LISTS) and (attr_name in SWITCH_ATTR_LISTS[self.__class__]):
+            chal: ChangeAttribList = SWITCH_ATTR_LISTS[self.__class__][attr_name]
             for remove_value in chal.remove_list(attr_value):
                 if remove_value in self.active_attrs:
                     self.active_attrs.remove(remove_value)
@@ -337,6 +341,20 @@ class BorderSOI(StationObjectImage):
 class SectionSOI(StationObjectImage):
     border_points = StationObjectDescriptor("PointSOI", is_list=True)
 
+
+SWITCH_ATTR_LISTS = {CoordinateSystemSOI: {"dependence": ChangeAttribList(OrderedDict({"independent": [],
+                                                                                       "dependent": [
+                                                                                           "cs_relative_to",
+                                                                                           "x",
+                                                                                           "co_x",
+                                                                                           "co_y"]}))},
+                     AxisSOI: {"creation_method": ChangeAttribList(OrderedDict({"rotational": [
+                         "center_point",
+                         "alpha"],
+                         "translational": ["y"]}))},
+                     PointSOI: {"on": ChangeAttribList(OrderedDict({"axis": ["axis"],
+                                                                    "line": ["line"]}))}
+                     }
 
 if __name__ == "__main__":
     test_1 = False

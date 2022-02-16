@@ -7,7 +7,7 @@ class PicketCoordinate:
         self.str_value = str_value
 
     @property
-    def value(self):
+    def value(self) -> int:
         x = self.str_value
         if x.startswith("PK"):
             try:
