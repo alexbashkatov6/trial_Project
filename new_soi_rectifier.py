@@ -205,16 +205,22 @@ class StorageDG:
         self.to_child_attribute_dict[cls_name].pop(old_obj_name)
 
     def create_new_object(self, cls_name: str):
+        """ clean operation """
         self.current_object: StationObjectImage = eval(cls_name)()
         self.current_object_is_new = True
+
+    def select_current_object(self, cls_name: str, obj_name: str):
+        """ clean operation """
+        self.current_object = self.soi_objects[cls_name][obj_name]
+        self.current_object_is_new = False
 
     def push_new_object(self):
         co = self.current_object
         self.soi_objects[co.__class__.__name__][co.name] = co
 
-    def select_current_object(self, cls_name: str, obj_name: str):
-        self.current_object = self.soi_objects[cls_name][obj_name]
-        self.current_object_is_new = False
+    def change_attrib_value(self, a):
+        """ dirty operation """
+        pass
 
 
 if __name__ == "__main__":
