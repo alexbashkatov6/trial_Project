@@ -15,6 +15,22 @@ from default_ordered_dict import DefaultOrderedDict
 from config_names import GLOBAL_CS_NAME
 
 
+class AttributeEvaluateError(Exception):
+    pass
+
+
+class AERequiredAttributeError(AttributeEvaluateError):
+    pass
+
+
+class AEObjectNotFoundError(AttributeEvaluateError):
+    pass
+
+
+class AETypeAttributeError(AttributeEvaluateError):
+    pass
+
+
 # ------------        ORIGINAL DESCRIPTORS        ------------ #
 
 class SOIName:
@@ -117,6 +133,7 @@ class UniversalDescriptor:
                     ap_for_handle = AttribProperties()
                     old_ap_list.append(ap_for_handle)
                 if command == "set_index":
+                    # print("set_index")
                     ap_for_handle = old_ap_list[index]
                 self.handling_ap(ap_for_handle, str_value)
             elif command == "set_list":
