@@ -68,7 +68,8 @@ class StorageDG:
                     descr.obj_dict = self.soi_objects[descr.contains_cls_name]
 
     def reset_clean_storages(self):
-        self.soi_objects.clear()
+        for cls_name in self.soi_objects:
+            self.soi_objects[cls_name].clear()
         self.soi_objects["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.gcs
 
         self.dg = OneComponentTwoSidedPG()
@@ -106,6 +107,7 @@ class StorageDG:
                 if obj_name == GLOBAL_CS_NAME:
                     continue
                 self.init_obj_node_dg(obj)
+        # print("soi", self.soi_objects)
 
         # Stage 3 - nodes connections relied on formal requirements to attributes
         for cls_name in od:
@@ -113,21 +115,21 @@ class StorageDG:
                 if obj_name == GLOBAL_CS_NAME:
                     continue
                 self.insert_obj_to_dg(obj)
+                self.obj_attrib_evaluation(obj)
 
         # Stage 5 - check cycles
         self.full_check_cycle_dg()
 
-        # Stage 6 - obj attributes evaluations for StationObjectDescriptor
-        for cls_name in self.soi_objects:
-            for obj_name in self.soi_objects[cls_name]:
-                obj = self.soi_objects[cls_name][obj_name]
-                if obj_name != GLOBAL_CS_NAME:
-                    for attr_name in obj.active_attrs:
-                        descr = getattr(obj.__class__, attr_name)
-                        if isinstance(descr, StationObjectDescriptor):
-                            obj.reload_attr_value(attr_name)
+    def obj_attrib_evaluation(self, obj: StationObjectImage):
+        obj_name = obj.name
+        if obj_name != GLOBAL_CS_NAME:
+            for attr_name in obj.active_attrs:
+                descr = getattr(obj.__class__, attr_name)
+                if isinstance(descr, StationObjectDescriptor):
+                    obj.reload_attr_value(attr_name)
 
     def init_obj_node_dg(self, obj: StationObjectImage):
+        # print("obj", obj)
         cls_name = obj.__class__.__name__
         obj_name = obj.name
         self.soi_objects[cls_name][obj_name] = obj
@@ -141,6 +143,7 @@ class StorageDG:
         cls_name = obj.__class__.__name__
         obj_name = obj.name
         for attr_name in obj.active_attrs:
+            # print("active_attrs", attr_name)
             if (not attr_name.startswith("__")) and \
                     isinstance(descr := getattr(obj.__class__, attr_name), StationObjectDescriptor):
                 contains_cls_name = descr.contains_cls_name
@@ -202,14 +205,9 @@ class StorageDG:
 
     def rename_object(self, cls_name: str, old_obj_name: str, new_obj_name: str):
         """ clean operation - to main dg immediately """
-        # 1. input checks
-        obj_dict = self.soi_objects[cls_name]
-        if new_obj_name == old_obj_name:
-            return
-        if new_obj_name in obj_dict:
-            raise DBExistingNameError(cls_name, old_obj_name, "name", "Name {} already exists".format(new_obj_name))
 
         # 2. rename obj in dicts and in cell
+        obj_dict = self.soi_objects[cls_name]
         obj = obj_dict[old_obj_name]
         obj_dict[new_obj_name] = obj
         obj_dict.pop(old_obj_name)
@@ -257,10 +255,41 @@ class StorageDG:
     # def dirty_to_clean(self):
     #     self.dg = self.dirty_dg
 
-    def change_attrib_value(self, new_value: str, cls_name: str, obj_name: str, attr_name: str, index: int = -1):
-        """ dirty operation """
+    def change_attrib_value_main(self, attr_name: str, new_value: str, index: int = -1):
+        """ main change attrib value function """
         new_value = new_value.strip()
-        obj = self.soi_objects[cls_name][obj_name]
+        cls_name = self.current_object.__class__.__name__
+        obj_name = self.current_object.name
+        obj = self.current_object
+        obj_dict = self.soi_objects[cls_name]
+
+        old_value = obj.single_attr_input_value(attr_name, index)
+        if new_value == old_value:
+            print("value not changed")
+            return
+
+        if attr_name == "name":
+            if new_value in obj_dict:
+                raise DBExistingNameError(cls_name, obj_name, "name", "Name {} already exists".format(new_value))
+            if self.current_object_is_new:
+                self.current_object.change_attrib_value("name", new_value)
+            else:
+                self.rename_object(cls_name, obj_name, new_value)
+        else:
+            if self.current_object_is_new:
+                self.current_object.change_attrib_value(attr_name, new_value, index)
+            else:
+                self.change_attrib_value_existing(attr_name, new_value, index)
+
+    def try_change_attr_value(self):
+        pass
+
+    def change_attrib_value_existing(self, attr_name: str, new_value: str, index: int):
+        """ dirty operation """
+        cls_name = self.current_object.__class__.__name__
+        obj_name = self.current_object.name
+        obj = self.current_object
+        # obj = self.soi_objects[cls_name][obj_name]
         descr = getattr(obj.__class__, attr_name)
         if index == -1:
             attr_prop = getattr(obj, attr_name)
@@ -308,8 +337,8 @@ class StorageDG:
 if __name__ == "__main__":
     test_1 = True
     if test_1:
-        r = StorageDG()
         # print("r")
+        r = StorageDG()
         config_objs = read_station_config("station_in_config")
         # print("read_station_config")
         r.reload_from_dict(config_objs)
@@ -326,7 +355,9 @@ if __name__ == "__main__":
 
         print([obj.name for obj in r.rectify_dg()])
         print(r.dependent_objects_names("PointSOI", "Point_18"))
-        print(r.rename_object("PointSOI", "Point_18", "Point_180"))
+        r.select_current_object("PointSOI", "Point_18")
+        r.change_attrib_value_main("name", "Point_180")
+        # print(r.rename_object("PointSOI", "Point_18", "Point_180"))
         print([obj.name for obj in r.rectify_dg()])
         print(r.dependent_objects_names("PointSOI", "Point_180"))
         print(r.soi_objects["LineSOI"]["Line_7"].points)

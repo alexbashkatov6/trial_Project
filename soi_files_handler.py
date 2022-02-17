@@ -43,7 +43,7 @@ def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[st
                     result[cls_name_soi][attr_val] = new_obj
                 # print("attr_val", attr_val)
                 # setattr(new_obj, attr_name, attr_val)
-                new_obj.change_attrib_value(attr_name, attr_val)
+                new_obj.change_attrib_value(attr_name, attr_val, check_mode=False)
     return result
 
 

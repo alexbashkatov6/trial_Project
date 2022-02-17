@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, Union, Iterable, Any
+from typing import Type, Union, Iterable, Any, Optional
 from collections import OrderedDict
 from copy import copy
 from dataclasses import dataclass
@@ -37,13 +37,13 @@ class AETypeAttributeError(AttributeEvaluateError):
 
 # ------------        ORIGINAL DESCRIPTORS        ------------ #
 
-class SOIName:
-    def __get__(self, instance, owner):
-        assert instance, "Only for instance"
-        return getattr(instance, "_name")
-
-    def __set__(self, instance, value: str):
-        instance._name = value
+# class SOIName:
+#     def __get__(self, instance, owner):
+#         assert instance, "Only for instance"
+#         return getattr(instance, "_name")
+#
+#     def __set__(self, instance, value: str):
+#         instance._name = value
 
 
 # ------------        BASE SOI-ATTRIBUTE DESCRIPTORS        ------------ #
@@ -107,22 +107,23 @@ class UniversalDescriptor:
             return self
         return getattr(instance, "_{}".format(self.name))
 
-    def __set__(self, instance, value: Union[Union[str, list[str]], tuple[str, IndexManagementCommand]]):
+    def __set__(self, instance, value: tuple[Union[str, list[str]], bool, Optional[IndexManagementCommand]]):
 
         ap_for_handle_list = []
+        check_mode = value[1]
         if not self.is_list:
-            assert isinstance(value, str)
-            str_value = value.strip()
+            assert isinstance(value[0], str)
+            str_value = value[0].strip()
             if not hasattr(instance, "_{}".format(self.name)):
                 ap_for_handle = AttribProperties()
                 setattr(instance, "_{}".format(self.name), ap_for_handle)
             else:
                 ap_for_handle = getattr(instance, "_{}".format(self.name))
-            self.handling_ap(ap_for_handle, str_value)
+            self.handling_ap(ap_for_handle, str_value, check_mode)
         else:
-            assert isinstance(value, tuple)
-            command = value[1].command
-            index = value[1].index
+            assert len(value) == 3
+            command = value[2].command
+            index = value[2].index
 
             if not hasattr(instance, "_{}".format(self.name)):
                 setattr(instance, "_{}".format(self.name), [])
@@ -137,20 +138,20 @@ class UniversalDescriptor:
                     old_ap_list.append(ap_for_handle)
                 if command == "set_index":
                     ap_for_handle = old_ap_list[index]
-                self.handling_ap(ap_for_handle, str_value)
+                self.handling_ap(ap_for_handle, str_value, check_mode)
             elif command == "set_list":
                 old_ap_list.clear()
                 str_list: list[str] = value[0]
                 for str_value in str_list:
                     str_value = str_value.strip()
                     ap_for_handle = AttribProperties()
-                    self.handling_ap(ap_for_handle, str_value)
+                    self.handling_ap(ap_for_handle, str_value, check_mode)
                     old_ap_list.append(ap_for_handle)
 
         for ap_for_handle_ in ap_for_handle_list:
-            self.handling_ap(ap_for_handle_, str_value)
+            self.handling_ap(ap_for_handle_, str_value, check_mode)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str):
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
         ap.last_input_value = new_str_value
 
 
@@ -172,9 +173,9 @@ class EnumDescriptor(UniversalDescriptor):
     def possible_values(self, values: Iterable[str]):
         self._possible_values = list(values)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str):
-        super().handling_ap(ap, new_str_value)
-        if new_str_value and self.possible_values:
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
+        super().handling_ap(ap, new_str_value, check_mode)
+        if new_str_value:  #  and self.possible_values
             if new_str_value not in self.possible_values:
                 raise AEEnumValueAttributeError("Value {} not in possible list: {}".format(new_str_value,
                                                                                            self.possible_values))
@@ -197,9 +198,10 @@ class StationObjectDescriptor(UniversalDescriptor):
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
         self._obj_dict = odict
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str):
-        super().handling_ap(ap, new_str_value)
-        if new_str_value and self.obj_dict:
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
+        # print("check_mode", check_mode)
+        super().handling_ap(ap, new_str_value, check_mode)
+        if new_str_value and check_mode:
             if new_str_value not in self.obj_dict:
                 raise AEObjectNotFoundError("Object {} not found in class {}".format(new_str_value,
                                                                                      self.contains_cls_name))
@@ -212,8 +214,8 @@ class IntDescriptor(UniversalDescriptor):
                  min_count: int = -1, exactly_count: int = -1):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str):
-        super().handling_ap(ap, new_str_value)
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
+        super().handling_ap(ap, new_str_value, check_mode)
         if new_str_value:
             try:
                 ap.confirmed_value = int(new_str_value)
@@ -227,8 +229,8 @@ class PicketDescriptor(UniversalDescriptor):
                  min_count: int = -1, exactly_count: int = -1):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str):
-        super().handling_ap(ap, new_str_value)
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
+        super().handling_ap(ap, new_str_value, check_mode)
         if new_str_value:
             try:
                 ap.confirmed_value = PicketCoordinate(new_str_value).value
@@ -237,23 +239,24 @@ class PicketDescriptor(UniversalDescriptor):
 
 
 class StationObjectImage:
-    name = SOIName()
+    # name = SOIName()
 
     def __init__(self):
+        self.name = ""
         self.active_attrs: list[str] = [attr_name for attr_name in self.__class__.__dict__
                                         if not attr_name.startswith("__")]
         # all attrs initialization
         for attr_name in self.active_attrs:
             descr: UniversalDescriptor = getattr(self.__class__, attr_name)
             if not descr.is_list:
-                setattr(self, attr_name, "")
+                setattr(self, attr_name, ("", False))
             else:
                 if descr.min_count != -1:
                     for _ in range(descr.min_count):
-                        setattr(self, attr_name, ("", IndexManagementCommand(command="append")))
+                        setattr(self, attr_name, ("", False, IndexManagementCommand(command="append")))
                 if descr.exactly_count != -1:
                     for _ in range(descr.exactly_count):
-                        setattr(self, attr_name, ("", IndexManagementCommand(command="append")))
+                        setattr(self, attr_name, ("", False, IndexManagementCommand(command="append")))
 
         # switch attrs initialization
         if self.__class__ in SWITCH_ATTR_LISTS:
@@ -263,7 +266,8 @@ class StationObjectImage:
                 self.change_attrib_value(attr_name, chal.preferred_value)
         # print("init success")
 
-    def change_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]], index: int = -1):
+    def change_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]], index: int = -1,
+                            check_mode: bool = True):
 
         # set attr
         if attr_name == "name":
@@ -274,13 +278,14 @@ class StationObjectImage:
             descr: UniversalDescriptor = getattr(self.__class__, attr_name)
             if not descr.is_list:
                 assert isinstance(attr_value, str)
-                setattr(self, attr_name, attr_value)
+                # print("check_mode_2", check_mode)
+                setattr(self, attr_name, (attr_value, check_mode))
             elif index == -1:
                 if isinstance(attr_value, str):
                     attr_value = [attr_value]
-                setattr(self, attr_name, (attr_value, IndexManagementCommand(command="set_list")))
+                setattr(self, attr_name, (attr_value, check_mode, IndexManagementCommand(command="set_list")))
             else:
-                setattr(self, attr_name, (attr_value, IndexManagementCommand(command="set_index", index=index)))
+                setattr(self, attr_name, (attr_value, check_mode, IndexManagementCommand(command="set_index", index=index)))
 
         # switch attr
         if (self.__class__ in SWITCH_ATTR_LISTS) and (attr_name in SWITCH_ATTR_LISTS[self.__class__]):
@@ -300,14 +305,18 @@ class StationObjectImage:
         return [apv.last_input_value for apv in attr_prop_values]
 
     def single_attr_input_value(self, attr_name: str, index: int = -1):
+        if attr_name == "name":
+            return self.name
         laiv = self.list_attr_input_value(attr_name)
         return laiv[index] if index != -1 else laiv[0]
 
     def reload_attr_value(self, attr_name: str):
         attr_prop_values = getattr(self, attr_name)
         if isinstance(attr_prop_values, AttribProperties):
+            # print("AttribProperties", attr_name)
             self.change_attrib_value(attr_name, attr_prop_values.last_input_value)
         else:
+            # print("List", attr_name)
             self.change_attrib_value(attr_name, self.list_attr_input_value(attr_name))
 
 
