@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import Union, Iterable, Optional
 from collections import OrderedDict, defaultdict
+from copy import deepcopy
 
 from cell_object import CellObject
-from two_sided_graph import OneComponentTwoSidedPG, PolarNode
+from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Link
 from default_ordered_dict import DefaultOrderedDict
 from new_soi_objects import StationObjectImage, StationObjectDescriptor, AttribProperties, IndexManagementCommand, \
     CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, LightSOI, RailPointSOI, BorderSOI, SectionSOI
@@ -41,75 +42,77 @@ class StorageDG:
         # gcs init
         self.gcs = CoordinateSystemSOI()
         self.gcs.name = GLOBAL_CS_NAME
+        self.soi_objects: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]] = DefaultOrderedDict(OrderedDict)
+        self.to_self_node_dict: defaultdict[str, dict[str, tuple[PolarNode, ObjNodeCell]]] = defaultdict(dict)
+        self.to_child_attribute_dict: defaultdict[str, defaultdict[str, list[tuple]]] = \
+            defaultdict(lambda: defaultdict(list))
+        self.to_parent_link_dict: defaultdict[str, defaultdict[str, defaultdict[str, dict[int, Link]]]] = \
+            defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+        self.dg = OneComponentTwoSidedPG()
+        self.gcs_node = self.dg.insert_node()
+        gcs_cell = ObjNodeCell("CoordinateSystemSOI", GLOBAL_CS_NAME)
+        self.gcs_node.append_cell_obj(gcs_cell)
 
         # current object state
         self.current_object: Optional[StationObjectImage] = None
         self.current_object_is_new: bool = True
 
-        self.reset_storages()
+        self.bind_descriptors()
+        self.reset_clean_storages()
 
-    def reset_storages(self):
-        self.soi_objects: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]] = DefaultOrderedDict(OrderedDict)
-        self.soi_objects["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.gcs
-        self.dg = OneComponentTwoSidedPG()
-        self.dirty_dg: Optional[OneComponentTwoSidedPG] = None
-        self.gcs_node = self.dg.insert_node()
-        gcs_cell = ObjNodeCell("CoordinateSystemSOI", GLOBAL_CS_NAME)
-        self.gcs_node.append_cell_obj(gcs_cell)
-        self.to_self_node_dict: defaultdict[str, dict[str, tuple[PolarNode, ObjNodeCell]]] = defaultdict(dict)
-        self.to_self_node_dict["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.gcs_node, gcs_cell
-        self.to_child_attribute_dict: defaultdict[str, defaultdict[str, list[tuple]]] = \
-            defaultdict(lambda: defaultdict(list))
-
-    def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
-        self.reset_storages()
-
-        # Stage 1 - names, nodes and their cells initialization
-        for cls_name in od:
-            for obj_name, obj in od[cls_name].items():
-                if obj_name == GLOBAL_CS_NAME:
-                    continue
-                self.soi_objects[cls_name][obj_name] = obj
-                obj: StationObjectImage
-                node = self.dg.insert_node()
-                cell = ObjNodeCell(cls_name, obj_name)
-                node.append_cell_obj(cell)
-                self.to_self_node_dict[cls_name][obj_name] = node, cell
-
-        # Stage 2 - evaluate soi-descriptor odicts
+    def bind_descriptors(self):
         for cls in StationObjectImage.__subclasses__():
             for attr_name in cls.__dict__:
                 if (not attr_name.startswith("__")) and \
                         isinstance(descr := getattr(cls, attr_name), StationObjectDescriptor):
                     descr.obj_dict = self.soi_objects[descr.contains_cls_name]
 
+    def reset_clean_storages(self):
+        self.soi_objects.clear()
+        self.soi_objects["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.gcs
+
+        self.dg = OneComponentTwoSidedPG()
+        self.gcs_node = self.dg.insert_node()
+        gcs_cell = ObjNodeCell("CoordinateSystemSOI", GLOBAL_CS_NAME)
+        self.gcs_node.append_cell_obj(gcs_cell)
+
+        self.to_self_node_dict.clear()
+        self.to_self_node_dict["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.gcs_node, gcs_cell
+
+        self.to_child_attribute_dict.clear()
+
+        self.to_parent_link_dict.clear()
+
+    # def reset_dirty_storages(self):
+    #     self.dirty_soi_objects: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]] = DefaultOrderedDict(OrderedDict)
+    #     self.dirty_soi_objects["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.dirty_gcs
+    #     self.dirty_dg = OneComponentTwoSidedPG()
+    #     self.dirty_gcs_node = self.dirty_dg.insert_node()
+    #     dirty_gcs_cell = ObjNodeCell("CoordinateSystemSOI", GLOBAL_CS_NAME)
+    #     self.dirty_gcs_node.append_cell_obj(dirty_gcs_cell)
+    #     self.dirty_to_self_node_dict: defaultdict[str, dict[str, tuple[PolarNode, ObjNodeCell]]] = defaultdict(dict)
+    #     self.dirty_to_self_node_dict["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.dirty_gcs_node, dirty_gcs_cell
+    #     self.dirty_to_child_attribute_dict: defaultdict[str, defaultdict[str, list[tuple]]] = \
+    #         defaultdict(lambda: defaultdict(list))
+    #     self.dirty_to_parent_link_dict: defaultdict[str, defaultdict[str, defaultdict[str, dict[int, Link]]]] = \
+    #         defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+
+    def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
+        self.reset_clean_storages()
+
+        # Stage 1 - names, nodes and their cells initialization
+        for cls_name in od:
+            for obj_name, obj in od[cls_name].items():
+                if obj_name == GLOBAL_CS_NAME:
+                    continue
+                self.init_obj_node_dg(obj)
+
         # Stage 3 - nodes connections relied on formal requirements to attributes
         for cls_name in od:
             for obj_name, obj in od[cls_name].items():
                 if obj_name == GLOBAL_CS_NAME:
                     continue
-                obj: StationObjectImage
-                for attr_name in obj.active_attrs:
-                    if (not attr_name.startswith("__")) and \
-                            isinstance(descr := getattr(obj.__class__, attr_name), StationObjectDescriptor):
-                        contains_cls_name = descr.contains_cls_name
-                        obj_names_dict = self.soi_objects[contains_cls_name]
-                        attr_prop_values = getattr(obj, attr_name)
-                        if isinstance(attr_prop_values, AttribProperties):
-                            attr_prop_values = [attr_prop_values]
-                        attr_prop_values: list[AttribProperties]
-                        for i, attr_prop in enumerate(attr_prop_values):
-                            if len(attr_prop_values) == 1:
-                                i = -1
-                            parent_name = attr_prop.last_input_value
-                            if parent_name in obj_names_dict:
-                                self_node = self.to_self_node_dict[cls_name][obj_name][0]
-                                parent_node = self.to_self_node_dict[contains_cls_name][parent_name][0]
-                                self.to_child_attribute_dict[contains_cls_name][parent_name].append((obj, attr_name, i))
-                                self.dg.connect_inf_handling(self_node.ni_pu, parent_node.ni_nd)
-
-        # Stage 4 - copy to dirty graph
-        self.dirty_dg = self.dg.copy_part()
+                self.insert_obj_to_dg(obj)
 
         # Stage 5 - check cycles
         self.full_check_cycle_dg()
@@ -122,14 +125,37 @@ class StorageDG:
                     for attr_name in obj.active_attrs:
                         descr = getattr(obj.__class__, attr_name)
                         if isinstance(descr, StationObjectDescriptor):
-                            is_list = descr.is_list
-                            if not is_list:
-                                ap: AttribProperties = getattr(obj, attr_name)
-                                setattr(obj, attr_name, ap.last_input_value)
-                            else:
-                                ap_list: list[AttribProperties] = getattr(obj, attr_name)
-                                setattr(obj, attr_name, ([ap.last_input_value for ap in ap_list],
-                                                         IndexManagementCommand(command="set_list")))
+                            obj.reload_attr_value(attr_name)
+
+    def init_obj_node_dg(self, obj: StationObjectImage):
+        cls_name = obj.__class__.__name__
+        obj_name = obj.name
+        self.soi_objects[cls_name][obj_name] = obj
+        obj: StationObjectImage
+        node = self.dg.insert_node()
+        cell = ObjNodeCell(cls_name, obj_name)
+        node.append_cell_obj(cell)
+        self.to_self_node_dict[cls_name][obj_name] = node, cell
+
+    def insert_obj_to_dg(self, obj: StationObjectImage):
+        cls_name = obj.__class__.__name__
+        obj_name = obj.name
+        for attr_name in obj.active_attrs:
+            if (not attr_name.startswith("__")) and \
+                    isinstance(descr := getattr(obj.__class__, attr_name), StationObjectDescriptor):
+                contains_cls_name = descr.contains_cls_name
+                obj_names_dict = self.soi_objects[contains_cls_name]
+                attr_prop_str_values = obj.list_attr_input_value(attr_name)
+                for index, parent_name in enumerate(attr_prop_str_values):
+                    if len(attr_prop_str_values) == 1:
+                        index = -1
+                    if parent_name in obj_names_dict:
+                        self_node = self.to_self_node_dict[cls_name][obj_name][0]
+                        parent_node = self.to_self_node_dict[contains_cls_name][parent_name][0]
+                        self.to_child_attribute_dict[contains_cls_name][parent_name].append(
+                            (obj, attr_name, index))
+                        link = self.dg.connect_inf_handling(self_node.ni_pu, parent_node.ni_nd)
+                        self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = link
 
     def full_check_cycle_dg(self):
         routes = self.dg.walk(self.dg.inf_pu.ni_nd)
@@ -183,16 +209,9 @@ class StorageDG:
         if new_obj_name in obj_dict:
             raise DBExistingNameError(cls_name, old_obj_name, "name", "Name {} already exists".format(new_obj_name))
 
-        # 2. rename obj in dependent attributes
-        for obj_tuple in self.to_child_attribute_dict[cls_name][old_obj_name]:
-            obj, attr_name, i = obj_tuple
-            if i == -1:
-                setattr(obj, attr_name, new_obj_name)
-            else:
-                setattr(obj, attr_name, (new_obj_name, IndexManagementCommand(command="set_index", index=i)))
-
-        # 3. rename obj in dicts and in cell
-        obj_dict[new_obj_name] = obj_dict[old_obj_name]
+        # 2. rename obj in dicts and in cell
+        obj = obj_dict[old_obj_name]
+        obj_dict[new_obj_name] = obj
         obj_dict.pop(old_obj_name)
 
         cell = self.to_self_node_dict[cls_name][old_obj_name][1]
@@ -204,23 +223,86 @@ class StorageDG:
         self.to_child_attribute_dict[cls_name][new_obj_name] = self.to_child_attribute_dict[cls_name][old_obj_name]
         self.to_child_attribute_dict[cls_name].pop(old_obj_name)
 
-    def create_new_object(self, cls_name: str):
-        """ clean operation """
-        self.current_object: StationObjectImage = eval(cls_name)()
-        self.current_object_is_new = True
+        # 3. rename obj
+        obj.change_attrib_value("name", new_obj_name)
+
+        # 4. rename obj in dependent attributes
+        for dependent_obj_tuple in self.to_child_attribute_dict[cls_name][new_obj_name]:
+            dependent_obj, attr_name, index = dependent_obj_tuple
+            dependent_obj.change_attrib_value(attr_name, new_obj_name, index)
 
     def select_current_object(self, cls_name: str, obj_name: str):
         """ clean operation """
         self.current_object = self.soi_objects[cls_name][obj_name]
         self.current_object_is_new = False
 
-    def push_new_object(self):
-        co = self.current_object
-        self.soi_objects[co.__class__.__name__][co.name] = co
+    def create_empty_new_object(self, cls_name: str):
+        """ clean operation """
+        self.current_object: StationObjectImage = eval(cls_name)()
+        self.current_object_is_new = True
 
-    def change_attrib_value(self, a):
+    def apply_creation_current_object(self):
+        """ clean operation """
+        self.init_obj_node_dg(self.current_object)
+        self.insert_obj_to_dg(self.current_object)
+
+    # def clean_to_dirty(self):
+    #     self.dirty_dg = self.dg.copy_part()
+    #
+    #     self.dirty_soi_objects = deepcopy(self.soi_objects)
+    #     self.dirty_to_self_node_dict = deepcopy(self.to_self_node_dict)
+    #     self.dirty_to_child_attribute_dict = deepcopy(self.to_child_attribute_dict)
+    #     self.dirty_to_parent_link_dict = deepcopy(self.to_parent_link_dict)
+    #
+    # def dirty_to_clean(self):
+    #     self.dg = self.dirty_dg
+
+    def change_attrib_value(self, new_value: str, cls_name: str, obj_name: str, attr_name: str, index: int = -1):
         """ dirty operation """
-        pass
+        new_value = new_value.strip()
+        obj = self.soi_objects[cls_name][obj_name]
+        descr = getattr(obj.__class__, attr_name)
+        if index == -1:
+            attr_prop = getattr(obj, attr_name)
+        else:
+            attr_prop = getattr(obj, attr_name)[index]
+        old_value = attr_prop.last_input_value
+        if new_value == old_value:
+            print("value not changed")
+            return
+        if isinstance(descr, StationObjectDescriptor):
+            contains_cls_name = descr.contains_cls_name
+            contain_dict = self.soi_objects[contains_cls_name]
+            self.dirty_dg = self.dg.copy_part()
+
+            # old value disconnection
+            print("old value disconnection")
+            link_dg = self.to_parent_link_dict[cls_name][obj_name][attr_name][index]
+            link_dirty_dg = self.dirty_dg.link_copy_mapping[link_dg]
+            print("link_dirty_dg", link_dirty_dg)
+            self.dirty_dg.disconnect_inf_handling(*link_dirty_dg.ni_s)
+
+            # new value connection
+            print("new value connection")
+            if new_value in contain_dict:
+                self_node = self.to_self_node_dict[cls_name][obj_name][0]
+                parent_node = self.to_self_node_dict[contains_cls_name][new_value][0]
+                dirty_self_node = self.dirty_dg.node_copy_mapping[self_node]
+                dirty_parent_node = self.dirty_dg.node_copy_mapping[parent_node]
+                new_link = self.dirty_dg.connect_inf_handling(dirty_self_node.ni_pu, dirty_parent_node.ni_nd)
+                print("make new link", new_link)
+
+                # check cycles
+                for ni in new_link.ni_s:
+                    routes = self.dirty_dg.walk(ni)
+                    for route_ in routes:
+                        if route_.is_cycle:
+                            end_node = route_.nodes[-1]
+                            obj_name = element_cell_by_type(end_node, ObjNodeCell).obj_name
+                            raise DBCycleError(cls_name, obj_name, attr_name, "Cycle in dependencies was found")
+
+            # if no error, apply changes
+            print("no error")
 
 
 if __name__ == "__main__":
@@ -231,16 +313,20 @@ if __name__ == "__main__":
         config_objs = read_station_config("station_in_config")
         # print("read_station_config")
         r.reload_from_dict(config_objs)
-        print(len(r.dg.links))
-        print("delete : ", r.delete_object("AxisSOI", "Axis_2"))
-        print(len(r.dg.links))
-        print(r.dg.links)
-        print(r.dg.nodes)
+        # print(len(r.dg.links))
+        # print("delete : ", r.delete_object("AxisSOI", "Axis_2"))
+        # print(len(r.dg.links))
+        # print(r.dg.links)
+        # print(r.dg.nodes)
+
+        # r.change_attrib_value("Point_15", "LineSOI", "Line_7", "points", 0)
+
         # sec_dg = r.dg.copy_part()
         # print(len(sec_dg.links))
-        # print([obj.name for obj in r.rectify_dg()])
-        # print(r.dependent_objects_names("PointSOI", "Point_18"))
-        # print(r.rename_object("PointSOI", "Point_18", "Point_180"))
-        # print(r.rectify_dg())
-        # print(r.dependent_objects_names("PointSOI", "Point_18"))
-        # print(r.soi_objects["LineSOI"]["Line_7"].points)
+
+        print([obj.name for obj in r.rectify_dg()])
+        print(r.dependent_objects_names("PointSOI", "Point_18"))
+        print(r.rename_object("PointSOI", "Point_18", "Point_180"))
+        print([obj.name for obj in r.rectify_dg()])
+        print(r.dependent_objects_names("PointSOI", "Point_180"))
+        print(r.soi_objects["LineSOI"]["Line_7"].points)

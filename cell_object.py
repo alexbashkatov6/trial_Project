@@ -13,10 +13,19 @@ class ListCO(CellObject):
         self.lst = [0, 1, 2]
 
 
+class Example:
+    pass
+
+
 if __name__ == '__main__':
 
     a = ListCO()
+    e1 = Example()
+    e2 = Example()
+    e3 = Example()
+    a.lst = [e1, e2, e3]
     b = a.copy()
-    a.lst = [1, 2, 3]
-    print(a.lst, b.lst)
+    print(a.lst)
+    print(b.lst)
+
 

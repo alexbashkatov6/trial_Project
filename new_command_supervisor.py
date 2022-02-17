@@ -85,7 +85,7 @@ class CommandSupervisor:
         self.execute_commands()
 
     def reset_storages(self):
-        self.storage.reset_storages()
+        self.storage.reset_clean_storages()
         self.model.reset_storages()
 
     def model_building(self, images: list[StationObjectImage]):
@@ -110,7 +110,7 @@ class CommandSupervisor:
 
         if command.cmd_type == CECommand.create_new_object:
             cls_name = command.cmd_args[0]
-            self.soi_iast.create_new_object(cls_name)
+            self.soi_iast.create_empty_new_object(cls_name)
             new_images.append(self.soi_iast.current_object)
 
         if command.cmd_type == CECommand.change_current_object:

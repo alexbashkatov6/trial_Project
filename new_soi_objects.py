@@ -260,13 +260,14 @@ class StationObjectImage:
             for attr_name in SWITCH_ATTR_LISTS[self.__class__]:
                 chal: ChangeAttribList = SWITCH_ATTR_LISTS[self.__class__][attr_name]
                 # print("preferred_value", chal.preferred_value)
-                self.changed_attrib_value(attr_name, chal.preferred_value)
+                self.change_attrib_value(attr_name, chal.preferred_value)
         # print("init success")
 
-    def changed_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]]):
+    def change_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]], index: int = -1):
 
         # set attr
         if attr_name == "name":
+            # print("setattr", attr_value)
             setattr(self, attr_name, attr_value)
             return
         else:
@@ -274,10 +275,12 @@ class StationObjectImage:
             if not descr.is_list:
                 assert isinstance(attr_value, str)
                 setattr(self, attr_name, attr_value)
-            else:
+            elif index == -1:
                 if isinstance(attr_value, str):
                     attr_value = [attr_value]
                 setattr(self, attr_name, (attr_value, IndexManagementCommand(command="set_list")))
+            else:
+                setattr(self, attr_name, (attr_value, IndexManagementCommand(command="set_index", index=index)))
 
         # switch attr
         if (self.__class__ in SWITCH_ATTR_LISTS) and (attr_name in SWITCH_ATTR_LISTS[self.__class__]):
@@ -289,6 +292,23 @@ class StationObjectImage:
             for add_value in reversed(chal.add_list(attr_value)):
                 if add_value not in self.active_attrs:
                     self.active_attrs.insert(index_insert, add_value)
+
+    def list_attr_input_value(self, attr_name: str):
+        attr_prop_values = getattr(self, attr_name)
+        if isinstance(attr_prop_values, AttribProperties):
+            attr_prop_values = [attr_prop_values]
+        return [apv.last_input_value for apv in attr_prop_values]
+
+    def single_attr_input_value(self, attr_name: str, index: int = -1):
+        laiv = self.list_attr_input_value(attr_name)
+        return laiv[index] if index != -1 else laiv[0]
+
+    def reload_attr_value(self, attr_name: str):
+        attr_prop_values = getattr(self, attr_name)
+        if isinstance(attr_prop_values, AttribProperties):
+            self.change_attrib_value(attr_name, attr_prop_values.last_input_value)
+        else:
+            self.change_attrib_value(attr_name, self.list_attr_input_value(attr_name))
 
 
 class CoordinateSystemSOI(StationObjectImage):
@@ -381,32 +401,32 @@ if __name__ == "__main__":
     if test_3:
         cs = CoordinateSystemSOI()
         print(cs.active_attrs)
-        cs.changed_attrib_value("dependence", "dependent")
+        cs.change_attrib_value("dependence", "dependent")
         print(cs.active_attrs)
-        cs.changed_attrib_value("dependence", "independent")
+        cs.change_attrib_value("dependence", "independent")
         print(cs.active_attrs)
-        cs.changed_attrib_value("dependence", "dependent")
+        cs.change_attrib_value("dependence", "dependent")
         print(cs.active_attrs)
         print("attr_values", [(active_attr, getattr(cs, active_attr)) for active_attr in cs.active_attrs])
 
         cs = AxisSOI()
         # cs.creation_method
         print(cs.active_attrs)
-        cs.changed_attrib_value("creation_method", "translational")
+        cs.change_attrib_value("creation_method", "translational")
         print(cs.active_attrs)
-        cs.changed_attrib_value("creation_method", "rotational")
+        cs.change_attrib_value("creation_method", "rotational")
         print(cs.active_attrs)
-        cs.changed_attrib_value("creation_method", "translational")
+        cs.change_attrib_value("creation_method", "translational")
         print(cs.active_attrs)
 
         cs = PointSOI()
         # cs.creation_method
         print(cs.active_attrs)
-        cs.changed_attrib_value("on", "axis")
+        cs.change_attrib_value("on", "axis")
         print(cs.active_attrs)
-        cs.changed_attrib_value("on", "line")
+        cs.change_attrib_value("on", "line")
         print(cs.active_attrs)
-        cs.changed_attrib_value("on", "axis")
+        cs.change_attrib_value("on", "axis")
         print(cs.active_attrs)
 
         cs = BorderSOI()
