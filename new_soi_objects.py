@@ -201,7 +201,9 @@ class StationObjectDescriptor(UniversalDescriptor):
     def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
         # print("check_mode", check_mode)
         super().handling_ap(ap, new_str_value, check_mode)
+        print("new_str_value1", new_str_value)
         if new_str_value and check_mode:
+            print("new_str_value", new_str_value)
             if new_str_value not in self.obj_dict:
                 raise AEObjectNotFoundError("Object {} not found in class {}".format(new_str_value,
                                                                                      self.contains_cls_name))
@@ -270,6 +272,7 @@ class StationObjectImage:
                             check_mode: bool = True):
 
         # set attr
+        print("in change", attr_value)
         if attr_name == "name":
             # print("setattr", attr_value)
             setattr(self, attr_name, attr_value)

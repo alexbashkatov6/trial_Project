@@ -4,7 +4,7 @@ from collections import OrderedDict, defaultdict
 from copy import deepcopy
 
 from cell_object import CellObject
-from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Link
+from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Link, NodeInterface
 from default_ordered_dict import DefaultOrderedDict
 from new_soi_objects import StationObjectImage, StationObjectDescriptor, AttribProperties, IndexManagementCommand, \
     CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, LightSOI, RailPointSOI, BorderSOI, SectionSOI
@@ -281,57 +281,51 @@ class StorageDG:
             else:
                 self.change_attrib_value_existing(attr_name, new_value, index)
 
-    def try_change_attr_value(self):
-        pass
+    def try_change_attr_value(self, cls_name: str, obj_name: str, attr_name: str, new_value: str, index: int,
+                              contains_cls_name: str) -> Optional[tuple[Link, tuple[NodeInterface, NodeInterface]]]:
+        contain_dict = self.soi_objects[contains_cls_name]
+        if new_value not in contain_dict:
+            return
+        else:
+            dirty_dg = self.dg.copy_part()
+
+            # old value disconnection
+            link_dg = self.to_parent_link_dict[cls_name][obj_name][attr_name][index]
+            link_dirty_dg = dirty_dg.link_copy_mapping[link_dg]
+            dirty_dg.disconnect_inf_handling(*link_dirty_dg.ni_s)
+
+            # new value connection
+            self_node = self.to_self_node_dict[cls_name][obj_name][0]
+            parent_node = self.to_self_node_dict[contains_cls_name][new_value][0]
+            dirty_self_node = dirty_dg.node_copy_mapping[self_node]
+            dirty_parent_node = dirty_dg.node_copy_mapping[parent_node]
+            new_link = dirty_dg.connect_inf_handling(dirty_self_node.ni_pu, dirty_parent_node.ni_nd)
+
+            # check cycles
+            for ni in new_link.ni_s:
+                routes = dirty_dg.walk(ni)
+                for route_ in routes:
+                    if route_.is_cycle:
+                        end_node = route_.nodes[-1]
+                        obj_name = element_cell_by_type(end_node, ObjNodeCell).obj_name
+                        raise DBCycleError(cls_name, obj_name, attr_name, "Cycle in dependencies was found")
+            return link_dg, (self_node.ni_pu, parent_node.ni_nd)
 
     def change_attrib_value_existing(self, attr_name: str, new_value: str, index: int):
         """ dirty operation """
         cls_name = self.current_object.__class__.__name__
         obj_name = self.current_object.name
         obj = self.current_object
-        # obj = self.soi_objects[cls_name][obj_name]
         descr = getattr(obj.__class__, attr_name)
-        if index == -1:
-            attr_prop = getattr(obj, attr_name)
-        else:
-            attr_prop = getattr(obj, attr_name)[index]
-        old_value = attr_prop.last_input_value
-        if new_value == old_value:
-            print("value not changed")
-            return
         if isinstance(descr, StationObjectDescriptor):
             contains_cls_name = descr.contains_cls_name
-            contain_dict = self.soi_objects[contains_cls_name]
-            self.dirty_dg = self.dg.copy_part()
-
-            # old value disconnection
-            print("old value disconnection")
-            link_dg = self.to_parent_link_dict[cls_name][obj_name][attr_name][index]
-            link_dirty_dg = self.dirty_dg.link_copy_mapping[link_dg]
-            print("link_dirty_dg", link_dirty_dg)
-            self.dirty_dg.disconnect_inf_handling(*link_dirty_dg.ni_s)
-
-            # new value connection
-            print("new value connection")
-            if new_value in contain_dict:
-                self_node = self.to_self_node_dict[cls_name][obj_name][0]
-                parent_node = self.to_self_node_dict[contains_cls_name][new_value][0]
-                dirty_self_node = self.dirty_dg.node_copy_mapping[self_node]
-                dirty_parent_node = self.dirty_dg.node_copy_mapping[parent_node]
-                new_link = self.dirty_dg.connect_inf_handling(dirty_self_node.ni_pu, dirty_parent_node.ni_nd)
-                print("make new link", new_link)
-
-                # check cycles
-                for ni in new_link.ni_s:
-                    routes = self.dirty_dg.walk(ni)
-                    for route_ in routes:
-                        if route_.is_cycle:
-                            end_node = route_.nodes[-1]
-                            obj_name = element_cell_by_type(end_node, ObjNodeCell).obj_name
-                            raise DBCycleError(cls_name, obj_name, attr_name, "Cycle in dependencies was found")
-
-            # if no error, apply changes
-            print("no error")
+            try_result = self.try_change_attr_value(cls_name, obj_name, attr_name, new_value, index, contains_cls_name)
+            if not (try_result is None):
+                old_link, new_ni_tuple = try_result
+                self.dg.disconnect_inf_handling(*old_link.ni_s)
+                new_link = self.dg.connect_inf_handling(*new_ni_tuple)
+                self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = new_link
+        obj.change_attrib_value(attr_name, new_value, index)
 
 
 if __name__ == "__main__":
@@ -352,12 +346,13 @@ if __name__ == "__main__":
 
         # sec_dg = r.dg.copy_part()
         # print(len(sec_dg.links))
-
+        print(r.soi_objects["PointSOI"]["Point_10"])
         print([obj.name for obj in r.rectify_dg()])
-        print(r.dependent_objects_names("PointSOI", "Point_18"))
-        r.select_current_object("PointSOI", "Point_18")
-        r.change_attrib_value_main("name", "Point_180")
-        # print(r.rename_object("PointSOI", "Point_18", "Point_180"))
-        print([obj.name for obj in r.rectify_dg()])
-        print(r.dependent_objects_names("PointSOI", "Point_180"))
+        r.select_current_object("LineSOI", "Line_7")
+        r.change_attrib_value_main("points", "Point_10", 1)
+        # print(r.dependent_objects_names("PointSOI", "Point_18"))
+        # r.select_current_object("PointSOI", "Point_18")
+        # r.change_attrib_value_main("name", "Point_180")
+        # print([obj.name for obj in r.rectify_dg()])
+        # print(r.dependent_objects_names("PointSOI", "Point_180"))
         print(r.soi_objects["LineSOI"]["Line_7"].points)
