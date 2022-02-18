@@ -207,4 +207,6 @@ n=100000
 # print(n ** (math.log(n, 2)))
 # print(n ** (math.sqrt(n)))
 
-print((1, 2) + (3, 4))
+a = [1,2,3]
+a.append([4,5])
+print(a)

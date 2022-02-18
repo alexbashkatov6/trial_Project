@@ -1012,3 +1012,142 @@ class SOIListValues:
         # cmd_sup.continue_commands(Command("5"))
         # print("pointer = ", cmd_sup.command_pointer)
         # print([command_chain.cmd_chain for command_chain in cmd_sup.command_chains])
+
+    # def execute_commands(self):
+    #     last_command = False
+    #     if self.command_pointer:
+    #         for chain in self.command_chains:
+    #             if chain.index_command_in_chain(self.command_pointer) == -1:
+    #                 continue
+    #             for command in chain.cmd_chain:
+    #                 old_images = self.soi_iast.copied_soi_objects
+    #                 new_images = self.execute_command(command)
+    #                 if command is self.command_pointer:
+    #                     self.apply_readiness = False
+    #                     if (command.cmd_type == CECommand.load_from_file) or \
+    #                             (command.cmd_type == CECommand.load_after_deletion):
+    #                         self.model.rectifier.batch_load_mode = True
+    #                         try:
+    #                             self.model_building(new_images)
+    #                         except (DependenciesBuildError, AttributeEvaluateError) as e:
+    #                             cls_name, obj_name, attr_name, comment = e.args
+    #                             self.error_handler(cls_name, obj_name, attr_name, comment)
+    #                             self.model_building(old_images)
+    #                         except ModelBuildError as e:
+    #                             cls_name, obj_name, comment = e.args
+    #                             self.error_handler(cls_name, obj_name, "", comment)
+    #                             self.model_building(old_images)
+    #                         else:
+    #                             self.new_stable_images = new_images
+    #                             self.apply_readiness = True
+    #                             self.apply_changes()
+    #                             self.soi_iast.reset_current_object()
+    #                         finally:
+    #                             self.model.rectifier.batch_load_mode = False
+    #                     else:
+    #                         try:
+    #                             self.model_building(new_images)
+    #                         except (DependenciesBuildError, AttributeEvaluateError) as e:
+    #                             cls_name, obj_name, attr_name, comment = e.args
+    #                             self.error_handler(cls_name, obj_name, attr_name, comment)
+    #                         except ModelBuildError as e:
+    #                             cls_name, obj_name, comment = e.args
+    #                             self.error_handler(cls_name, obj_name, "", comment)
+    #                         else:
+    #                             self.new_stable_images = new_images
+    #                             self.apply_readiness = True
+    #                         finally:
+    #                             self.model_building(old_images)
+    #                     last_command = True
+    #                     break
+    #             if last_command:
+    #                 break
+
+
+
+-----------------------  tests ----------------------------------
+
+
+    test_14 = False
+    if test_14:
+        cmd_sup = CommandSupervisor()
+        cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        cmd_sup.undo()
+        # cmd_sup.undo()
+        print("command_pointer", cmd_sup.command_pointer)
+        print([command_chain.commands for command_chain in cmd_sup.command_chains])
+        cmd_sup.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
+
+    test_15 = False
+    if test_15:
+        cmd_sup = CommandSupervisor()
+        cmd_sup.create_new_object("CoordinateSystemSOI")
+        # cmd_sup.create_new_object("AxisSOI")
+        # cmd_sup.create_new_object("LineSOI")
+        curr_obj = cmd_sup.soi_iast.current_object
+        curr_obj.x = "5"
+        print(curr_obj)
+        print(curr_obj._str_x)
+        cmd_sup.undo()
+        curr_obj_after_undo = cmd_sup.soi_iast.current_object
+        print()
+        print(curr_obj_after_undo)
+
+    test_16 = False
+    if test_16:
+        cmd_sup = CommandSupervisor()
+        cmd_sup.create_new_object("CoordinateSystemSOI")
+        cmd_sup.change_attribute_value("x", "5")
+        curr_obj = cmd_sup.soi_iast.current_object
+        print(curr_obj)
+        print(curr_obj._str_x)
+
+    test_17 = False
+    if test_17:
+        # print(cmd_sup.soi_iast.current_object.__dict__)
+        cmd_sup = CommandSupervisor()
+        print("create_new")
+        cmd_sup.create_new_object("CoordinateSystemSOI")
+        print("name")
+        cmd_sup.change_attribute_value("name", "MyCS_1")
+        print("cs_relative_to")
+        cmd_sup.change_attribute_value("cs_relative_to", "GlobalCS")
+        print("x")
+        cmd_sup.change_attribute_value("x", "0")
+        cmd_sup.apply_changes()
+
+        print("create_new")
+        cmd_sup.create_new_object("CoordinateSystemSOI")
+        print("name")
+        cmd_sup.change_attribute_value("name", "MyCS_2")
+        print("cs_relative_to")
+        cmd_sup.change_attribute_value("cs_relative_to", "MyCS_1")
+        print("x")
+        cmd_sup.change_attribute_value("x", "0")
+        cmd_sup.apply_changes()
+
+        # print("dependent", cmd_sup.model.rectifier.dependent_objects_names("MyCS_2"))
+        # print("change_current_object")
+        # cmd_sup.change_current_object("MyCS_1")
+        # print("cs_relative_to")
+        # cmd_sup.change_attribute_value("cs_relative_to", "MyCS_2")
+        # cmd_sup.apply_changes()
+
+        # cmd_sup.delete_obj("MyCS_2")
+        # cmd_sup.deletion_approved()
+
+        print("change_current_object")
+        cmd_sup.change_current_object("MyCS_1")
+        print("name")
+        cmd_sup.change_attribute_value("name", "MyCS_0")
+        cmd_sup.apply_changes()
+
+        print("names", [obj.name for obj in cmd_sup.soi_iast.soi_objects])
+        MyCS_2 = cmd_sup.soi_iast.get_obj_by_name("MyCS_2")
+        print("MyCS_2 cs = ", MyCS_2.cs_relative_to.name)
+
+        dg = cmd_sup.model.rectifier.dg
+        print(len(dg.nodes))
+        print(len(dg.links))
+        print(dg.links)

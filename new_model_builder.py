@@ -3,7 +3,7 @@ from collections import OrderedDict
 import math
 
 from enums_images import CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CEBorderType, CESectionType
-from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
+from new_soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
     LightSOI, RailPointSOI, BorderSOI, SectionSOI
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Route, NodeInterface
 from cell_object import CellObject
@@ -92,30 +92,38 @@ class ModelBuilder:
     def build_skeleton(self):
 
         for image in self.images:
+            # print("build", image)
+            # print(type(image))
             image_name = image.name
             cls_name = image.__class__.__name__
             obj_name = image_name
 
             if isinstance(image, CoordinateSystemSOI):
-                model_object = CoordinateSystemMO(self.names_mo["CoordinateSystem"][image.cs_relative_to.name],
-                                                  image.x, image.co_x == "true", image.co_y == "true")
+                # print("CoordinateSystemSOI")
+                model_object = CoordinateSystemMO(self.names_mo["CoordinateSystem"][
+                                                      image.acv("cs_relative_to").name],
+                                                  image.acv("x"),
+                                                  image.acv("co_x") == "true",
+                                                  image.acv("co_y") == "true")
                 model_object.name = image_name
                 self.names_mo["CoordinateSystem"][image_name] = model_object
 
             if isinstance(image, AxisSOI):
-                cs_rel: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.cs_relative_to.name]
-                if image.creation_method == CEAxisCreationMethod.translational:
-                    cs_rel_mo: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.cs_relative_to.name]
+                cs_rel: CoordinateSystemMO = self.names_mo["CoordinateSystem"][
+                                                      image.acv("cs_relative_to").name]
+                if image.acv("creation_method") == "translational":
+                    cs_rel_mo: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.acv("cs_relative_to").name]
                     center_point_x = cs_rel.absolute_x
-                    center_point_y = image.y * int(2*(int(cs_rel_mo.absolute_co_y)-0.5))
+                    center_point_y = image.acv("y") * int(2*(int(cs_rel_mo.absolute_co_y)-0.5))
                     angle = 0
                 else:
-                    center_point_soi: PointSOI = image.center_point
+                    center_point_soi: PointSOI = image.acv("center_point")
+                    print("center_point_soi", center_point_soi)
                     center_point_mo: PointMO = self.names_mo["Point"][center_point_soi]
                     center_point_x = center_point_mo.x
                     center_point_y = center_point_mo.y
-                    angle = image.alpha
-                    if center_point_soi.on == CEAxisOrLine.line:
+                    angle = image.acv("alpha")
+                    if center_point_soi.acv("on") == "line":
                         raise MBSkeletonError(cls_name, obj_name, "Building axis by point on line is impossible")
                     if Angle(angle) == Angle(math.pi/2):
                         raise MBSkeletonError(cls_name, obj_name, "Building vertical axis is impossible")
@@ -133,19 +141,19 @@ class ModelBuilder:
                     except EquivalentLinesException:
                         raise MBSkeletonError(cls_name, obj_name, "Cannot re-build existing axis")
 
-                if image.creation_method == CEAxisCreationMethod.rotational:
-                    center_point_soi: PointSOI = image.center_point
+                if image.acv("creation_method") == "rotational":
+                    center_point_soi: PointSOI = image.acv("center_point")
                     model_object.append_point(center_point_soi)
                 self.names_mo["Axis"][image_name] = model_object
 
             if isinstance(image, PointSOI):
-                cs_rel: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.cs_relative_to.name]
-                point_x = cs_rel.absolute_x + image.x * cs_rel.absolute_co_x
-                if image.on == CEAxisOrLine.axis:
-                    axis: AxisMO = self.names_mo["Axis"][image.axis.name]
+                cs_rel: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.acv("cs_relative_to").name]
+                point_x = cs_rel.absolute_x + image.acv("x") * cs_rel.absolute_co_x
+                if image.acv("on") == "axis":
+                    axis: AxisMO = self.names_mo["Axis"][image.acv("axis").name]
                     pnt2D = lines_intersection(axis.line2D, Line2D(Point2D(point_x, 0), angle=Angle(math.pi / 2)))
                 else:
-                    line: LineMO = self.names_mo["Line"][image.line.name]
+                    line: LineMO = self.names_mo["Line"][image.acv("line").name]
                     try:
                         pnt2D_y = line.boundedCurves[0].y_by_x(point_x)
                     except OutBorderException:
@@ -168,27 +176,27 @@ class ModelBuilder:
                     except PointsEqualException:
                         raise MBSkeletonError(cls_name, obj_name, "Cannot re-build existing point")
 
-                if image.on == CEAxisOrLine.axis:
-                    axis: AxisMO = self.names_mo["Axis"][image.axis.name]
+                if image.acv("on") == "axis":
+                    axis: AxisMO = self.names_mo["Axis"][image.acv("axis").name]
                     self.point_to_axis_handling(model_object, axis)
                 else:
-                    line: LineMO = self.names_mo["Line"][image.line.name]
+                    line: LineMO = self.names_mo["Line"][image.acv("line").name]
                     self.point_to_line_handling(model_object, line)
                 self.names_mo["Point"][image_name] = model_object
 
             if isinstance(image, LineSOI):
-                points_so: list[PointSOI] = image.points
+                points_so: list[PointSOI] = image.acv("points")
                 points_mo: list[PointMO] = [self.names_mo["Point"][point.name] for point in points_so]
                 point_1, point_2 = points_mo[0], points_mo[1]
                 axises_mo: list[AxisMO] = []
                 for point_so in points_so:
-                    if point_so.on == CEAxisOrLine.line:
-                        line_mo: LineMO = self.names_mo["Line"][point_so.line.name]
+                    if point_so.acv("on") == "line":
+                        line_mo: LineMO = self.names_mo["Line"][point_so.acv("line").name]
                         if not line_mo.axis:
                             raise MBSkeletonError(cls_name, obj_name, "Cannot build line by point on line")
                         axises_mo.append(line_mo.axis)
                     else:
-                        axis_mo: AxisMO = self.names_mo["Axis"][point_so.axis.name]
+                        axis_mo: AxisMO = self.names_mo["Axis"][point_so.acv("axis").name]
                         axises_mo.append(axis_mo)
                 axis_1, axis_2 = axises_mo[0], axises_mo[1]
                 if axis_1 is axis_2:
@@ -294,8 +302,8 @@ class ModelBuilder:
             obj_name = image_name
 
             if isinstance(image, LightSOI):
-                center_point: PointMO = self.names_mo["Point"][image.center_point.name]
-                direct_point: PointMO = self.names_mo["Point"][image.direct_point.name]
+                center_point: PointMO = self.names_mo["Point"][image.acv("center_point").name]
+                direct_point: PointMO = self.names_mo["Point"][image.acv("direct_point").name]
 
                 if center_point is direct_point:
                     raise MBEquipmentError(cls_name, obj_name, "Direction point is equal to central point")
@@ -307,8 +315,8 @@ class ModelBuilder:
                 if not routes_node_to_node:
                     raise MBEquipmentError(cls_name, obj_name, "Route from central point to direction point not found")
 
-                model_object = LightMO(image.light_route_type, routes_node_to_node[1].end_str,
-                                       image.colors, image.light_stick_type)
+                model_object = LightMO(image.acv("light_route_type"), routes_node_to_node[1].end_str,
+                                       image.acv("colors"), image.acv("light_stick_type"))
                 center_point_node.append_cell_obj(LightCell(image_name))
 
                 model_object.name = image_name
@@ -322,9 +330,9 @@ class ModelBuilder:
             obj_name = image_name
 
             if isinstance(image, RailPointSOI):
-                center_point: PointMO = self.names_mo["Point"][image.center_point.name]
-                plus_point: PointMO = self.names_mo["Point"][image.dir_plus_point.name]
-                minus_point: PointMO = self.names_mo["Point"][image.dir_minus_point.name]
+                center_point: PointMO = self.names_mo["Point"][image.acv("center_point").name]
+                plus_point: PointMO = self.names_mo["Point"][image.acv("dir_plus_point").name]
+                minus_point: PointMO = self.names_mo["Point"][image.acv("dir_minus_point").name]
 
                 # check direction
                 center_point_node = find_cell_name(self.smg.not_inf_nodes, PointCell, center_point.name)[1]
@@ -367,12 +375,12 @@ class ModelBuilder:
             obj_name = image_name
 
             if isinstance(image, BorderSOI):
-                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, image.point.name)[1]
+                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, image.acv("point").name)[1]
                 inf_ni_str = None
                 if point_node in self.smg.nodes_inf_connected:
                     inf_ni_str = self.smg.nodes_inf_connected[point_node].opposite_end_str
 
-                model_object = BorderMO(image.border_type, inf_ni_str)
+                model_object = BorderMO(image.acv("border_type"), inf_ni_str)
                 point_node.append_cell_obj(BorderCell(image_name))
                 model_object.name = image_name
                 self.names_mo["Border"][image_name] = model_object
@@ -385,7 +393,7 @@ class ModelBuilder:
             obj_name = image_name
 
             if isinstance(image, SectionSOI):
-                border_points: list[PointMO] = [self.names_mo["Point"][point.name] for point in image.border_points]
+                border_points: list[PointMO] = [self.names_mo["Point"][point.name] for point in image.acv("border_points")]
                 point_nodes: list[PolarNode] = [find_cell_name(self.smg.not_inf_nodes, PointCell, point.name)[1]
                                                 for point in border_points]
                 closed_links, closed_nodes = self.smg.closed_links_nodes(point_nodes)
@@ -429,7 +437,7 @@ class ModelBuilder:
                         for light_name in light_names:
                             light: LightMO = self.names_mo['Light'][light_name]
                             link_ni = light_names[light_name]
-                            if (light.route_type == CELightRouteType.train) and (link_ni.end != light.end_forward_tpl1):
+                            if (light.route_type == "train") and (link_ni.end != light.end_forward_tpl1):
                                 section_type = CESectionType(CESectionType.track)
                                 break
                     else:
@@ -457,7 +465,7 @@ class ModelBuilder:
 
             # 1.0 Is enter signal check
             is_enter_signal = False
-            if light.route_type == CELightRouteType.train:
+            if light.route_type == "train":
                 try:
                     element_cell_by_type(start_ni.pn, BorderCell)
                 except NotFoundCellError:
@@ -469,7 +477,7 @@ class ModelBuilder:
             for route in routes:
 
                 # 1.1.1 Train routes slices extraction
-                if light.route_type == CELightRouteType.train:
+                if light.route_type == "train":
 
                     train_slice_repeats = False
                     not_possible_end_train = False
@@ -486,7 +494,7 @@ class ModelBuilder:
                         if light_cell:
                             light_found: LightMO = self.names_mo["Light"][light_cell.name]
                             if ni.end == light_found.end_forward_tpl1:
-                                if light_found.route_type == CELightRouteType.train:
+                                if light_found.route_type == "train":
                                     train_route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
                                     for old_train_route_slice in train_route_slices:
                                         if old_train_route_slice == train_route_slice:
@@ -502,8 +510,8 @@ class ModelBuilder:
                             pass
                         if border_cell:
                             border_found: BorderMO = self.names_mo["Border"][border_cell.name]
-                            if (light.route_type == CELightRouteType.train) and\
-                               (border_found.border_type == CEBorderType.standoff):
+                            if (light.route_type == "train") and\
+                               (border_found.border_type == "standoff"):
                                 not_possible_end_train = True
                                 break
                             train_route_slice = route.get_slice(route.start_ni, ni.pn.opposite_ni(ni))
@@ -601,7 +609,7 @@ class ModelBuilder:
                 end_section_cell: IsolatedSectionCell = element_cell_by_type(end_link, IsolatedSectionCell)
                 end_section: SectionMO = self.names_mo["Section"][end_section_cell.name]
                 finish_selectors = [end_light_name]
-                if end_section.section_type == CESectionType.track:
+                if end_section.section_type == "track":
                     node_before_end = train_route_slice.nodes[-2]
                     before_end_light_cell: LightCell = element_cell_by_type(node_before_end, LightCell)
                     finish_selectors.append(before_end_light_cell.name)
@@ -655,8 +663,8 @@ class ModelBuilder:
                 except NotFoundCellError:
                     trace_end = element_cell_by_type(end_node, LightCell).name
                 else:
-                    if (end_section.section_type == CESectionType.indic) or \
-                            (end_section.section_type == CESectionType.shunt_stop):
+                    if (end_section.section_type == "indic") or \
+                            (end_section.section_type == "shunt_stop"):
                         trace_end = end_section.name
                     else:
                         trace_end = border_cell.name
@@ -665,8 +673,8 @@ class ModelBuilder:
 
                 # finish_selectors
                 finish_selectors = [end_light_name]
-                if (end_section.section_type == CESectionType.track) or\
-                        (end_section.section_type == CESectionType.shunt_stop):
+                if (end_section.section_type == "track") or\
+                        (end_section.section_type == "shunt_stop"):
                     node_before_end = shunting_route_slice.nodes[-2]
                     before_end_light_cell: LightCell = element_cell_by_type(node_before_end, LightCell)
                     if before_end_light_cell.name not in finish_selectors:
@@ -676,7 +684,7 @@ class ModelBuilder:
                 route_id += 1
                 shunting_routes.append(shunting_route)
 
-            if light.route_type == CELightRouteType.train:
+            if light.route_type == "train":
                 train_light_routes_dict[light.name] = (train_routes, shunting_routes)
             else:
                 shunting_light_routes_dict[light.name] = shunting_routes

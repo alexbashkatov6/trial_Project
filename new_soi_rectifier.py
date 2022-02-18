@@ -84,21 +84,14 @@ class StorageDG:
 
         self.to_parent_link_dict.clear()
 
-    # def reset_dirty_storages(self):
-    #     self.dirty_soi_objects: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]] = DefaultOrderedDict(OrderedDict)
-    #     self.dirty_soi_objects["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.dirty_gcs
-    #     self.dirty_dg = OneComponentTwoSidedPG()
-    #     self.dirty_gcs_node = self.dirty_dg.insert_node()
-    #     dirty_gcs_cell = ObjNodeCell("CoordinateSystemSOI", GLOBAL_CS_NAME)
-    #     self.dirty_gcs_node.append_cell_obj(dirty_gcs_cell)
-    #     self.dirty_to_self_node_dict: defaultdict[str, dict[str, tuple[PolarNode, ObjNodeCell]]] = defaultdict(dict)
-    #     self.dirty_to_self_node_dict["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.dirty_gcs_node, dirty_gcs_cell
-    #     self.dirty_to_child_attribute_dict: defaultdict[str, defaultdict[str, list[tuple]]] = \
-    #         defaultdict(lambda: defaultdict(list))
-    #     self.dirty_to_parent_link_dict: defaultdict[str, defaultdict[str, defaultdict[str, dict[int, Link]]]] = \
-    #         defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+    def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]) -> \
+            DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]:
 
-    def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
+        backup_soi = DefaultOrderedDict(OrderedDict)
+        for cls_name in self.soi_objects:
+            for obj_name, obj in self.soi_objects[cls_name].items():
+                backup_soi[cls_name][obj_name] = obj
+
         self.reset_clean_storages()
 
         # Stage 1 - names, nodes and their cells initialization
@@ -109,7 +102,7 @@ class StorageDG:
                 self.init_obj_node_dg(obj)
         # print("soi", self.soi_objects)
 
-        # Stage 3 - nodes connections relied on formal requirements to attributes
+        # Stage 2 - nodes connections relied on formal requirements to attributes
         for cls_name in od:
             for obj_name, obj in od[cls_name].items():
                 if obj_name == GLOBAL_CS_NAME:
@@ -117,8 +110,10 @@ class StorageDG:
                 self.insert_obj_to_dg(obj)
                 self.obj_attrib_evaluation(obj)
 
-        # Stage 5 - check cycles
+        # Stage 3 - check cycles
         self.full_check_cycle_dg()
+
+        return backup_soi
 
     def obj_attrib_evaluation(self, obj: StationObjectImage):
         obj_name = obj.name
@@ -129,7 +124,6 @@ class StorageDG:
                     obj.reload_attr_value(attr_name)
 
     def init_obj_node_dg(self, obj: StationObjectImage):
-        # print("obj", obj)
         cls_name = obj.__class__.__name__
         obj_name = obj.name
         self.soi_objects[cls_name][obj_name] = obj
@@ -143,7 +137,6 @@ class StorageDG:
         cls_name = obj.__class__.__name__
         obj_name = obj.name
         for attr_name in obj.active_attrs:
-            # print("active_attrs", attr_name)
             if (not attr_name.startswith("__")) and \
                     isinstance(descr := getattr(obj.__class__, attr_name), StationObjectDescriptor):
                 contains_cls_name = descr.contains_cls_name
@@ -192,16 +185,80 @@ class StorageDG:
             result.append((cell.cls_name, cell.obj_name))
         return result
 
-    def delete_object(self, cls_name: str, obj_name: str) -> list[tuple[str, str]]:
+    def delete_object(self, cls_name: str, obj_name: str) -> \
+            DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]:  #
         """ clean operation - to main dg immediately """
         dependent_objects_names = self.dependent_objects_names(cls_name, obj_name)
         new_soi_objects: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]] = DefaultOrderedDict(OrderedDict)
+        deleted_soi_objects: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]] = \
+            DefaultOrderedDict(OrderedDict)
         for cls_name in self.soi_objects:
             for obj_name in self.soi_objects[cls_name]:
                 if (cls_name, obj_name) not in dependent_objects_names:
                     new_soi_objects[cls_name][obj_name] = self.soi_objects[cls_name][obj_name]
+                else:
+                    deleted_soi_objects[cls_name][obj_name] = self.soi_objects[cls_name][obj_name]
+        """ reload - not effective """
         self.reload_from_dict(new_soi_objects)
-        return dependent_objects_names
+        return deleted_soi_objects
+
+    def recover_objects(self, rec_obj: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
+        new_soi_objects = DefaultOrderedDict(OrderedDict)
+        for cls_name in self.soi_objects:
+            for obj_name, obj in self.soi_objects[cls_name].items():
+                new_soi_objects[cls_name][obj_name] = obj
+        for cls_name in rec_obj:
+            for obj_name, obj in rec_obj[cls_name].items():
+                new_soi_objects[cls_name][obj_name] = obj
+        """ reload - not effective """
+        self.reload_from_dict(new_soi_objects)
+
+    def select_current_object(self, cls_name: str, obj_name: str) -> tuple[str, str]:
+        """ clean operation """
+        backup = self.current_object
+        self.current_object = self.soi_objects[cls_name][obj_name]
+        self.current_object_is_new = False
+        return backup.__class__.__name__, backup.name
+
+    def create_empty_new_object(self, cls_name: str) -> tuple[str, str]:
+        """ clean operation """
+        backup = self.current_object
+        self.current_object: StationObjectImage = eval(cls_name)()
+        self.current_object_is_new = True
+        return backup.__class__.__name__, backup.name
+
+    def apply_creation_current_object(self) -> tuple[str, str]:
+        """ clean operation """
+        self.init_obj_node_dg(self.current_object)
+        self.insert_obj_to_dg(self.current_object)
+        return self.current_object.__class__.__name__, self.current_object.name
+
+    def change_attrib_value_main(self, attr_name: str, new_value: str, index: int = -1) -> str:
+        """ main change attrib value function """
+        new_value = new_value.strip()
+        cls_name = self.current_object.__class__.__name__
+        obj_name = self.current_object.name
+        obj = self.current_object
+        obj_dict = self.soi_objects[cls_name]
+
+        old_value = obj.single_attr_input_value(attr_name, index)
+        if new_value == old_value:
+            print("value not changed")
+            return old_value
+
+        if attr_name == "name":
+            if new_value in obj_dict:
+                raise DBExistingNameError(cls_name, obj_name, "name", "Name {} already exists".format(new_value))
+            if self.current_object_is_new:
+                self.current_object.change_attrib_value("name", new_value)
+            else:
+                self.rename_object(cls_name, obj_name, new_value)
+        else:
+            if self.current_object_is_new:
+                self.current_object.change_attrib_value(attr_name, new_value, index)
+            else:
+                self.change_attrib_value_existing(attr_name, new_value, index)
+        return old_value
 
     def rename_object(self, cls_name: str, old_obj_name: str, new_obj_name: str):
         """ clean operation - to main dg immediately """
@@ -228,58 +285,6 @@ class StorageDG:
         for dependent_obj_tuple in self.to_child_attribute_dict[cls_name][new_obj_name]:
             dependent_obj, attr_name, index = dependent_obj_tuple
             dependent_obj.change_attrib_value(attr_name, new_obj_name, index)
-
-    def select_current_object(self, cls_name: str, obj_name: str):
-        """ clean operation """
-        self.current_object = self.soi_objects[cls_name][obj_name]
-        self.current_object_is_new = False
-
-    def create_empty_new_object(self, cls_name: str):
-        """ clean operation """
-        self.current_object: StationObjectImage = eval(cls_name)()
-        self.current_object_is_new = True
-
-    def apply_creation_current_object(self):
-        """ clean operation """
-        self.init_obj_node_dg(self.current_object)
-        self.insert_obj_to_dg(self.current_object)
-
-    # def clean_to_dirty(self):
-    #     self.dirty_dg = self.dg.copy_part()
-    #
-    #     self.dirty_soi_objects = deepcopy(self.soi_objects)
-    #     self.dirty_to_self_node_dict = deepcopy(self.to_self_node_dict)
-    #     self.dirty_to_child_attribute_dict = deepcopy(self.to_child_attribute_dict)
-    #     self.dirty_to_parent_link_dict = deepcopy(self.to_parent_link_dict)
-    #
-    # def dirty_to_clean(self):
-    #     self.dg = self.dirty_dg
-
-    def change_attrib_value_main(self, attr_name: str, new_value: str, index: int = -1):
-        """ main change attrib value function """
-        new_value = new_value.strip()
-        cls_name = self.current_object.__class__.__name__
-        obj_name = self.current_object.name
-        obj = self.current_object
-        obj_dict = self.soi_objects[cls_name]
-
-        old_value = obj.single_attr_input_value(attr_name, index)
-        if new_value == old_value:
-            print("value not changed")
-            return
-
-        if attr_name == "name":
-            if new_value in obj_dict:
-                raise DBExistingNameError(cls_name, obj_name, "name", "Name {} already exists".format(new_value))
-            if self.current_object_is_new:
-                self.current_object.change_attrib_value("name", new_value)
-            else:
-                self.rename_object(cls_name, obj_name, new_value)
-        else:
-            if self.current_object_is_new:
-                self.current_object.change_attrib_value(attr_name, new_value, index)
-            else:
-                self.change_attrib_value_existing(attr_name, new_value, index)
 
     def try_change_attr_value(self, cls_name: str, obj_name: str, attr_name: str, new_value: str, index: int,
                               contains_cls_name: str) -> Optional[tuple[Link, tuple[NodeInterface, NodeInterface]]]:
@@ -356,3 +361,8 @@ if __name__ == "__main__":
         # print([obj.name for obj in r.rectify_dg()])
         # print(r.dependent_objects_names("PointSOI", "Point_180"))
         print(r.soi_objects["LineSOI"]["Line_7"].points)
+        deleted = r.delete_object("AxisSOI", "Axis_2")
+        print(deleted)
+        print([obj.name for obj in r.rectify_dg()])
+        r.recover_objects(deleted)
+        print([obj.name for obj in r.rectify_dg()])

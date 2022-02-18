@@ -201,9 +201,9 @@ class StationObjectDescriptor(UniversalDescriptor):
     def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
         # print("check_mode", check_mode)
         super().handling_ap(ap, new_str_value, check_mode)
-        print("new_str_value1", new_str_value)
+        # print("new_str_value1", new_str_value)
         if new_str_value and check_mode:
-            print("new_str_value", new_str_value)
+            # print("new_str_value", new_str_value)
             if new_str_value not in self.obj_dict:
                 raise AEObjectNotFoundError("Object {} not found in class {}".format(new_str_value,
                                                                                      self.contains_cls_name))
@@ -272,7 +272,7 @@ class StationObjectImage:
                             check_mode: bool = True):
 
         # set attr
-        print("in change", attr_value)
+        # print("in change", attr_value)
         if attr_name == "name":
             # print("setattr", attr_value)
             setattr(self, attr_name, attr_value)
@@ -314,6 +314,7 @@ class StationObjectImage:
         return laiv[index] if index != -1 else laiv[0]
 
     def reload_attr_value(self, attr_name: str):
+        # print("reload", attr_name)
         attr_prop_values = getattr(self, attr_name)
         if isinstance(attr_prop_values, AttribProperties):
             # print("AttribProperties", attr_name)
@@ -321,6 +322,15 @@ class StationObjectImage:
         else:
             # print("List", attr_name)
             self.change_attrib_value(attr_name, self.list_attr_input_value(attr_name))
+
+    def acv(self, attr_name: str):
+        """ attrib confirmed value """
+        attr_prop_values = getattr(self, attr_name)
+        # print("attr_prop_values", attr_prop_values)
+        if isinstance(attr_prop_values, AttribProperties):
+            return attr_prop_values.confirmed_value
+        else:
+            return [attr_prop_value.confirmed_value for attr_prop_value in attr_prop_values]
 
 
 class CoordinateSystemSOI(StationObjectImage):
