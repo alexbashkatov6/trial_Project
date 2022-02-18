@@ -193,6 +193,13 @@ class CommandSupervisor:
             self.storage.change_attrib_value_main(*back_args)
         self.command_index -= 1
 
+    def redo(self):
+        if self.command_index == len(self.commands)-1:
+            print("CANNOT REDO")
+            return
+        self.command_index += 1
+        self.execute_command_at_pointer()
+
     # def error_handler(self, cls_name: str, obj_name: str, attr_name: str, message: str):
     #     if cls_name.endswith("SOI"):
     #         cls_name = cls_name.replace("SOI", "")
@@ -316,7 +323,7 @@ if __name__ == "__main__":
         cmd_sup.model_building(obj_list)
         cmd_sup.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
 
-    test_19 = True
+    test_19 = False
     if test_19:
         cmd_sup = CommandSupervisor()
 
@@ -351,3 +358,50 @@ if __name__ == "__main__":
         cmd_sup = CommandSupervisor()
 
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        print([obj.name for obj in cmd_sup.storage.rectify_dg()])
+
+        print("before delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
+        cmd_sup.delete_obj("CoordinateSystemSOI", "CS_2")
+        print("after delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
+        cmd_sup.undo()
+        print("after undo", [obj.name for obj in cmd_sup.storage.rectify_dg()])
+
+        # cmd_sup.change_current_object("CoordinateSystemSOI", "CS_1")
+        # print("change", cmd_sup.storage.current_object_is_new)
+        # print(cmd_sup.storage.current_object)
+
+        # cmd_sup.change_current_object("CoordinateSystemSOI", "CS_2")
+        # print("change", cmd_sup.storage.current_object_is_new)
+        # print(cmd_sup.storage.current_object)
+        #
+        # cmd_sup.undo()
+        # cmd_sup.undo()
+        #
+        # print("undo", cmd_sup.storage.current_object_is_new)
+        # print(cmd_sup.storage.current_object)
+
+        # cmd_sup.create_new_object("CoordinateSystemSOI")
+        # print("new", cmd_sup.storage.current_object_is_new)
+        # co = cmd_sup.storage.current_object
+        # print(co)
+        # print([getattr(co, attr_name) for attr_name in co.active_attrs])
+
+        # cmd_sup.change_attribute_value("name", "Global_CS", -1)
+        # print(co.name)
+        # cmd_sup.change_attribute_value("name", "Global_CS1", -1)
+        # print(co.name)
+        # print([getattr(co, attr_name) for attr_name in co.active_attrs])
+
+        # print("before apply", len(cmd_sup.storage.soi_objects["CoordinateSystemSOI"]))
+        # cmd_sup.apply_creation_new_object()
+        # print("after apply", len(cmd_sup.storage.soi_objects["CoordinateSystemSOI"]))
+        #
+        # cmd_sup.undo()
+        # print("after undo", len(cmd_sup.storage.soi_objects["CoordinateSystemSOI"]))
+        # cmd_sup.redo()
+        # print("after redo", len(cmd_sup.storage.soi_objects["CoordinateSystemSOI"]))
+        # print(co.name)
+        # print([getattr(co, attr_name) for attr_name in co.active_attrs])
+
+        # print("undo", cmd_sup.storage.current_object_is_new)
+        # print(cmd_sup.storage.current_object)
