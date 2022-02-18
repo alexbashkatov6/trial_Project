@@ -210,3 +210,6 @@ n=100000
 a = [1,2,3]
 a.append([4,5])
 print(a)
+
+for i in reversed(range(1, 3)):
+    print(i)

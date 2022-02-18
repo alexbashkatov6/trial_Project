@@ -95,9 +95,9 @@ undo : change_attrib_value_main(attr_name, old_value, index)
 class CommandSupervisor:
     def __init__(self):
         # commands state
-        self.commands = []  # CommandChain()
+        self.commands: list[Command] = []
         self.backward_args = []
-        self.command_pointer = None
+        self.command_index = -1
 
         # functional classes
         self.storage = StorageDG()
@@ -121,36 +121,77 @@ class CommandSupervisor:
         self.model.build_borders()
         self.model.build_sections()
 
-    def execute_last_command(self):
-        command = self.commands[-1]
+    def execute_command_at_pointer(self):
+        command = self.commands[self.command_index]
+
         if command.cmd_type == CECommand.load_from_file:
             dir_name = command.cmd_args[0]
             new_objects = read_station_config(dir_name)
             reset_objects = self.storage.reload_from_dict(new_objects)
-            self.backward_args.append([reset_objects])
+            backward_arg = [reset_objects]
+
         if command.cmd_type == CECommand.create_new_object:
             cls_name = command.cmd_args[0]
-            old_cls_name, old_obj_name = self.storage.create_empty_new_object(cls_name)
-            self.backward_args.append([old_cls_name, old_obj_name])
+            old_obj_params = self.storage.create_empty_new_object(cls_name)
+            old_cls_name, old_obj_name = old_obj_params
+            backward_arg = [old_cls_name, old_obj_name]
+
         if command.cmd_type == CECommand.change_current_object:
             cls_name = command.cmd_args[0]
             obj_name = command.cmd_args[1]
-            old_cls_name, old_obj_name = self.storage.select_current_object(cls_name, obj_name)
-            self.backward_args.append([old_cls_name, old_obj_name])
+            old_obj_params = self.storage.select_current_object(cls_name, obj_name)
+            old_cls_name, old_obj_name = old_obj_params
+            backward_arg = [old_cls_name, old_obj_name]
+
         if command.cmd_type == CECommand.apply_creation_new_object:
             cls_name, obj_name = self.storage.apply_creation_current_object()
-            self.backward_args.append([cls_name, obj_name])
+            backward_arg = [cls_name, obj_name]
+
         if command.cmd_type == CECommand.delete_obj:
             cls_name = command.cmd_args[0]
             obj_name = command.cmd_args[1]
             recover_obj_dict = self.storage.delete_object(cls_name, obj_name)
-            self.backward_args.append([recover_obj_dict])
+            backward_arg = [recover_obj_dict]
+
         if command.cmd_type == CECommand.change_attrib_value:
             attr_name = command.cmd_args[0]
             new_value = command.cmd_args[1]
             index = command.cmd_args[2]
             old_value = self.storage.change_attrib_value_main(attr_name, new_value, index)
-            self.backward_args.append([attr_name, old_value, index])
+            backward_arg = [attr_name, old_value, index]
+
+        assert len(self.backward_args) >= self.command_index
+        if len(self.backward_args) == self.command_index:
+            self.backward_args.append(backward_arg)
+        else:
+            self.backward_args[self.command_index] = backward_arg
+
+    def continue_commands(self, command: Command):
+        cur_len = len(self.commands)
+        for i in reversed(range(self.command_index+1, cur_len)):
+            self.commands.pop(i)
+        self.commands.append(command)
+        self.command_index = len(self.commands)-1
+
+    def undo(self):
+        if self.command_index == -1:
+            print("CANNOT UNDO")
+            return
+        command = self.commands[self.command_index]
+        back_args = self.backward_args[self.command_index]
+        if command.cmd_type == CECommand.load_from_file:
+            self.storage.reload_from_dict(*back_args)
+        if command.cmd_type == CECommand.create_new_object:
+            self.storage.select_current_object(*back_args)
+        if command.cmd_type == CECommand.change_current_object:
+            self.storage.select_current_object(*back_args)
+        if command.cmd_type == CECommand.apply_creation_new_object:
+            self.storage.delete_object(*back_args)
+        if command.cmd_type == CECommand.delete_obj:
+            self.storage.recover_objects(*back_args)
+        if command.cmd_type == CECommand.change_attrib_value:
+            self.storage.change_attrib_value_main(*back_args)
+        self.command_index -= 1
 
     # def error_handler(self, cls_name: str, obj_name: str, attr_name: str, message: str):
     #     if cls_name.endswith("SOI"):
@@ -222,31 +263,32 @@ class CommandSupervisor:
     """ High-level interface operations - by 'buttons' """
 
     def read_station_config(self, dir_name: str):
-        self.commands.append(Command(CECommand(CECommand.load_from_file), [dir_name]))
-        self.command_pointer = self.commands[-1]
-        self.execute_last_command()
+        self.continue_commands(Command(CECommand(CECommand.load_from_file), [dir_name]))
+        self.execute_command_at_pointer()
+
+    def create_new_object(self, cls_name: str):
+        self.continue_commands(Command(CECommand(CECommand.create_new_object), [cls_name]))
+        self.execute_command_at_pointer()
+
+    def change_current_object(self, cls_name: str, obj_name: str):
+        self.continue_commands(Command(CECommand(CECommand.change_current_object), [cls_name, obj_name]))
+        self.execute_command_at_pointer()
+
+    def change_attribute_value(self, attr_name: str, new_value: str, index: int):
+        self.continue_commands(Command(CECommand(CECommand.change_attrib_value), [attr_name, new_value, index]))
+        self.execute_command_at_pointer()
+
+    def apply_creation_new_object(self):
+        self.continue_commands(Command(CECommand(CECommand.apply_creation_new_object), []))
+        self.execute_command_at_pointer()
+
+    def delete_obj(self, cls_name: str, obj_name: str):
+        self.continue_commands(Command(CECommand(CECommand.delete_obj), [cls_name, obj_name]))
+        self.execute_command_at_pointer()
 
     def eval_routes(self, train_xml: str, shunt_xml: str):
         self.model.eval_routes(train_xml, shunt_xml)
-    #
-    # def create_new_object(self, cls_name: str):
-    #     self.continue_commands(Command(CECommand(CECommand.create_new_object), [cls_name]))
-    #
-    # def change_current_object(self, name: str):
-    #     self.continue_commands(Command(CECommand(CECommand.change_current_object), [name]))
-    #
-    # def change_attribute_value(self, attr_name: str, new_value: str):
-    #     self.continue_commands(Command(CECommand(CECommand.change_attrib_value), [attr_name, new_value]))
-    #
-    # def apply_changes(self):
-    #     assert self.apply_readiness, "No readiness for apply"
-    #     self.soi_iast.soi_objects = self.new_stable_images
-    #     self.model_building(self.new_stable_images)
-    #
-    # def delete_obj(self, obj_name: str):
-    #     assert obj_name != GLOBAL_CS_NAME, "Cannot delete GCS"
-    #     self.deletion_names = self.model.rectifier.dependent_objects_names(obj_name)
-    #     self.deletion_warning()
+
     #
     # def deletion_warning(self):
     #     print("Will be deleted: ", self.deletion_names)
@@ -266,14 +308,46 @@ class CommandSupervisor:
 
 if __name__ == "__main__":
 
-    test_18 = True
+    test_18 = False
     if test_18:
         cmd_sup = CommandSupervisor()
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
         obj_list = cmd_sup.storage.rectify_dg()
-        # print([obj.name for obj in obj_list])
         cmd_sup.model_building(obj_list)
-        # print(cmd_sup.model.images)
-        # print(len(cmd_sup.model.smg.not_inf_nodes))
         cmd_sup.eval_routes("TrainRoute.xml", "ShuntingRoute.xml")
 
+    test_19 = True
+    if test_19:
+        cmd_sup = CommandSupervisor()
+
+        cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
+        print(cmd_sup.storage.current_object)
+
+        cmd_sup.change_current_object("CoordinateSystemSOI", "CS_1")
+        print("change", cmd_sup.storage.current_object_is_new)
+        print(cmd_sup.storage.current_object)
+
+        cmd_sup.create_new_object("CoordinateSystemSOI")
+        print("new", cmd_sup.storage.current_object_is_new)
+        co = cmd_sup.storage.current_object
+        print(co)
+        print([getattr(co, attr_name) for attr_name in co.active_attrs])
+
+        # cmd_sup.change_attribute_value("dependence", "dependent", -1)
+        # print([getattr(co, attr_name) for attr_name in co.active_attrs])
+
+        print("before apply", len(cmd_sup.storage.soi_objects["CoordinateSystemSOI"]))
+        cmd_sup.apply_creation_new_object()
+        print("after apply", len(cmd_sup.storage.soi_objects["CoordinateSystemSOI"]))
+
+        print("before delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
+        cmd_sup.delete_obj("CoordinateSystemSOI", "CS_2")
+        print("after delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
+
+        print("backward", cmd_sup.backward_args)
+
+    test_20 = True
+    if test_20:
+        cmd_sup = CommandSupervisor()
+
+        cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)

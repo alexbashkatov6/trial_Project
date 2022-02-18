@@ -216,19 +216,30 @@ class StorageDG:
     def select_current_object(self, cls_name: str, obj_name: str) -> tuple[str, str]:
         """ clean operation """
         backup = self.current_object
-        self.current_object = self.soi_objects[cls_name][obj_name]
-        self.current_object_is_new = False
-        return backup.__class__.__name__, backup.name
+        if cls_name == "reset":
+            self.current_object = None
+            self.current_object_is_new = True
+        else:
+            self.current_object = self.soi_objects[cls_name][obj_name]
+            self.current_object_is_new = False
+        if backup:
+            return backup.__class__.__name__, backup.name
+        else:
+            return "reset", ""
 
     def create_empty_new_object(self, cls_name: str) -> tuple[str, str]:
         """ clean operation """
         backup = self.current_object
         self.current_object: StationObjectImage = eval(cls_name)()
         self.current_object_is_new = True
-        return backup.__class__.__name__, backup.name
+        if backup:
+            return backup.__class__.__name__, backup.name
+        else:
+            return "reset", ""
 
     def apply_creation_current_object(self) -> tuple[str, str]:
         """ clean operation """
+        # print("apply_creation")
         self.init_obj_node_dg(self.current_object)
         self.insert_obj_to_dg(self.current_object)
         return self.current_object.__class__.__name__, self.current_object.name
