@@ -1134,7 +1134,7 @@ class SOIListValues:
         # cmd_sup.change_attribute_value("cs_relative_to", "MyCS_2")
         # cmd_sup.apply_changes()
 
-        # cmd_sup.delete_obj("MyCS_2")
+        # cmd_sup.delete_confirmed("MyCS_2")
         # cmd_sup.deletion_approved()
 
         print("change_current_object")

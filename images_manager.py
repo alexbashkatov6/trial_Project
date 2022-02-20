@@ -111,8 +111,8 @@ class ImgTreeView(QObject):
 
     @pyqtSlot(dict)
     def obj_delete(self, d):
-        """ format of data exchange {'delete_obj': str} """
-        delete_obj = d["delete_obj"]
+        """ format of data exchange {'delete_confirmed': str} """
+        delete_obj = d["delete_confirmed"]
 
     @pyqtSlot()
     def region_leaved(self):

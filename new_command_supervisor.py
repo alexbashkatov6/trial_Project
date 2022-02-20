@@ -2,11 +2,10 @@ from __future__ import annotations
 from collections import OrderedDict
 import os
 import pandas as pd
+from typing import Optional
 
 from custom_enum import CustomEnum
-# from soi_interactive_storage import SOIInteractiveStorage
 from new_soi_rectifier import StorageDG, DependenciesBuildError
-from soi_attributes_evaluations import AttributeEvaluateError
 from new_model_builder import ModelBuilder, ModelBuildError
 from new_soi_objects import StationObjectImage
 from extended_itertools import single_element
@@ -34,13 +33,6 @@ class CECommand(CustomEnum):
 
 class Command:
     def __init__(self, cmd_type: CECommand, cmd_args: list):
-        """ Commands have next formats:
-        load_from_file(objects)  # Command(CECommand(CECommand.load_from_file), [])
-        create_object(cls_name)  # Command(CECommand(CECommand.create_object), [cls_name])
-        rename_object(old_name, new_name)
-        change_attrib_value(obj_name, attr_name, new_value)
-        delete_object(obj_name)
-        """
         self.cmd_type = cmd_type
         self.cmd_args = cmd_args
 
@@ -64,34 +56,6 @@ class CommandChain:
         return self.commands.index(command)
 
 
-"""
-Command(CECommand(CECommand.load_from_file), [dir_name]) => 
-new_objs = read_station_config(dir_name)
-redo : reset_objs = reload_from_dict(new_objs)
-undo : reload_from_dict(reset_objs)
-
-Command(CECommand(CECommand.create_new_object), [cls_name]) => 
-redo : old_cls_name, old_obj_name = create_empty_new_object(cls_name)
-undo : select_current_object(old_cls_name, old_obj_name)
-
-Command(CECommand(CECommand.change_current_object), [cls_name, obj_name]) => 
-redo : old_cls_name, old_obj_name = select_current_object(cls_name, obj_name)
-undo : select_current_object(old_cls_name, old_obj_name)
-
-Command(CECommand(CECommand.apply_creation_new_object), []) => 
-redo : cls_name, obj_name = apply_creation_current_object()
-undo : delete_object(cls_name, obj_name)
-
-Command(CECommand(CECommand.delete_obj), [cls_name, obj_name]) => 
-redo : del_obj_dict = delete_object(cls_name, obj_name)
-undo : recover_objects(del_obj_dict)
-
-Command(CECommand(CECommand.change_attrib_value), [attr_name, new_value, index]) => 
-redo : old_value = change_attrib_value_main(attr_name, new_value, index)
-undo : change_attrib_value_main(attr_name, old_value, index)
-"""
-
-
 class CommandSupervisor:
     def __init__(self):
         # commands state
@@ -104,9 +68,12 @@ class CommandSupervisor:
         self.model = ModelBuilder()
 
         # current state variables
+        self.objs_dict_changed = False
         self.apply_readiness = False
-        self.new_stable_images = []
+
+        # delete state variables
         self.deletion_names = []
+        self.delete_request_name: Optional[tuple[str, str]] = None
 
     # def reset_storages(self):
     #     self.storage.reset_clean_storages()
@@ -127,6 +94,7 @@ class CommandSupervisor:
         if command.cmd_type == CECommand.load_from_file:
             dir_name = command.cmd_args[0]
             new_objects = read_station_config(dir_name)
+            # self.objs_dict_changed = True
             reset_objects = self.storage.reload_from_dict(new_objects)
             backward_arg = [reset_objects]
 
@@ -166,6 +134,14 @@ class CommandSupervisor:
         else:
             self.backward_args[self.command_index] = backward_arg
 
+    def try_execute_command(self):
+        try:
+            self.execute_command_at_pointer()
+        except AttributeSoiError:
+            print("ERROR")
+        else:
+            self.model_building(self.storage.rectify_dg())
+
     def continue_commands(self, command: Command):
         cur_len = len(self.commands)
         for i in reversed(range(self.command_index+1, cur_len)):
@@ -200,117 +176,48 @@ class CommandSupervisor:
         self.command_index += 1
         self.execute_command_at_pointer()
 
-    # def error_handler(self, cls_name: str, obj_name: str, attr_name: str, message: str):
-    #     if cls_name.endswith("SOI"):
-    #         cls_name = cls_name.replace("SOI", "")
-    #     print("Attribute error! \ncls_name: {} \nobj_name: {} \nattr_name: {}\n message: {}"
-    #           .format(cls_name, obj_name, attr_name, message))
-    #
-    # def cut_slice(self, chain: CommandChain):
-    #     self.command_chains = self.command_chains[:self.command_chains.index(chain)+1]
-    #
-    # def continue_commands(self, new_command: Command):
-    #     chain_with_pointer = None
-    #     if self.command_pointer:
-    #         for chain in self.command_chains:
-    #             if chain.index_command_in_chain(self.command_pointer) != -1:
-    #                 chain_with_pointer = chain
-    #                 chain.cut_slice(self.command_pointer)
-    #                 chain.append_command(new_command)
-    #                 self.command_pointer = new_command
-    #                 break
-    #         assert chain_with_pointer, "chain not found"
-    #         self.cut_slice(chain_with_pointer)
-    #         self.execute_commands()
-    #
-    # def undo(self):
-    #     """ not most effective realisation """
-    #     self.reset_storages()
-    #     pointer_found = False
-    #     if self.command_pointer:
-    #
-    #         for chain in reversed(self.command_chains):
-    #             if pointer_found:
-    #                 self.command_pointer = chain.commands[-1]
-    #                 self.execute_commands()
-    #                 return
-    #             if chain.index_command_in_chain(self.command_pointer) != -1:
-    #                 index = chain.commands.index(self.command_pointer)
-    #                 if index != 0:
-    #                     self.command_pointer = chain.commands[index - 1]
-    #                     self.execute_commands()
-    #                     return
-    #                 else:
-    #                     pointer_found = True
-    #                     continue
-    #         assert pointer_found, "command_pointer not found in chains"
-    #         print("CANNOT UNDO")
-    #
-    # def redo(self):
-    #     self.reset_storages()
-    #     pointer_found = False
-    #     if self.command_pointer:
-    #         for chain in self.command_chains:
-    #             if pointer_found:
-    #                 self.command_pointer = chain.commands[0]
-    #                 self.execute_commands()
-    #                 return
-    #             if chain.index_command_in_chain(self.command_pointer) != -1:
-    #                 index = chain.commands.index(self.command_pointer)
-    #                 if index != len(chain.commands)-1:
-    #                     self.command_pointer = chain.commands[index + 1]
-    #                     self.execute_commands()
-    #                     return
-    #                 else:
-    #                     pointer_found = True
-    #                     continue
-    #         assert pointer_found, "command_pointer not found in chains"
-    #         print("CANNOT REDO")
+    def error_handler(self, cls_name: str, obj_name: str, attr_name: str, attr_index: int, message: str):
+        if cls_name.endswith("SOI"):
+            cls_name = cls_name.replace("SOI", "")
+        print("Attribute error! \ncls_name: {} \nobj_name: {} \nattr_name: {} \nattr_index: {}\n message: {}"
+              .format(cls_name, obj_name, attr_name, attr_index, message))
 
     """ High-level interface operations - by 'buttons' """
 
     def read_station_config(self, dir_name: str):
         self.continue_commands(Command(CECommand(CECommand.load_from_file), [dir_name]))
-        self.execute_command_at_pointer()
+        self.try_execute_command()
 
     def create_new_object(self, cls_name: str):
         self.continue_commands(Command(CECommand(CECommand.create_new_object), [cls_name]))
-        self.execute_command_at_pointer()
+        self.try_execute_command()
 
     def change_current_object(self, cls_name: str, obj_name: str):
         self.continue_commands(Command(CECommand(CECommand.change_current_object), [cls_name, obj_name]))
-        self.execute_command_at_pointer()
+        self.try_execute_command()
 
     def change_attribute_value(self, attr_name: str, new_value: str, index: int):
         self.continue_commands(Command(CECommand(CECommand.change_attrib_value), [attr_name, new_value, index]))
-        self.execute_command_at_pointer()
+        self.try_execute_command()
 
     def apply_creation_new_object(self):
         self.continue_commands(Command(CECommand(CECommand.apply_creation_new_object), []))
-        self.execute_command_at_pointer()
+        self.try_execute_command()
 
-    def delete_obj(self, cls_name: str, obj_name: str):
+    def delete_request(self, cls_name: str, obj_name: str):
+        self.delete_request_name = (cls_name, obj_name)
+        self.deletion_names = self.storage.dependent_objects_names(cls_name, obj_name)
+
+    def delete_confirmed(self):
+        cls_name, obj_name = self.delete_request_name
+        print("deleted:", self.deletion_names)
+        self.delete_request_name = None
+        self.deletion_names = []
         self.continue_commands(Command(CECommand(CECommand.delete_obj), [cls_name, obj_name]))
-        self.execute_command_at_pointer()
+        self.try_execute_command()
 
-    def eval_routes(self, train_xml: str, shunt_xml: str):
-        self.model.eval_routes(train_xml, shunt_xml)
-
-    #
-    # def deletion_warning(self):
-    #     print("Will be deleted: ", self.deletion_names)
-    #
-    # def deletion_approved(self):
-    #     images_after_deletion = [obj for obj in self.soi_iast.copied_soi_objects if obj.name not in self.deletion_names]
-    #     cc = CommandChain(Command(CECommand(CECommand.load_after_deletion),
-    #                               [images_after_deletion]))
-    #     self.command_chains.append(cc)
-    #     self.command_pointer = cc.commands[-1]
-    #     self.execute_commands()
-    #     self.deletion_names = []
-    #
-    # def deletion_rejected(self):
-    #     self.deletion_names = []
+    def eval_routes(self, dir_name: str):
+        self.model.eval_routes(dir_name)
 
 
 if __name__ == "__main__":
@@ -348,23 +255,25 @@ if __name__ == "__main__":
         print("after apply", len(cmd_sup.storage.soi_objects["CoordinateSystemSOI"]))
 
         print("before delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
-        cmd_sup.delete_obj("CoordinateSystemSOI", "CS_2")
+        cmd_sup.delete_confirmed("CoordinateSystemSOI", "CS_2")
         print("after delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
 
         print("backward", cmd_sup.backward_args)
 
-    test_20 = True
+    test_20 = False
     if test_20:
         cmd_sup = CommandSupervisor()
 
         cmd_sup.read_station_config(STATION_IN_CONFIG_FOLDER)
         print([obj.name for obj in cmd_sup.storage.rectify_dg()])
 
-        print("before delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
-        cmd_sup.delete_obj("CoordinateSystemSOI", "CS_2")
-        print("after delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
-        cmd_sup.undo()
-        print("after undo", [obj.name for obj in cmd_sup.storage.rectify_dg()])
+        # print("before delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
+        # cmd_sup.delete_confirmed("CoordinateSystemSOI", "CS_2")
+        # print("after delete", [obj.name for obj in cmd_sup.storage.rectify_dg()])
+        # cmd_sup.undo()
+        # print("after undo", [obj.name for obj in cmd_sup.storage.rectify_dg()])
+
+        cmd_sup.delete_request("CoordinateSystemSOI", "CS_2")
 
         # cmd_sup.change_current_object("CoordinateSystemSOI", "CS_1")
         # print("change", cmd_sup.storage.current_object_is_new)

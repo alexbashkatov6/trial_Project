@@ -447,7 +447,7 @@ class ModelBuilder:
                 model_object.name = image_name
                 self.names_mo["Section"][image_name] = model_object
 
-    def eval_routes(self, train_routes_file_name, shunting_routes_file_name):
+    def eval_routes(self, dir_name):
 
         train_light_routes_dict: OrderedDict[str, tuple[list[RailRoute], list[RailRoute]]] = OrderedDict()
         shunting_light_routes_dict: OrderedDict[str, list[RailRoute]] = OrderedDict()
@@ -690,5 +690,5 @@ class ModelBuilder:
                 shunting_light_routes_dict[light.name] = shunting_routes
 
         # 2. Xml formation
-        form_rail_routes_xml(train_light_routes_dict, shunting_light_routes_dict, "eval_results",
-                             train_routes_file_name, shunting_routes_file_name)
+        form_rail_routes_xml(train_light_routes_dict, shunting_light_routes_dict, dir_name,
+                             "TrainRoute.xml", "ShuntingRoute.xml")
