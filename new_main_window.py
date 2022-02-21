@@ -529,14 +529,16 @@ class TreeToolBarWidget(QTreeView):
         self.class_names: set[str] = set()
         self.obj_names: set[str] = set()
         self.index_to_str_tuple: dict[QModelIndex, tuple[str, str]] = {}
-        # self.expanded.connect(self.add_expanded_index)
-        # self.collapsed.connect(self.remove_expanded_index)
+        self.expanded_indexes = set()
+        self.expanded.connect(self.add_expanded_index)
+        self.collapsed.connect(self.remove_expanded_index)
 
-    # def add_expanded_index(self, idx: QModelIndex):
-    #     self.expanded_indexes.add(idx)
-    #
-    # def remove_expanded_index(self, idx: QModelIndex):
-    #     self.expanded_indexes.remove(idx)
+    def add_expanded_index(self, idx: QModelIndex):
+        print("add_expanded_index")
+        self.expanded_indexes.add(idx)
+
+    def remove_expanded_index(self, idx: QModelIndex):
+        self.expanded_indexes.remove(idx)
 
     def from_dict(self, d: OrderedDict[str, list[str]]):
         self.class_names.clear()
@@ -558,8 +560,8 @@ class TreeToolBarWidget(QTreeView):
                 item_obj.setSelectable(False)
                 item_class.appendRow(item_obj)
                 self.index_to_str_tuple[item_obj.index()] = (class_name, obj_name)
-        # for idx in self.expanded_indexes:
-        #     self.expand(idx)
+        for idx in self.expanded_indexes:
+            self.expand(idx)
 
     def mouseDoubleClickEvent(self, a0: QMouseEvent) -> None:
         idx = self.indexAt(a0.localPos().toPoint())
@@ -592,6 +594,20 @@ class TreeToolBar(QToolBar):
         self.setMinimumWidth(300)
         self.tree_view = TreeToolBarWidget()
         self.addWidget(self.tree_view)
+
+
+class AttributeWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+
+
+class AttributeToolBar(QToolBar):
+    def __init__(self):
+        super().__init__()
+        self.setMovable(False)
+        self.setMinimumWidth(300)
+        self.column_wgt = AttributeWidget()
+        self.addWidget(self.column_wgt)
 
 
 class MW(QMainWindow):
@@ -635,6 +651,9 @@ class MW(QMainWindow):
         self.ltb = TreeToolBar()
         self.addToolBar(Qt.LeftToolBarArea, self.ltb)
 
+        self.rtb = AttributeToolBar()
+        self.addToolBar(Qt.RightToolBarArea, self.rtb)
+
         self.show()
 
     def open_config(self):
@@ -669,9 +688,14 @@ class MW(QMainWindow):
         for cls_name in CLASSES_SEQUENCE:
             if warn_text[-1] != "\n":
                 warn_text += "\n"
+            cls_exist = False
             for item in del_names:
                 if item[0] == cls_name:
-                    warn_text += "\n{} ({})".format(item[1], item[0])
+                    cls_exist = True
+                    warn_text += "{}, ".format(item[1])
+            if cls_exist:
+                warn_text = warn_text[:-2]+" "
+                warn_text += "({})".format(cls_name)
         msg.setInformativeText(warn_text)
         msg.setWindowTitle("Warning")
         msg.exec_()

@@ -37,6 +37,8 @@ class Director(QObject):
         self.acpi.send_delete_names.connect(self.mw.deletion_warning)
         self.mw.deletion_confirmed.connect(self.acpi.delete_confirmed)
 
+        self.acpi.form_cls_obj_dict()
+
         # --------------------  old rows  -------------------- #
 
         # from nv_attributed_objects import CommonAttributeInterface

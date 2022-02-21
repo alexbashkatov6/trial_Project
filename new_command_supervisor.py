@@ -75,11 +75,14 @@ class CommandSupervisor:
         self.deletion_names = []
         self.delete_request_name: Optional[tuple[str, str]] = None
 
+        self.model_building(self.storage.rectify_dg())
+
     # def reset_storages(self):
     #     self.storage.reset_clean_storages()
     #     self.model.reset_storages()
 
     def model_building(self, images: list[StationObjectImage]):
+        print("model_building")
         self.model.init_soi_list(images)
         self.model.build_skeleton()
         self.model.eval_link_length()

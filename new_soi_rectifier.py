@@ -57,8 +57,13 @@ class StorageDG:
         self.current_object: Optional[StationObjectImage] = None
         self.current_object_is_new: bool = True
 
+        self.init_soi_classes()
         self.bind_descriptors()
         self.reset_clean_storages()
+
+    def init_soi_classes(self):
+        for cls in StationObjectImage.__subclasses__():
+            self.soi_objects[cls.__name__]
 
     def bind_descriptors(self):
         for cls in StationObjectImage.__subclasses__():
@@ -83,9 +88,11 @@ class StorageDG:
         self.to_child_attribute_dict.clear()
 
         self.to_parent_link_dict.clear()
+        print("soi_objects", self.soi_objects)
 
     def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]) -> \
             DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]:
+        print("reload_from_dict")
 
         backup_soi = DefaultOrderedDict(OrderedDict)
         for cls_name in self.soi_objects:
