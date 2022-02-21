@@ -9,10 +9,11 @@ from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolB
     QFileDialog, QMessageBox
 from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent, QFont, QColor, \
     QResizeEvent, QPainterPath
-from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer, QModelIndex
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer, QModelIndex, QObject
 from PyQt5.Qt import QStandardItemModel, QStandardItem, qApp
 # from PyQt5 import QList
 
+from default_ordered_dict import DefaultOrderedDict
 from nv_attribute_format import AttributeFormat
 from nv_config import GROUND_CS_NAME, PICTURE_FOLDER, \
     TOOLS_TOOLBAR_HEIGHT, TREE_TOOLBAR_WIDTH, ATTRIBUTES_TOOLBAR_WIDTH, MAIN_AREA_MIN_HEIGHT, MAIN_AREA_MIN_WIDTH, \
@@ -522,6 +523,7 @@ class TreeToolBarWidget(QTreeView):
 
     def __init__(self):
         super().__init__()
+        self.setMouseTracking(True)
         self.tree_model = QStandardItemModel()
         self.root_node = self.tree_model.invisibleRootItem()
         self.setModel(self.tree_model)
@@ -530,17 +532,19 @@ class TreeToolBarWidget(QTreeView):
         self.obj_names: set[str] = set()
         self.index_to_str_tuple: dict[QModelIndex, tuple[str, str]] = {}
         self.expanded_indexes = set()
+        self.got_dict = DefaultOrderedDict(OrderedDict)
         self.expanded.connect(self.add_expanded_index)
         self.collapsed.connect(self.remove_expanded_index)
 
     def add_expanded_index(self, idx: QModelIndex):
-        print("add_expanded_index")
         self.expanded_indexes.add(idx)
 
     def remove_expanded_index(self, idx: QModelIndex):
         self.expanded_indexes.remove(idx)
 
-    def from_dict(self, d: OrderedDict[str, list[str]]):
+    def from_dict(self, d: DefaultOrderedDict):
+        self.got_dict = d
+        # print("got d", id(d))
         self.class_names.clear()
         self.obj_names.clear()
         self.index_to_str_tuple.clear()
@@ -557,11 +561,20 @@ class TreeToolBarWidget(QTreeView):
                 self.obj_names.add(obj_name)
                 item_obj = QStandardItem(obj_name)
                 item_obj.setEditable(False)
-                item_obj.setSelectable(False)
+                # item_obj.setSelectable(False)
                 item_class.appendRow(item_obj)
                 self.index_to_str_tuple[item_obj.index()] = (class_name, obj_name)
         for idx in self.expanded_indexes:
             self.expand(idx)
+
+    def mouseMoveEvent(self, a0: QMouseEvent) -> None:
+        if a0.buttons() == Qt.NoButton:
+            print("Simple mouse motion")
+        super().mouseMoveEvent(a0)
+
+    def onHovered(self, pnt):
+        print("HOVERED")
+        QToolTip.showText(pnt, "lala")
 
     def mouseDoubleClickEvent(self, a0: QMouseEvent) -> None:
         idx = self.indexAt(a0.localPos().toPoint())
@@ -594,6 +607,16 @@ class TreeToolBar(QToolBar):
         self.setMinimumWidth(300)
         self.tree_view = TreeToolBarWidget()
         self.addWidget(self.tree_view)
+        # self.installEventFilter()
+
+    # def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+    #     print("eventFilter")
+    #     if event.type() == QEvent.MouseMove:
+    #         print("HoverEnter")
+    #         QMouseEvent.
+    #         # event: QMouseEvent
+    #         # self.onHovered(event.localPos().toPoint())
+    #     return super().eventFilter(obj, event)
 
 
 class AttributeWidget(QWidget):
@@ -621,6 +644,7 @@ class MW(QMainWindow):
         super().__init__()
         self.setGeometry(40, 40, 1840, 980)
         self.setWindowTitle('Main window')
+        self.stb = self.statusBar()
 
         # menus
         menu_bar = self.menuBar()
@@ -653,6 +677,7 @@ class MW(QMainWindow):
 
         self.rtb = AttributeToolBar()
         self.addToolBar(Qt.RightToolBarArea, self.rtb)
+
 
         self.show()
 
@@ -701,6 +726,15 @@ class MW(QMainWindow):
         msg.exec_()
         if msg.clickedButton() == msg.button(QMessageBox.StandardButton.Apply):
             self.deletion_confirmed.emit()
+
+    def error_message(self, message: str):
+        print("ERROR MESSAGE")
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setText("Error")
+        msg.setWindowTitle("Error")
+        msg.setInformativeText(message)
+        msg.exec_()
 
         # central wgt
         # self.pa = PaintingArea(MAIN_AREA_MIN_WIDTH, MAIN_AREA_MIN_HEIGHT)

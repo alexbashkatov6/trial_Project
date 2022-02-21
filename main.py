@@ -37,6 +37,9 @@ class Director(QObject):
         self.acpi.send_delete_names.connect(self.mw.deletion_warning)
         self.mw.deletion_confirmed.connect(self.acpi.delete_confirmed)
 
+        self.acpi.send_status_message.connect(self.mw.stb.showMessage)
+        self.acpi.send_error_message.connect(self.mw.error_message)
+
         self.acpi.form_cls_obj_dict()
 
         # --------------------  old rows  -------------------- #

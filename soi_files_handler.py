@@ -2,8 +2,9 @@ from collections import OrderedDict
 import os
 import pandas as pd
 
-from new_soi_objects import StationObjectImage
+from new_soi_objects import StationObjectImage, AttributeEvaluateError
 from default_ordered_dict import DefaultOrderedDict
+from form_exception_message import form_message_from_error
 
 
 class ReadFileNameError(Exception):
@@ -15,6 +16,10 @@ class RFNoNameError(ReadFileNameError):
 
 
 class RFExistingNameError(ReadFileNameError):
+    pass
+
+
+class RFAttributeError(ReadFileNameError):
     pass
 
 
@@ -41,9 +46,13 @@ def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[st
                     if attr_val in result[cls_name_soi]:
                         raise RFExistingNameError(cls_name_del_soi, attr_val, "name", "Name already exists")
                     result[cls_name_soi][attr_val] = new_obj
-                # print("attr_val", attr_val)
-                # setattr(new_obj, attr_name, attr_val)
-                new_obj.change_attrib_value(attr_name, attr_val, check_mode=False)
+                    new_obj.change_attrib_value(attr_name, attr_val, check_mode=False)
+                else:
+                    try:
+                        new_obj.change_attrib_value(attr_name, attr_val, check_mode=False)
+                    except AttributeEvaluateError as e:
+                        raise RFAttributeError(cls_name_del_soi, new_obj.name, attr_name, e.args[0])
+
     return result
 
 

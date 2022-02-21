@@ -187,6 +187,8 @@ class ModelBuilder:
             if isinstance(image, LineSOI):
                 points_so: list[PointSOI] = image.acv("points")
                 points_mo: list[PointMO] = [self.names_mo["Point"][point.name] for point in points_so]
+                if len(points_mo) != 2:
+                    raise MBSkeletonError(cls_name, obj_name, "points", "Count of points should be == 2")
                 point_1, point_2 = points_mo[0], points_mo[1]
                 axises_mo: list[AxisMO] = []
                 for point_so in points_so:

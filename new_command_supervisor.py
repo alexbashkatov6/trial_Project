@@ -2,24 +2,26 @@ from __future__ import annotations
 from collections import OrderedDict
 import os
 import pandas as pd
-from typing import Optional
+from typing import Optional, Any, Union
 
 from custom_enum import CustomEnum
 from new_soi_rectifier import StorageDG, DependenciesBuildError
 from new_model_builder import ModelBuilder, ModelBuildError
-from new_soi_objects import StationObjectImage
+from new_soi_objects import StationObjectImage, AttributeEvaluateError, AttribProperties
 from extended_itertools import single_element
-from soi_files_handler import read_station_config
+from soi_files_handler import read_station_config, ReadFileNameError
+from form_exception_message import form_message_from_error
+from default_ordered_dict import DefaultOrderedDict
 
 from config_names import STATION_IN_CONFIG_FOLDER, GLOBAL_CS_NAME
 
 
-class AttributeSoiError(Exception):
-    pass
-
-
-class ObjectSoiError(Exception):
-    pass
+# class AttributeSoiError(Exception):
+#     pass
+#
+#
+# class ObjectSoiError(Exception):
+#     pass
 
 
 class CECommand(CustomEnum):
@@ -35,6 +37,7 @@ class Command:
     def __init__(self, cmd_type: CECommand, cmd_args: list):
         self.cmd_type = cmd_type
         self.cmd_args = cmd_args
+        self.executed = False
 
 
 class CommandChain:
@@ -68,8 +71,17 @@ class CommandSupervisor:
         self.model = ModelBuilder()
 
         # current state variables
-        self.objs_dict_changed = False
         self.apply_readiness = False
+
+        # objs dict
+        self.objs_dict_changed = False
+        self.objs_dict: DefaultOrderedDict[str, OrderedDict[str, dict[str, Any]]] = \
+            DefaultOrderedDict(OrderedDict)
+
+        # check statuses
+        self.object_check: str = ""
+        self.common_status: str = ""
+        self.error_message: str = ""
 
         # delete state variables
         self.deletion_names = []
@@ -77,9 +89,24 @@ class CommandSupervisor:
 
         self.model_building(self.storage.rectify_dg())
 
-    # def reset_storages(self):
-    #     self.storage.reset_clean_storages()
-    #     self.model.reset_storages()
+    def form_cls_obj_dict(self):
+        self.objs_dict_changed = True
+        self.objs_dict = DefaultOrderedDict(OrderedDict)
+        soi = self.storage.soi_objects
+        for cls_name in soi:
+            cls_name_str = cls_name.replace("SOI", "")
+            self.objs_dict[cls_name_str] = OrderedDict()
+            for obj_name in soi[cls_name]:
+                obj: StationObjectImage = soi[cls_name][obj_name]
+                od_struct = {"attributes": OrderedDict(), "error_status": ""}
+                for attr_name in obj.active_attrs:
+                    attr_value: Union[AttribProperties, list[AttribProperties]] = getattr(obj, attr_name)
+                    if isinstance(attr_value, list):
+                        for i, attr_val in enumerate(attr_value):
+                            od_struct["attributes"]["{}_{}".format(attr_name, i+1)] = attr_val.last_input_value
+                    else:
+                        od_struct["attributes"][attr_name] = attr_value.last_input_value
+                self.objs_dict[cls_name_str][obj_name] = od_struct
 
     def model_building(self, images: list[StationObjectImage]):
         print("model_building")
@@ -92,20 +119,16 @@ class CommandSupervisor:
         self.model.build_sections()
 
     def execute_command_at_pointer(self):
-        command = self.commands[self.command_index]
+        self.execute_command(self.commands[self.command_index])
 
-        if command.cmd_type == CECommand.load_from_file:
-            dir_name = command.cmd_args[0]
-            new_objects = read_station_config(dir_name)
-            # self.objs_dict_changed = True
-            reset_objects = self.storage.reload_from_dict(new_objects)
-            backward_arg = [reset_objects]
+    def execute_command(self, command) -> Optional[list[Any]]:
 
         if command.cmd_type == CECommand.create_new_object:
             cls_name = command.cmd_args[0]
             old_obj_params = self.storage.create_empty_new_object(cls_name)
             old_cls_name, old_obj_name = old_obj_params
             backward_arg = [old_cls_name, old_obj_name]
+            return backward_arg
 
         if command.cmd_type == CECommand.change_current_object:
             cls_name = command.cmd_args[0]
@@ -113,16 +136,51 @@ class CommandSupervisor:
             old_obj_params = self.storage.select_current_object(cls_name, obj_name)
             old_cls_name, old_obj_name = old_obj_params
             backward_arg = [old_cls_name, old_obj_name]
-
-        if command.cmd_type == CECommand.apply_creation_new_object:
-            cls_name, obj_name = self.storage.apply_creation_current_object()
-            backward_arg = [cls_name, obj_name]
+            return backward_arg
 
         if command.cmd_type == CECommand.delete_obj:
             cls_name = command.cmd_args[0]
             obj_name = command.cmd_args[1]
             recover_obj_dict = self.storage.delete_object(cls_name, obj_name)
+            self.form_cls_obj_dict()
             backward_arg = [recover_obj_dict]
+            return backward_arg
+
+        if command.cmd_type == CECommand.load_from_file:
+            dir_name = command.cmd_args[0]
+
+            try:
+                new_objects = read_station_config(dir_name)
+            except ReadFileNameError as e:
+                self.common_status = form_message_from_error(e)
+                self.error_message = form_message_from_error(e)
+                return
+
+            self.storage.save_state()
+            self.form_cls_obj_dict()
+            backward_arg = [self.storage.backup_soi]
+
+            try:
+                self.storage.reload_from_dict(new_objects)
+            except DependenciesBuildError as e:
+                self.common_status = form_message_from_error(e)
+                self.error_message = form_message_from_error(e)
+                return backward_arg
+
+            try:
+                self.model_building(self.storage.rectify_dg())
+            except ModelBuildError as e:
+                self.common_status = form_message_from_error(e)
+                self.error_message = form_message_from_error(e)
+                return backward_arg
+
+            self.common_status = "Objects successfully loaded from file"
+            return backward_arg
+
+        if command.cmd_type == CECommand.apply_creation_new_object:
+            cls_name, obj_name = self.storage.apply_creation_current_object()
+            backward_arg = [cls_name, obj_name]
+            return backward_arg
 
         if command.cmd_type == CECommand.change_attrib_value:
             attr_name = command.cmd_args[0]
@@ -130,36 +188,35 @@ class CommandSupervisor:
             index = command.cmd_args[2]
             old_value = self.storage.change_attrib_value_main(attr_name, new_value, index)
             backward_arg = [attr_name, old_value, index]
+            return backward_arg
 
-        assert len(self.backward_args) >= self.command_index
-        if len(self.backward_args) == self.command_index:
-            self.backward_args.append(backward_arg)
-        else:
-            self.backward_args[self.command_index] = backward_arg
+    def try_execute_command(self, command):
+        backward_arg = self.execute_command(command)
+        if backward_arg:
 
-    def try_execute_command(self):
-        try:
-            self.execute_command_at_pointer()
-        except AttributeSoiError:
-            print("ERROR")
-        else:
-            self.model_building(self.storage.rectify_dg())
+            """ continue list of commands """
+            cur_len = len(self.commands)
+            for i in reversed(range(self.command_index+1, cur_len)):
+                self.commands.pop(i)
+            self.commands.append(command)
+            self.command_index = len(self.commands)-1
 
-    def continue_commands(self, command: Command):
-        cur_len = len(self.commands)
-        for i in reversed(range(self.command_index+1, cur_len)):
-            self.commands.pop(i)
-        self.commands.append(command)
-        self.command_index = len(self.commands)-1
+            """ continue list of backward args """
+            assert len(self.backward_args) >= self.command_index
+            if len(self.backward_args) == self.command_index:
+                self.backward_args.append(backward_arg)
+            else:
+                self.backward_args[self.command_index] = backward_arg
 
     def undo(self):
         if self.command_index == -1:
-            print("CANNOT UNDO")
+            self.common_status = "CANNOT UNDO"
             return
         command = self.commands[self.command_index]
         back_args = self.backward_args[self.command_index]
         if command.cmd_type == CECommand.load_from_file:
             self.storage.reload_from_dict(*back_args)
+            self.form_cls_obj_dict()
         if command.cmd_type == CECommand.create_new_object:
             self.storage.select_current_object(*back_args)
         if command.cmd_type == CECommand.change_current_object:
@@ -174,7 +231,7 @@ class CommandSupervisor:
 
     def redo(self):
         if self.command_index == len(self.commands)-1:
-            print("CANNOT REDO")
+            self.common_status = "CANNOT REDO"
             return
         self.command_index += 1
         self.execute_command_at_pointer()
@@ -188,24 +245,24 @@ class CommandSupervisor:
     """ High-level interface operations - by 'buttons' """
 
     def read_station_config(self, dir_name: str):
-        self.continue_commands(Command(CECommand(CECommand.load_from_file), [dir_name]))
-        self.try_execute_command()
+        c = Command(CECommand(CECommand.load_from_file), [dir_name])
+        self.try_execute_command(c)
 
     def create_new_object(self, cls_name: str):
-        self.continue_commands(Command(CECommand(CECommand.create_new_object), [cls_name]))
-        self.try_execute_command()
+        c = Command(CECommand(CECommand.create_new_object), [cls_name])
+        self.try_execute_command(c)
 
     def change_current_object(self, cls_name: str, obj_name: str):
-        self.continue_commands(Command(CECommand(CECommand.change_current_object), [cls_name, obj_name]))
-        self.try_execute_command()
+        c = Command(CECommand(CECommand.change_current_object), [cls_name, obj_name])
+        self.try_execute_command(c)
 
     def change_attribute_value(self, attr_name: str, new_value: str, index: int):
-        self.continue_commands(Command(CECommand(CECommand.change_attrib_value), [attr_name, new_value, index]))
-        self.try_execute_command()
+        c = Command(CECommand(CECommand.change_attrib_value), [attr_name, new_value, index])
+        self.try_execute_command(c)
 
     def apply_creation_new_object(self):
-        self.continue_commands(Command(CECommand(CECommand.apply_creation_new_object), []))
-        self.try_execute_command()
+        c = Command(CECommand(CECommand.apply_creation_new_object), [])
+        self.try_execute_command(c)
 
     def delete_request(self, cls_name: str, obj_name: str):
         self.delete_request_name = (cls_name, obj_name)
@@ -216,8 +273,11 @@ class CommandSupervisor:
         print("deleted:", self.deletion_names)
         self.delete_request_name = None
         self.deletion_names = []
-        self.continue_commands(Command(CECommand(CECommand.delete_obj), [cls_name, obj_name]))
-        self.try_execute_command()
+        c = Command(CECommand(CECommand.delete_obj), [cls_name, obj_name])
+        self.try_execute_command(c)
+
+    def form_attributes(self):
+        pass
 
     def eval_routes(self, dir_name: str):
         self.model.eval_routes(dir_name)

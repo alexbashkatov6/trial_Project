@@ -7,7 +7,8 @@ from cell_object import CellObject
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Link, NodeInterface
 from default_ordered_dict import DefaultOrderedDict
 from new_soi_objects import StationObjectImage, StationObjectDescriptor, AttribProperties, IndexManagementCommand, \
-    CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, LightSOI, RailPointSOI, BorderSOI, SectionSOI
+    CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, LightSOI, RailPointSOI, BorderSOI, SectionSOI, \
+    AttributeEvaluateError
 from soi_files_handler import read_station_config
 from extended_itertools import flatten
 from cell_access_functions import find_cell_name, element_cell_by_type
@@ -28,6 +29,10 @@ class DBCycleError(DependenciesBuildError):
 
 
 class DBIsolatedNodesError(DependenciesBuildError):
+    pass
+
+
+class DBAttributeError(DependenciesBuildError):
     pass
 
 
@@ -56,6 +61,7 @@ class StorageDG:
         # current object state
         self.current_object: Optional[StationObjectImage] = None
         self.current_object_is_new: bool = True
+        self.backup_soi = DefaultOrderedDict(OrderedDict)
 
         self.init_soi_classes()
         self.bind_descriptors()
@@ -90,14 +96,20 @@ class StorageDG:
         self.to_parent_link_dict.clear()
         print("soi_objects", self.soi_objects)
 
-    def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]) -> \
-            DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]:
-        print("reload_from_dict")
-
-        backup_soi = DefaultOrderedDict(OrderedDict)
+    def save_state(self):
+        self.backup_soi = DefaultOrderedDict(OrderedDict)
         for cls_name in self.soi_objects:
             for obj_name, obj in self.soi_objects[cls_name].items():
-                backup_soi[cls_name][obj_name] = obj
+                self.backup_soi[cls_name][obj_name] = obj
+
+    def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]) -> \
+            None:  # DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]
+        print("reload_from_dict")
+        self.save_state()
+        # backup_soi = DefaultOrderedDict(OrderedDict)
+        # for cls_name in self.soi_objects:
+        #     for obj_name, obj in self.soi_objects[cls_name].items():
+        #         backup_soi[cls_name][obj_name] = obj
 
         self.reset_clean_storages()
 
@@ -120,15 +132,19 @@ class StorageDG:
         # Stage 3 - check cycles
         self.full_check_cycle_dg()
 
-        return backup_soi
+        # return backup_soi
 
     def obj_attrib_evaluation(self, obj: StationObjectImage):
+        cls_name = obj.__class__.__name__
         obj_name = obj.name
         if obj_name != GLOBAL_CS_NAME:
             for attr_name in obj.active_attrs:
                 descr = getattr(obj.__class__, attr_name)
                 if isinstance(descr, StationObjectDescriptor):
-                    obj.reload_attr_value(attr_name)
+                    try:
+                        obj.reload_attr_value(attr_name)
+                    except AttributeEvaluateError as e:
+                        raise DBAttributeError(cls_name, obj_name, attr_name, e.args[0])
 
     def init_obj_node_dg(self, obj: StationObjectImage):
         cls_name = obj.__class__.__name__
@@ -168,12 +184,11 @@ class StorageDG:
         if len(route_nodes) < len(self.dg.nodes):
             nodes = self.dg.nodes - route_nodes
             obj_names: list[str] = [element_cell_by_type(node, ObjNodeCell).obj_name for node in nodes]
-            raise DBIsolatedNodesError("", ", ".join(obj_names), "", "Isolated nodes was found")
+            raise DBIsolatedNodesError("", ", ".join(obj_names), "", "Isolated cycle in dependencies was found")
         for route_ in routes:
             if route_.is_cycle:
-                end_node = route_.nodes[-1]
-                obj_name = element_cell_by_type(end_node, ObjNodeCell).obj_name
-                raise DBCycleError("", obj_name, "", "Cycle in dependencies was found")
+                obj_names: list[str] = [element_cell_by_type(node, ObjNodeCell).obj_name for node in route_.cycle_nodes]
+                raise DBCycleError("", ", ".join(obj_names), "", "Cycle in dependencies was found")
 
     def rectify_dg(self) -> list[StationObjectImage]:
         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global CS

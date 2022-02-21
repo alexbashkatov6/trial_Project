@@ -177,7 +177,7 @@ class EnumDescriptor(UniversalDescriptor):
         super().handling_ap(ap, new_str_value, check_mode)
         if new_str_value:  #  and self.possible_values
             if new_str_value not in self.possible_values:
-                raise AEEnumValueAttributeError("Value {} not in possible list: {}".format(new_str_value,
+                raise AEEnumValueAttributeError("Value '{}' not in possible list: '{}'".format(new_str_value,
                                                                                            self.possible_values))
             ap.confirmed_value = new_str_value
 
@@ -205,7 +205,7 @@ class StationObjectDescriptor(UniversalDescriptor):
         if new_str_value and check_mode:
             # print("new_str_value", new_str_value)
             if new_str_value not in self.obj_dict:
-                raise AEObjectNotFoundError("Object {} not found in class {}".format(new_str_value,
+                raise AEObjectNotFoundError("Object '{}' not found in class '{}'".format(new_str_value,
                                                                                      self.contains_cls_name))
             ap.confirmed_value = self.obj_dict[new_str_value]
 
@@ -222,7 +222,7 @@ class IntDescriptor(UniversalDescriptor):
             try:
                 ap.confirmed_value = int(new_str_value)
             except ValueError:
-                raise AETypeAttributeError("Value {} is not int".format(new_str_value))
+                raise AETypeAttributeError("Value '{}' is not int".format(new_str_value))
 
 
 class PicketDescriptor(UniversalDescriptor):
@@ -237,7 +237,7 @@ class PicketDescriptor(UniversalDescriptor):
             try:
                 ap.confirmed_value = PicketCoordinate(new_str_value).value
             except PicketCoordinateParsingCoError:
-                raise AETypeAttributeError("Value {} is not picket coordinate".format(new_str_value))
+                raise AETypeAttributeError("Value '{}' is not picket coordinate".format(new_str_value))
 
 
 class StationObjectImage:
