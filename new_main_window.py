@@ -227,7 +227,7 @@ class ToolBarOfAttributes(QToolBar):
 #         self.timer = QTimer(self)
 #         self.first_timer_notification = True
 #         self.millisecs_of_notification = 1000
-#         self.obj_hovered_name = ''
+#         self.obj_hovered_index = ''
 #         self.current_cursor_point = QPoint(0, 0)
 #         self.timer_double_click = QTimer(self)
 #         self.double_click = False
@@ -277,9 +277,9 @@ class ToolBarOfAttributes(QToolBar):
 #             data = self.indexAt(a0.localPos().toPoint()).data()
 #             self.current_cursor_point = a0.globalPos()
 #             if data is None:
-#                 self.obj_hovered_name = ''
+#                 self.obj_hovered_index = ''
 #             else:
-#                 self.obj_hovered_name = data
+#                 self.obj_hovered_index = data
 #
 #     def enterEvent(self, a0: QEvent) -> None:
 #         self.timer = QTimer(self)
@@ -291,9 +291,9 @@ class ToolBarOfAttributes(QToolBar):
 #     def timeout_handling(self):
 #         if self.first_timer_notification:
 #             self.first_timer_notification = False
-#             ohn = self.obj_hovered_name
+#             ohn = self.obj_hovered_index
 #             if ohn and (ohn not in self.parent().class_nodes):
-#                 self.send_data_hover.emit(self.obj_hovered_name)
+#                 self.send_data_hover.emit(self.obj_hovered_index)
 #
 #     def contextMenuEvent(self, a0: QContextMenuEvent):
 #         data = self.indexAt(a0.pos()).data()
@@ -523,7 +523,14 @@ class TreeToolBarWidget(QTreeView):
 
     def __init__(self):
         super().__init__()
+
         self.setMouseTracking(True)
+        self.timer = QTimer(self)
+        self.first_timer_notification = True
+        self.millisecs_of_notification = 1000
+        self.current_cursor_point = QPoint(0, 0)
+        self.obj_hovered_index = None
+
         self.tree_model = QStandardItemModel()
         self.root_node = self.tree_model.invisibleRootItem()
         self.setModel(self.tree_model)
@@ -544,7 +551,7 @@ class TreeToolBarWidget(QTreeView):
 
     def from_dict(self, d: DefaultOrderedDict):
         self.got_dict = d
-        # print("got d", id(d))
+        # print("got d", d)
         self.class_names.clear()
         self.obj_names.clear()
         self.index_to_str_tuple.clear()
@@ -567,14 +574,46 @@ class TreeToolBarWidget(QTreeView):
         for idx in self.expanded_indexes:
             self.expand(idx)
 
-    def mouseMoveEvent(self, a0: QMouseEvent) -> None:
-        if a0.buttons() == Qt.NoButton:
-            print("Simple mouse motion")
+    def enterEvent(self, a0: QEvent) -> None:
+        self.timer = QTimer(self)
+        super().enterEvent(a0)
+
+    def leaveEvent(self, a0: QEvent) -> None:
+        self.timer.stop()
+        super().leaveEvent(a0)
+
+    def mouseMoveEvent(self, a0: QEvent) -> None:
+        self.timer.stop()
+        self.timer.timeout.connect(self.timeout_handling)
+        self.timer.start(self.millisecs_of_notification)
+        self.first_timer_notification = True
+        if isinstance(a0, QMouseEvent):
+            idx = self.indexAt(a0.localPos().toPoint())
+            self.current_cursor_point = a0.globalPos()
+            if idx not in self.index_to_str_tuple:  # (data is None) or
+                self.obj_hovered_index = None
+            else:
+                self.obj_hovered_index = idx
         super().mouseMoveEvent(a0)
 
-    def onHovered(self, pnt):
-        print("HOVERED")
-        QToolTip.showText(pnt, "lala")
+    def timeout_handling(self):
+        if self.first_timer_notification:
+            self.first_timer_notification = False
+            ohn = self.obj_hovered_index
+            if not (ohn is None):
+                cls_name, obj_name = self.index_to_str_tuple[ohn]
+                attr_odict = self.got_dict[cls_name][obj_name]['attributes']
+                begin_str = obj_name  # "Attributes:"
+                result_str = ""
+                max_len = 0
+                for attr_name, attr_val in attr_odict.items():
+                    add_str = "{}: {}\n".format(attr_name, attr_val)
+                    max_len = len(add_str) if len(add_str) > max_len else max_len
+                    result_str += add_str
+                begin_str = begin_str.center(max_len)
+                result_str = begin_str + "\n" + result_str
+                print("begin str:", begin_str, "end")
+                QToolTip.showText(self.current_cursor_point, result_str[:-1])
 
     def mouseDoubleClickEvent(self, a0: QMouseEvent) -> None:
         idx = self.indexAt(a0.localPos().toPoint())
