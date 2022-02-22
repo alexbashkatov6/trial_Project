@@ -685,7 +685,7 @@ class MW(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setGeometry(40, 40, 1840, 980)
-        self.setWindowTitle('Main window')
+        self.setWindowTitle('Painter')
         self.stb = self.statusBar()
 
         # menus

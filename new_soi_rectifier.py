@@ -106,32 +106,28 @@ class StorageDG:
                 self.backup_soi[cls_name][obj_name] = obj
 
     def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]) -> \
-            None:  # DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]
-        # print("reload_from_dict")
+            None:
         self.save_state()
-
         self.reset_clean_storages()
 
-        # Stage 1 - names, nodes and their cells initialization
+        # Stage 1 - add names, nodes and their cells initialization
         for cls_name in od:
             for obj_name, obj in od[cls_name].items():
                 if obj_name == GLOBAL_CS_NAME:
                     continue
+                self.add_obj_to_soi(obj)
                 self.init_obj_node_dg(obj)
-        # print("soi", self.soi_objects)
 
-        # Stage 2 - nodes connections relied on formal requirements to attributes
+        # Stage 2 - nodes connections and attributes reload
         for cls_name in od:
             for obj_name, obj in od[cls_name].items():
                 if obj_name == GLOBAL_CS_NAME:
                     continue
-                self.insert_obj_to_dg(obj)
                 self.obj_attrib_evaluation(obj)
+                self.make_obj_conections(obj)
 
         # Stage 3 - check cycles
         self.full_check_cycle_dg()
-
-        # return backup_soi
 
     def obj_attrib_evaluation(self, obj: StationObjectImage):
         cls_name = obj.__class__.__name__
@@ -143,21 +139,22 @@ class StorageDG:
                     try:
                         obj.reload_attr_value(attr_name)
                     except AttributeEvaluateError as e:
-                        print("exception", e)
-                        print("type", type(e))
                         raise DBAttributeError(e.args[0], e.args[1])
+
+    def add_obj_to_soi(self, obj: StationObjectImage):
+        cls_name = obj.__class__.__name__
+        obj_name = obj.name
+        self.soi_objects[cls_name][obj_name] = obj
 
     def init_obj_node_dg(self, obj: StationObjectImage):
         cls_name = obj.__class__.__name__
         obj_name = obj.name
-        self.soi_objects[cls_name][obj_name] = obj
-        obj: StationObjectImage
         node = self.dg.insert_node()
         cell = ObjNodeCell(cls_name, obj_name)
         node.append_cell_obj(cell)
         self.to_self_node_dict[cls_name][obj_name] = node, cell
 
-    def insert_obj_to_dg(self, obj: StationObjectImage):
+    def make_obj_conections(self, obj: StationObjectImage):
         cls_name = obj.__class__.__name__
         obj_name = obj.name
         for attr_name in obj.active_attrs:
@@ -165,15 +162,14 @@ class StorageDG:
                     isinstance(descr := getattr(obj.__class__, attr_name), StationObjectDescriptor):
                 contains_cls_name = descr.contains_cls_name
                 obj_names_dict = self.soi_objects[contains_cls_name]
-                attr_prop_str_values = obj.list_attr_input_value(attr_name)
+                attr_prop_str_values = obj.list_attr_str_confirmed_value(attr_name)
                 for index, parent_name in enumerate(attr_prop_str_values):
                     if len(attr_prop_str_values) == 1:
                         index = -1
                     if parent_name in obj_names_dict:
                         self_node = self.to_self_node_dict[cls_name][obj_name][0]
                         parent_node = self.to_self_node_dict[contains_cls_name][parent_name][0]
-                        self.to_child_attribute_dict[contains_cls_name][parent_name].append(
-                            (obj, attr_name, index))
+                        self.to_child_attribute_dict[contains_cls_name][parent_name].append((obj, attr_name, index))
                         link = self.dg.connect_inf_handling(self_node.ni_pu, parent_node.ni_nd)
                         self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = link
                         self.link_to_attribute_dict[link] = AttributeData(cls_name, obj_name, attr_name, index)
@@ -265,8 +261,9 @@ class StorageDG:
     def apply_creation_current_object(self) -> tuple[str, str]:
         """ clean operation """
         # print("apply_creation")
+        self.add_obj_to_soi(self.current_object)
         self.init_obj_node_dg(self.current_object)
-        self.insert_obj_to_dg(self.current_object)
+        self.make_obj_conections(self.current_object)
         return self.current_object.__class__.__name__, self.current_object.name
 
     def change_attrib_value_main(self, attr_name: str, new_value: str, index: int = -1) -> str:

@@ -104,9 +104,9 @@ class CommandSupervisor:
                     attr_value: Union[AttribProperties, list[AttribProperties]] = getattr(obj, attr_name)
                     if isinstance(attr_value, list):
                         for i, attr_val in enumerate(attr_value):
-                            od_struct["attributes"]["{}_{}".format(attr_name, i+1)] = attr_val.last_input_value
+                            od_struct["attributes"]["{}_{}".format(attr_name, i+1)] = attr_val.str_confirmed_value
                     else:
-                        od_struct["attributes"][attr_name] = attr_value.last_input_value
+                        od_struct["attributes"][attr_name] = attr_value.str_confirmed_value
                 self.objs_dict[cls_name_str][obj_name] = od_struct
 
     def model_building(self, images: list[StationObjectImage]):

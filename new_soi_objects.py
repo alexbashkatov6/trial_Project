@@ -75,8 +75,9 @@ class ChangeAttribList:
 class AttribProperties:
     last_input_value: str = ""
     confirmed_value: Any = ""
-    # suggested_value: str = ""
-    #
+    str_confirmed_value: str = ""
+    suggested_value: str = ""
+
     # is_required: str = ""
     # count_requirement: str = ""
     # min_count: str = ""
@@ -182,6 +183,7 @@ class EnumDescriptor(UniversalDescriptor):
                 raise AEEnumValueAttributeError("Value '{}' not in possible list: '{}'".format(new_str_value,
                                                                                            self.possible_values), ad)
             ap.confirmed_value = new_str_value
+            ap.str_confirmed_value = new_str_value
 
 
 class StationObjectDescriptor(UniversalDescriptor):
@@ -208,6 +210,7 @@ class StationObjectDescriptor(UniversalDescriptor):
                 raise AEObjectNotFoundError("Object '{}' not found in class '{}'".format(new_str_value,
                                                                                          self.contains_cls_name), ad)
             ap.confirmed_value = self.obj_dict[new_str_value]
+            ap.str_confirmed_value = new_str_value
 
 
 class IntDescriptor(UniversalDescriptor):
@@ -221,6 +224,7 @@ class IntDescriptor(UniversalDescriptor):
         if new_str_value:
             try:
                 ap.confirmed_value = int(new_str_value)
+                ap.str_confirmed_value = new_str_value
             except ValueError:
                 raise AETypeAttributeError("Value '{}' is not int".format(new_str_value), ad)
 
@@ -236,6 +240,7 @@ class PicketDescriptor(UniversalDescriptor):
         if new_str_value:
             try:
                 ap.confirmed_value = PicketCoordinate(new_str_value).value
+                ap.str_confirmed_value = new_str_value
             except PicketCoordinateParsingCoError:
                 raise AETypeAttributeError("Value '{}' is not picket coordinate".format(new_str_value), ad)
 
@@ -268,20 +273,18 @@ class StationObjectImage:
                 self.change_attrib_value(attr_name, chal.preferred_value)
         # print("init success")
 
+    """ interface attribute setter """
     def change_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]], index: int = -1,
                             check_mode: bool = True):
 
         # set attr
-        # print("in change", attr_value)
         if attr_name == "name":
-            # print("setattr", attr_value)
             setattr(self, attr_name, attr_value)
             return
         else:
             descr: UniversalDescriptor = getattr(self.__class__, attr_name)
             if not descr.is_list:
                 assert isinstance(attr_value, str)
-                # print("check_mode_2", check_mode)
                 setattr(self, attr_name, (attr_value, check_mode))
             elif index == -1:
                 if isinstance(attr_value, str):
@@ -301,6 +304,14 @@ class StationObjectImage:
                 if add_value not in self.active_attrs:
                     self.active_attrs.insert(index_insert, add_value)
 
+    def reload_attr_value(self, attr_name: str):
+        attr_prop_values = getattr(self, attr_name)
+        if isinstance(attr_prop_values, AttribProperties):
+            self.change_attrib_value(attr_name, attr_prop_values.last_input_value)
+        else:
+            self.change_attrib_value(attr_name, self.list_attr_input_value(attr_name))
+
+    """ interface list attribute input str getter """
     def list_attr_input_value(self, attr_name: str):
         attr_prop_values = getattr(self, attr_name)
         if isinstance(attr_prop_values, AttribProperties):
@@ -313,20 +324,16 @@ class StationObjectImage:
         laiv = self.list_attr_input_value(attr_name)
         return laiv[index] if index != -1 else laiv[0]
 
-    def reload_attr_value(self, attr_name: str):
-        # print("reload", attr_name)
+    """ interface list attribute str confirmed value getter """
+    def list_attr_str_confirmed_value(self, attr_name: str):
         attr_prop_values = getattr(self, attr_name)
         if isinstance(attr_prop_values, AttribProperties):
-            # print("AttribProperties", attr_name)
-            self.change_attrib_value(attr_name, attr_prop_values.last_input_value)
-        else:
-            # print("List", attr_name)
-            self.change_attrib_value(attr_name, self.list_attr_input_value(attr_name))
+            attr_prop_values = [attr_prop_values]
+        return [apv.str_confirmed_value for apv in attr_prop_values]
 
-    def acv(self, attr_name: str):
-        """ attrib confirmed value """
+    """ interface list attribute confirmed value getter """
+    def attr_confirmed_value(self, attr_name: str):
         attr_prop_values = getattr(self, attr_name)
-        # print("attr_prop_values", attr_prop_values)
         if isinstance(attr_prop_values, AttribProperties):
             return attr_prop_values.confirmed_value
         else:
