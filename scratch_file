@@ -1151,3 +1151,48 @@ class SOIListValues:
         print(len(dg.nodes))
         print(len(dg.links))
         print(dg.links)
+
+
+        # route_nodes = set()
+        # for route in routes:
+        #     route_nodes |= set(route.nodes)
+        # if len(route_nodes) < len(self.dg.nodes):
+        #     nodes = self.dg.nodes - route_nodes
+        #     """ find groups of isolated nodes """
+        #     node_groups = []
+        #     nodes_included = set()
+        #     ad_list = []
+        #     for node in nodes:
+        #         if node not in nodes_included:
+        #             local_route_nodes = set()
+        #             local_routes = self.dg.walk(node.ni_nd)
+        #             for local_route in local_routes:
+        #                 local_route_nodes |= set(local_route.nodes)
+        #             node_groups.append(local_route_nodes)
+        #             nodes_included |= local_route_nodes
+        #     for node_group in node_groups:
+        #         cells = [element_cell_by_type(node, ObjNodeCell) for node in node_group]
+        #         cls_obj_names = [(cell.cls_name, cell.obj_name) for cell in cells]
+        #         for cell in cells:
+        #             parent_cls_name = cell.cls_name
+        #             parent_obj_name = cell.obj_name
+        #             tca_tuple_list = self.to_child_attribute_dict[parent_cls_name][parent_obj_name]
+        #             child_obj, child_attr_name, child_attr_index = None, None, None
+        #             for tca_tuple in tca_tuple_list:
+        #                 obj = tca_tuple[0]
+        #                 if (obj.__class__.__name__, obj.name) in cls_obj_names:
+        #                     child_obj, child_attr_name, child_attr_index = tca_tuple
+        #                     break
+        #             assert child_obj
+        #             ad_list.append(AttributeData(child_obj.__class__.__name__, child_obj.name,
+        #                                          child_attr_name, child_attr_index))
+        #     raise DBIsolatedNodesError("Isolated cycles in dependencies was found", ad_list)
+            # obj_names: list[str] = [(cell.cls_name, cell.obj_name) for cell in cells]
+            # raise DBIsolatedNodesError("Isolated cycles in dependencies was found",
+            #                            [AttributeData(cls_name, obj_name, "") for cls_name, obj_name in obj_names])
+
+
+                # cells: list[str] = [element_cell_by_type(node, ObjNodeCell) for node in route_.cycle_nodes]
+                # obj_names: list[str] = [(cell.cls_name, cell.obj_name) for cell in cells]
+                # raise DBCycleError("Cycle in dependencies was found",
+                #                    [AttributeData(cls_name, obj_name, "") for cls_name, obj_name in obj_names])

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Union, Iterable, Optional
 from collections import OrderedDict, defaultdict
-from copy import deepcopy
+from copy import deepcopy, copy
 
 from cell_object import CellObject
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Link, NodeInterface
@@ -12,6 +12,7 @@ from new_soi_objects import StationObjectImage, StationObjectDescriptor, AttribP
 from soi_files_handler import read_station_config
 from extended_itertools import flatten
 from cell_access_functions import find_cell_name, element_cell_by_type
+from attribute_data import AttributeData
 
 from config_names import GLOBAL_CS_NAME
 
@@ -51,6 +52,7 @@ class StorageDG:
         self.to_self_node_dict: defaultdict[str, dict[str, tuple[PolarNode, ObjNodeCell]]] = defaultdict(dict)
         self.to_child_attribute_dict: defaultdict[str, defaultdict[str, list[tuple]]] = \
             defaultdict(lambda: defaultdict(list))
+        self.link_to_attribute_dict: dict[Link, AttributeData] = {}
         self.to_parent_link_dict: defaultdict[str, defaultdict[str, defaultdict[str, dict[int, Link]]]] = \
             defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         self.dg = OneComponentTwoSidedPG()
@@ -92,6 +94,7 @@ class StorageDG:
         self.to_self_node_dict["CoordinateSystemSOI"][GLOBAL_CS_NAME] = self.gcs_node, gcs_cell
 
         self.to_child_attribute_dict.clear()
+        self.link_to_attribute_dict.clear()
 
         self.to_parent_link_dict.clear()
         print("soi_objects", self.soi_objects)
@@ -106,10 +109,6 @@ class StorageDG:
             None:  # DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]
         print("reload_from_dict")
         self.save_state()
-        # backup_soi = DefaultOrderedDict(OrderedDict)
-        # for cls_name in self.soi_objects:
-        #     for obj_name, obj in self.soi_objects[cls_name].items():
-        #         backup_soi[cls_name][obj_name] = obj
 
         self.reset_clean_storages()
 
@@ -144,7 +143,7 @@ class StorageDG:
                     try:
                         obj.reload_attr_value(attr_name)
                     except AttributeEvaluateError as e:
-                        raise DBAttributeError(cls_name, obj_name, attr_name, e.args[0])
+                        raise DBAttributeError(e.args[0], e.args[1])
 
     def init_obj_node_dg(self, obj: StationObjectImage):
         cls_name = obj.__class__.__name__
@@ -175,20 +174,22 @@ class StorageDG:
                             (obj, attr_name, index))
                         link = self.dg.connect_inf_handling(self_node.ni_pu, parent_node.ni_nd)
                         self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = link
+                        self.link_to_attribute_dict[link] = AttributeData(cls_name, obj_name, attr_name, index)
 
     def full_check_cycle_dg(self):
         routes = self.dg.walk(self.dg.inf_pu.ni_nd)
-        route_nodes = set()
+        route_links = set()
         for route in routes:
-            route_nodes |= set(route.nodes)
-        if len(route_nodes) < len(self.dg.nodes):
-            nodes = self.dg.nodes - route_nodes
-            obj_names: list[str] = [element_cell_by_type(node, ObjNodeCell).obj_name for node in nodes]
-            raise DBIsolatedNodesError("", ", ".join(obj_names), "", "Isolated cycle in dependencies was found")
+            route_links |= set(route.links)
+        if len(route_links) < len(self.dg.links):
+            links = self.dg.links - route_links
+            raise DBIsolatedNodesError("Isolated cycles in dependencies was found",
+                                       [self.link_to_attribute_dict[link] for link in links])
         for route_ in routes:
             if route_.is_cycle:
-                obj_names: list[str] = [element_cell_by_type(node, ObjNodeCell).obj_name for node in route_.cycle_nodes]
-                raise DBCycleError("", ", ".join(obj_names), "", "Cycle in dependencies was found")
+                links = route_.cycle_links
+                raise DBCycleError("Cycle in dependencies was found",
+                                   [self.link_to_attribute_dict[link] for link in links])
 
     def rectify_dg(self) -> list[StationObjectImage]:
         nodes: list[PolarNode] = list(flatten(self.dg.longest_coverage()))[1:]  # without Global CS
@@ -281,7 +282,8 @@ class StorageDG:
 
         if attr_name == "name":
             if new_value in obj_dict:
-                raise DBExistingNameError(cls_name, obj_name, "name", "Name {} already exists".format(new_value))
+                raise DBExistingNameError("Name {} already exists".format(new_value),
+                                          AttributeData(cls_name, obj_name, attr_name))
             if self.current_object_is_new:
                 self.current_object.change_attrib_value("name", new_value)
             else:
@@ -344,13 +346,12 @@ class StorageDG:
                 routes = dirty_dg.walk(ni)
                 for route_ in routes:
                     if route_.is_cycle:
-                        end_node = route_.nodes[-1]
-                        obj_name = element_cell_by_type(end_node, ObjNodeCell).obj_name
-                        raise DBCycleError(cls_name, obj_name, attr_name, "Cycle in dependencies was found")
+                        links = route_.cycle_links
+                        raise DBCycleError("Cycle in dependencies was found",
+                                           [self.link_to_attribute_dict[link] for link in links])
             return link_dg, (self_node.ni_pu, parent_node.ni_nd)
 
     def change_attrib_value_existing(self, attr_name: str, new_value: str, index: int):
-        """ dirty operation """
         cls_name = self.current_object.__class__.__name__
         obj_name = self.current_object.name
         obj = self.current_object
@@ -360,9 +361,11 @@ class StorageDG:
             try_result = self.try_change_attr_value(cls_name, obj_name, attr_name, new_value, index, contains_cls_name)
             if not (try_result is None):
                 old_link, new_ni_tuple = try_result
+                self.link_to_attribute_dict.pop(old_link)
                 self.dg.disconnect_inf_handling(*old_link.ni_s)
                 new_link = self.dg.connect_inf_handling(*new_ni_tuple)
                 self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = new_link
+                self.link_to_attribute_dict[new_link] = AttributeData(cls_name, obj_name, attr_name, index)
         obj.change_attrib_value(attr_name, new_value, index)
 
 

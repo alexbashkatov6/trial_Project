@@ -316,6 +316,17 @@ class Route:
                 break
         return self.nodes[loop_begin_index:-1]
 
+    @property
+    def cycle_links(self) -> list[Link]:
+        assert self.is_cycle
+        end_pn = self.end_enter_ni.pn
+        loop_begin_index = 0
+        for i, node in enumerate(self.nodes[:-1]):
+            if node is end_pn:
+                loop_begin_index = i
+                break
+        return self.links[loop_begin_index:]
+
     def get_slice(self, start_ni: NodeInterface = None, end_enter_ni: NodeInterface = None) -> Route:
         if start_ni is None:
             start_ni = self.start_ni

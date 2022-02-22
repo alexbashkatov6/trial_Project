@@ -5,6 +5,7 @@ import pandas as pd
 from new_soi_objects import StationObjectImage, AttributeEvaluateError
 from default_ordered_dict import DefaultOrderedDict
 from form_exception_message import form_message_from_error
+from attribute_data import AttributeData
 
 
 class ReadFileNameError(Exception):
@@ -42,16 +43,17 @@ def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[st
                     attr_val = attr_val.split(" ")
                 if attr_name == "name":
                     if not attr_val:
-                        raise RFNoNameError(cls_name_del_soi, "", "name", "No-name-object in class")
+                        raise RFNoNameError("No-name-object in class", AttributeData(cls_name_del_soi, "", "name"))
                     if attr_val in result[cls_name_soi]:
-                        raise RFExistingNameError(cls_name_del_soi, attr_val, "name", "Name already exists")
+                        raise RFExistingNameError("Name already exists", AttributeData(cls_name_del_soi, attr_val,
+                                                                                       "name"))
                     result[cls_name_soi][attr_val] = new_obj
                     new_obj.change_attrib_value(attr_name, attr_val, check_mode=False)
                 else:
                     try:
                         new_obj.change_attrib_value(attr_name, attr_val, check_mode=False)
                     except AttributeEvaluateError as e:
-                        raise RFAttributeError(cls_name_del_soi, new_obj.name, attr_name, e.args[0])
+                        raise RFAttributeError(e.args[0], AttributeData(cls_name_del_soi, new_obj.name, attr_name))
 
     return result
 

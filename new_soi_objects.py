@@ -11,6 +11,7 @@ from picket_coordinate import PicketCoordinate, PicketCoordinateParsingCoError
 from default_ordered_dict import DefaultOrderedDict
 # from attrib_properties import AttribProperties
 # from attrib_index import CompositeAttributeIndex
+from attribute_data import AttributeData
 
 from config_names import GLOBAL_CS_NAME
 
@@ -108,8 +109,7 @@ class UniversalDescriptor:
         return getattr(instance, "_{}".format(self.name))
 
     def __set__(self, instance, value: tuple[Union[str, list[str]], bool, Optional[IndexManagementCommand]]):
-
-        ap_for_handle_list = []
+        ad = AttributeData(instance.__class__.__name__, instance.name, self.name)
         check_mode = value[1]
         if not self.is_list:
             assert isinstance(value[0], str)
@@ -119,11 +119,12 @@ class UniversalDescriptor:
                 setattr(instance, "_{}".format(self.name), ap_for_handle)
             else:
                 ap_for_handle = getattr(instance, "_{}".format(self.name))
-            self.handling_ap(ap_for_handle, str_value, check_mode)
+            self.handling_ap(ap_for_handle, str_value, check_mode, ad)
         else:
             assert len(value) == 3
             command = value[2].command
             index = value[2].index
+            ad.index = index
 
             if not hasattr(instance, "_{}".format(self.name)):
                 setattr(instance, "_{}".format(self.name), [])
@@ -138,20 +139,17 @@ class UniversalDescriptor:
                     old_ap_list.append(ap_for_handle)
                 if command == "set_index":
                     ap_for_handle = old_ap_list[index]
-                self.handling_ap(ap_for_handle, str_value, check_mode)
+                self.handling_ap(ap_for_handle, str_value, check_mode, ad)
             elif command == "set_list":
                 old_ap_list.clear()
                 str_list: list[str] = value[0]
                 for str_value in str_list:
                     str_value = str_value.strip()
                     ap_for_handle = AttribProperties()
-                    self.handling_ap(ap_for_handle, str_value, check_mode)
+                    self.handling_ap(ap_for_handle, str_value, check_mode, ad)
                     old_ap_list.append(ap_for_handle)
 
-        for ap_for_handle_ in ap_for_handle_list:
-            self.handling_ap(ap_for_handle_, str_value, check_mode)
-
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
         ap.last_input_value = new_str_value
 
 
@@ -173,12 +171,12 @@ class EnumDescriptor(UniversalDescriptor):
     def possible_values(self, values: Iterable[str]):
         self._possible_values = list(values)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
-        super().handling_ap(ap, new_str_value, check_mode)
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
+        super().handling_ap(ap, new_str_value, check_mode, ad)
         if new_str_value:  #  and self.possible_values
             if new_str_value not in self.possible_values:
                 raise AEEnumValueAttributeError("Value '{}' not in possible list: '{}'".format(new_str_value,
-                                                                                           self.possible_values))
+                                                                                           self.possible_values), ad)
             ap.confirmed_value = new_str_value
 
 
@@ -198,15 +196,12 @@ class StationObjectDescriptor(UniversalDescriptor):
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
         self._obj_dict = odict
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
-        # print("check_mode", check_mode)
-        super().handling_ap(ap, new_str_value, check_mode)
-        # print("new_str_value1", new_str_value)
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
+        super().handling_ap(ap, new_str_value, check_mode, ad)
         if new_str_value and check_mode:
-            # print("new_str_value", new_str_value)
             if new_str_value not in self.obj_dict:
                 raise AEObjectNotFoundError("Object '{}' not found in class '{}'".format(new_str_value,
-                                                                                     self.contains_cls_name))
+                                                                                     self.contains_cls_name), ad)
             ap.confirmed_value = self.obj_dict[new_str_value]
 
 
@@ -216,13 +211,13 @@ class IntDescriptor(UniversalDescriptor):
                  min_count: int = -1, exactly_count: int = -1):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
-        super().handling_ap(ap, new_str_value, check_mode)
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
+        super().handling_ap(ap, new_str_value, check_mode, ad)
         if new_str_value:
             try:
                 ap.confirmed_value = int(new_str_value)
             except ValueError:
-                raise AETypeAttributeError("Value '{}' is not int".format(new_str_value))
+                raise AETypeAttributeError("Value '{}' is not int".format(new_str_value), ad)
 
 
 class PicketDescriptor(UniversalDescriptor):
@@ -231,13 +226,13 @@ class PicketDescriptor(UniversalDescriptor):
                  min_count: int = -1, exactly_count: int = -1):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool):
-        super().handling_ap(ap, new_str_value, check_mode)
+    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
+        super().handling_ap(ap, new_str_value, check_mode, ad)
         if new_str_value:
             try:
                 ap.confirmed_value = PicketCoordinate(new_str_value).value
             except PicketCoordinateParsingCoError:
-                raise AETypeAttributeError("Value '{}' is not picket coordinate".format(new_str_value))
+                raise AETypeAttributeError("Value '{}' is not picket coordinate".format(new_str_value), ad)
 
 
 class StationObjectImage:

@@ -612,7 +612,7 @@ class TreeToolBarWidget(QTreeView):
                     result_str += add_str
                 begin_str = begin_str.center(max_len)
                 result_str = begin_str + "\n" + result_str
-                print("begin str:", begin_str, "end")
+                # print("begin str:", begin_str, "end")
                 QToolTip.showText(self.current_cursor_point, result_str[:-1])
 
     def mouseDoubleClickEvent(self, a0: QMouseEvent) -> None:

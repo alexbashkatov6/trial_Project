@@ -15,6 +15,7 @@ from xml_formation import form_rail_routes_xml
 from mo_objects import ModelObject, CoordinateSystemMO, AxisMO, PointMO, LineMO, LightMO, RailPointMO, BorderMO, \
     SectionMO
 from default_ordered_dict import DefaultOrderedDict
+from attribute_data import AttributeData
 
 from config_names import GLOBAL_CS_NAME
 
@@ -118,15 +119,17 @@ class ModelBuilder:
                     angle = 0
                 else:
                     center_point_soi: PointSOI = image.acv("center_point")
-                    print("center_point_soi", center_point_soi)
+                    # print("center_point_soi", center_point_soi)
                     center_point_mo: PointMO = self.names_mo["Point"][center_point_soi]
                     center_point_x = center_point_mo.x
                     center_point_y = center_point_mo.y
                     angle = image.acv("alpha")
                     if center_point_soi.acv("on") == "line":
-                        raise MBSkeletonError(cls_name, obj_name, "Building axis by point on line is impossible")
+                        raise MBSkeletonError("Building axis by point on line is impossible",
+                                              AttributeData(cls_name, obj_name, "center_point"))
                     if Angle(angle) == Angle(math.pi/2):
-                        raise MBSkeletonError(cls_name, obj_name, "Building vertical axis is impossible")
+                        raise MBSkeletonError("Building vertical axis is impossible",
+                                              AttributeData(cls_name, obj_name, "alpha"))
                 line2D = Line2D(Point2D(center_point_x, center_point_y), angle=Angle(angle))
 
                 model_object = AxisMO(line2D)
@@ -139,7 +142,8 @@ class ModelBuilder:
                     except ParallelLinesException:
                         continue
                     except EquivalentLinesException:
-                        raise MBSkeletonError(cls_name, obj_name, "Cannot re-build existing axis")
+                        raise MBSkeletonError("Cannot re-build existing axis",
+                                              AttributeData(cls_name, obj_name, ""))
 
                 if image.acv("creation_method") == "rotational":
                     center_point_soi: PointSOI = image.acv("center_point")
@@ -158,12 +162,12 @@ class ModelBuilder:
                         pnt2D_y = line.boundedCurves[0].y_by_x(point_x)
                     except OutBorderException:
                         if len(line.boundedCurves) == 1:
-                            raise MBSkeletonError(cls_name, obj_name, "Point out of borders")
+                            raise MBSkeletonError("Point out of borders", AttributeData(cls_name, obj_name, "x"))
                         else:
                             try:
                                 pnt2D_y = line.boundedCurves[1].y_by_x(point_x)
                             except OutBorderException:
-                                raise MBSkeletonError(cls_name, obj_name, "Point out of borders")
+                                raise MBSkeletonError("Point out of borders", AttributeData(cls_name, obj_name, "x"))
                     pnt2D = Point2D(point_x, pnt2D_y)
 
                 model_object = PointMO(pnt2D)
@@ -174,7 +178,7 @@ class ModelBuilder:
                     try:
                         evaluate_vector(model_object.point2D, model_object_2.point2D)
                     except PointsEqualException:
-                        raise MBSkeletonError(cls_name, obj_name, "Cannot re-build existing point")
+                        raise MBSkeletonError("Cannot re-build existing point", AttributeData(cls_name, obj_name, ""))
 
                 if image.acv("on") == "axis":
                     axis: AxisMO = self.names_mo["Axis"][image.acv("axis").name]
@@ -188,14 +192,15 @@ class ModelBuilder:
                 points_so: list[PointSOI] = image.acv("points")
                 points_mo: list[PointMO] = [self.names_mo["Point"][point.name] for point in points_so]
                 if len(points_mo) != 2:
-                    raise MBSkeletonError(cls_name, obj_name, "points", "Count of points should be == 2")
+                    raise MBSkeletonError("Count of points should be == 2", AttributeData(cls_name, obj_name, "points"))
                 point_1, point_2 = points_mo[0], points_mo[1]
                 axises_mo: list[AxisMO] = []
-                for point_so in points_so:
+                for i, point_so in enumerate(points_so):
                     if point_so.acv("on") == "line":
                         line_mo: LineMO = self.names_mo["Line"][point_so.acv("line").name]
                         if not line_mo.axis:
-                            raise MBSkeletonError(cls_name, obj_name, "Cannot build line by point on line")
+                            raise MBSkeletonError("Cannot build line by point on line",
+                                                  AttributeData(cls_name, obj_name, "points", i))
                         axises_mo.append(line_mo.axis)
                     else:
                         axis_mo: AxisMO = self.names_mo["Axis"][point_so.acv("axis").name]
@@ -274,7 +279,8 @@ class ModelBuilder:
             if (line.min_point.x > old_line.max_point.x) or (old_line.min_point.x > line.max_point.x):
                 continue
             else:
-                raise MBSkeletonError("Line", old_line.name, "lines intersection on axis found")
+                raise MBSkeletonError("Lines intersection on axis found",
+                                      AttributeData("Line", old_line.name, "points"))
         on_line_points = axis_points[axis_points.index(line.min_point):axis_points.index(line.max_point)+1]
         last_nd_interface = self.smg.inf_pu.ni_nd
         for line_point in reversed(on_line_points):
@@ -308,14 +314,16 @@ class ModelBuilder:
                 direct_point: PointMO = self.names_mo["Point"][image.acv("direct_point").name]
 
                 if center_point is direct_point:
-                    raise MBEquipmentError(cls_name, obj_name, "Direction point is equal to central point")
+                    raise MBEquipmentError("Direction point is equal to central point",
+                                           AttributeData(cls_name, obj_name, "direct_point"))
 
                 # check direction
                 center_point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, center_point.name)[1]
                 direct_point_node = find_cell_name(self.smg.not_inf_nodes, PointCell, direct_point.name)[1]
                 routes_node_to_node = self.smg.routes_node_to_node(center_point_node, direct_point_node)
                 if not routes_node_to_node:
-                    raise MBEquipmentError(cls_name, obj_name, "Route from central point to direction point not found")
+                    raise MBEquipmentError("Route from central point to direction point not found",
+                                           AttributeData(cls_name, obj_name, "direct_point"))
 
                 model_object = LightMO(image.acv("light_route_type"), routes_node_to_node[1].end_str,
                                        image.acv("colors"), image.acv("light_stick_type"))
@@ -343,16 +351,19 @@ class ModelBuilder:
                 plus_routes, ni_plus = self.smg.routes_node_to_node(center_point_node, plus_point_node)
                 minus_routes, ni_minus = self.smg.routes_node_to_node(center_point_node, minus_point_node)
                 if not plus_routes:
-                    raise MBEquipmentError(cls_name, obj_name, "Route from central point to '+' point not found")
+                    raise MBEquipmentError("Route from central point to '+' point not found",
+                                           AttributeData(cls_name, obj_name, "dir_plus_point"))
                 if not minus_routes:
-                    raise MBEquipmentError(cls_name, obj_name, "Route from central point to '-' point not found")
+                    raise MBEquipmentError("Route from central point to '-' point not found",
+                                           AttributeData(cls_name, obj_name, "dir_minus_point"))
                 for plus_route in plus_routes:
                     for minus_route in minus_routes:
                         if plus_route.partially_overlaps(minus_route):
-                            raise MBEquipmentError(cls_name, obj_name,
-                                                   "Cannot understand '+' and '-' directions because their overlaps")
+                            raise MBEquipmentError("Cannot understand '+' and '-' directions because their overlaps",
+                                                   AttributeData(cls_name, obj_name, "dir_minus_point"))
                 if not (ni_plus is ni_minus):
-                    raise MBEquipmentError(cls_name, obj_name, "Defined '+' or '-' direction is equal to 0-direction")
+                    raise MBEquipmentError("Defined '+' or '-' direction is equal to 0-direction",
+                                           AttributeData(cls_name, obj_name, "dir_minus_point"))
 
                 # + and - move cells
                 plus_route = plus_routes[0]
@@ -400,7 +411,8 @@ class ModelBuilder:
                                                 for point in border_points]
                 closed_links, closed_nodes = self.smg.closed_links_nodes(point_nodes)
                 if not closed_links:
-                    raise MBEquipmentError(cls_name, obj_name, "No closed links found")
+                    raise MBEquipmentError("No closed links found",
+                                           AttributeData(cls_name, obj_name, "border_points"))
 
                 # check links sections and make cells
                 for link in closed_links:
@@ -409,7 +421,8 @@ class ModelBuilder:
                     except NotFoundCellError:
                         pass
                     else:
-                        raise MBEquipmentError(cls_name, obj_name, "Section in link already exists")
+                        raise MBEquipmentError("Section in link already exists",
+                                               AttributeData(cls_name, obj_name, "border_points"))
                     link.append_cell_obj(IsolatedSectionCell(image.name))
 
                 # section type and rail points evaluations
@@ -432,8 +445,9 @@ class ModelBuilder:
                         except NotFoundCellError:
                             continue
                         light_names[light_cell.name] = ni
-                    if not light_names:
-                        raise MBEquipmentError(cls_name, obj_name, "Found segment section |-----| with 0 border lights")
+                    # if not light_names:
+                    #     raise MBEquipmentError(cls_name, obj_name,
+                    #                            "Found segment section |-----| with 0 border lights")
                     if len(light_names) == 2:
                         section_type = CESectionType(CESectionType.shunt_stop)
                         for light_name in light_names:
