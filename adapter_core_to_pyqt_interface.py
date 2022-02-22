@@ -21,7 +21,8 @@ class AdapterCorePyqtInterface(QObject):
     def check_statuses(self):
         if self.cmd_sup.objs_dict_changed:
             self.cmd_sup.objs_dict_changed = False
-            self.form_cls_obj_dict()
+            self.send_cls_obj_dict.emit(self.cmd_sup.objs_dict)
+            # self.form_cls_obj_dict()
         if error_message := self.cmd_sup.error_message:
             self.send_error_message.emit(error_message)
             self.cmd_sup.error_message = ""

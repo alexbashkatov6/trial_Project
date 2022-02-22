@@ -97,7 +97,7 @@ class StorageDG:
         self.link_to_attribute_dict.clear()
 
         self.to_parent_link_dict.clear()
-        print("soi_objects", self.soi_objects)
+        # print("soi_objects", self.soi_objects)
 
     def save_state(self):
         self.backup_soi = DefaultOrderedDict(OrderedDict)
@@ -107,7 +107,7 @@ class StorageDG:
 
     def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]) -> \
             None:  # DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]
-        print("reload_from_dict")
+        # print("reload_from_dict")
         self.save_state()
 
         self.reset_clean_storages()

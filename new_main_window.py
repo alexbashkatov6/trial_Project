@@ -571,6 +571,9 @@ class TreeToolBarWidget(QTreeView):
                 # item_obj.setSelectable(False)
                 item_class.appendRow(item_obj)
                 self.index_to_str_tuple[item_obj.index()] = (class_name, obj_name)
+                if d[class_name][obj_name]["error_status"]:
+                    item_obj.setData(QColor('red'), Qt.ForegroundRole)
+                    item_class.setData(QColor('red'), Qt.ForegroundRole)
         for idx in self.expanded_indexes:
             self.expand(idx)
 

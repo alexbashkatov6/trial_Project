@@ -12,6 +12,7 @@ from extended_itertools import single_element
 from soi_files_handler import read_station_config, ReadFileNameError
 from form_exception_message import form_message_from_error
 from default_ordered_dict import DefaultOrderedDict
+from attribute_data import AttributeData
 
 from config_names import STATION_IN_CONFIG_FOLDER, GLOBAL_CS_NAME
 
@@ -163,6 +164,7 @@ class CommandSupervisor:
             try:
                 self.storage.reload_from_dict(new_objects)
             except DependenciesBuildError as e:
+                self.form_error_objects(e)
                 self.common_status = form_message_from_error(e)
                 self.error_message = form_message_from_error(e)
                 return backward_arg
@@ -170,6 +172,7 @@ class CommandSupervisor:
             try:
                 self.model_building(self.storage.rectify_dg())
             except ModelBuildError as e:
+                self.form_error_objects(e)
                 self.common_status = form_message_from_error(e)
                 self.error_message = form_message_from_error(e)
                 return backward_arg
@@ -189,6 +192,15 @@ class CommandSupervisor:
             old_value = self.storage.change_attrib_value_main(attr_name, new_value, index)
             backward_arg = [attr_name, old_value, index]
             return backward_arg
+
+    def form_error_objects(self, e: Exception):
+        self.form_cls_obj_dict()
+        ad_list = e.args[1]
+        if not isinstance(ad_list, list):
+            ad_list = [ad_list]
+        for ad in ad_list:
+            ad: AttributeData
+            self.objs_dict[ad.cls_name.replace("SOI", "")][ad.obj_name]["error_status"] = e.args[0]
 
     def try_execute_command(self, command):
         backward_arg = self.execute_command(command)
