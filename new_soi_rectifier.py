@@ -143,6 +143,8 @@ class StorageDG:
                     try:
                         obj.reload_attr_value(attr_name)
                     except AttributeEvaluateError as e:
+                        print("exception", e)
+                        print("type", type(e))
                         raise DBAttributeError(e.args[0], e.args[1])
 
     def init_obj_node_dg(self, obj: StationObjectImage):

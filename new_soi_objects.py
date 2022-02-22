@@ -124,7 +124,8 @@ class UniversalDescriptor:
             assert len(value) == 3
             command = value[2].command
             index = value[2].index
-            ad.index = index
+            # print("in set", value)
+            # print("in set", instance.__class__.__name__, instance.name, self.name, command, index)
 
             if not hasattr(instance, "_{}".format(self.name)):
                 setattr(instance, "_{}".format(self.name), [])
@@ -138,12 +139,15 @@ class UniversalDescriptor:
                     ap_for_handle = AttribProperties()
                     old_ap_list.append(ap_for_handle)
                 if command == "set_index":
+                    ad.index = index
                     ap_for_handle = old_ap_list[index]
                 self.handling_ap(ap_for_handle, str_value, check_mode, ad)
             elif command == "set_list":
                 old_ap_list.clear()
                 str_list: list[str] = value[0]
-                for str_value in str_list:
+                for i, str_value in enumerate(str_list):
+                    ad = AttributeData(instance.__class__.__name__, instance.name, self.name)
+                    ad.index = i
                     str_value = str_value.strip()
                     ap_for_handle = AttribProperties()
                     self.handling_ap(ap_for_handle, str_value, check_mode, ad)
@@ -200,8 +204,9 @@ class StationObjectDescriptor(UniversalDescriptor):
         super().handling_ap(ap, new_str_value, check_mode, ad)
         if new_str_value and check_mode:
             if new_str_value not in self.obj_dict:
+                print("ad", ad)
                 raise AEObjectNotFoundError("Object '{}' not found in class '{}'".format(new_str_value,
-                                                                                     self.contains_cls_name), ad)
+                                                                                         self.contains_cls_name), ad)
             ap.confirmed_value = self.obj_dict[new_str_value]
 
 

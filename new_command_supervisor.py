@@ -177,6 +177,7 @@ class CommandSupervisor:
                 self.error_message = form_message_from_error(e)
                 return backward_arg
 
+            self.form_cls_obj_dict()
             self.common_status = "Objects successfully loaded from file"
             return backward_arg
 
