@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 
@@ -23,24 +25,32 @@ class ClassProperties(InterfaceExchange):
 
 @dataclass
 class ObjectProperties(InterfaceExchange):
-    name: str = ""
+    name: str = ""  # which is title
     error_message: str = ""
     attrib_list: list = field(default_factory=list)
+    active_attrs: list[ComplexAttribProperties] = field(default_factory=list)
 
 
 @dataclass
 class ComplexAttribProperties(InterfaceExchange):
-    name: str = ""
-    req_count: int = -1
+    name: str = ""  # which is attribute
+    temporary_value: str = ""
     is_list: bool = False
+    req_strict_count: int = -1
+    req_min_count: int = -1
     is_mutable: bool = False
-    single_attr_list: list = field(default_factory=list)
+    single_attr_list: list[SingleAttribProperties] = field(default_factory=list)
 
 
 @dataclass
 class SingleAttribProperties(InterfaceExchange):
     index: int = -1
-    str_value: str = ""
+
+    last_input_str_value: str = ""
+    last_applied_str_value: str = ""
+    suggested_str_value: str = ""
+    interface_str_value: str = ""
+
     is_suggested: bool = False
     is_required: bool = False
     error_message: str = ""

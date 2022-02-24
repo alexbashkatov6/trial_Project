@@ -12,8 +12,8 @@ from extended_itertools import single_element
 from soi_files_handler import read_station_config, ReadFileNameError
 from form_exception_message import form_message_from_error
 from default_ordered_dict import DefaultOrderedDict
-from attribute_data import AttributeData
-from attrib_and_object_properties import ObjectProperties, ComplexAttribProperties, SingleAttribProperties
+from attribute_data import AttributeErrorData
+from dataclass_properties import ObjectProperties, ComplexAttribProperties, SingleAttribProperties
 
 from config_names import STATION_IN_CONFIG_FOLDER, GLOBAL_CS_NAME
 
@@ -212,7 +212,7 @@ class CommandSupervisor:
         if not isinstance(ad_list, list):
             ad_list = [ad_list]
         for ad in ad_list:
-            ad: AttributeData
+            ad: AttributeErrorData
             self.objs_dict[ad.cls_name.replace("SOI", "")][ad.obj_name]["error_status"] = e.args[0]
 
     def try_execute_command(self, command):

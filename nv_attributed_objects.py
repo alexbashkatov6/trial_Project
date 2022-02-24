@@ -359,7 +359,7 @@ class CommonAttributeInterface(QObject):
                 cell.status_check = ''
                 cell.value = None
                 GDM.auto_set_name(cell, obj)
-                if cell.str_value:
+                if cell.interface_str_value:
                     try:
                         GDM.check_syntax(cell, obj)
                         GDM.check_type(cell)
@@ -372,13 +372,13 @@ class CommonAttributeInterface(QObject):
             if (cell.cell_type == 'common_splitter') or (cell.cell_type == 'bool_splitter'):
                 str_value = cells_set_list[i + 1].pop().name
                 cls = get_class_by_str(cell.str_req)
-                cell.str_value = str_value
-                af = AttributeFormat(BSSAttributeType('splitter'), out_name, cell.str_value, cls.unique_values)
+                cell.interface_str_value = str_value
+                af = AttributeFormat(BSSAttributeType('splitter'), out_name, cell.interface_str_value, cls.unique_values)
                 cell.active = True
             elif cell.cell_type == 'no_check':
                 af = AttributeFormat(BSSAttributeType('title'), out_name)
             else:
-                af = AttributeFormat(BSSAttributeType('form'), out_name, cell.str_value)
+                af = AttributeFormat(BSSAttributeType('form'), out_name, cell.interface_str_value)
                 cell.active = True
 
             af.status_check = cell.status_check

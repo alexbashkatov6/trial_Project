@@ -213,3 +213,5 @@ print(a)
 
 for i in reversed(range(1, 3)):
     print(i)
+
+print([s for s in "    ".split(" ") if s])

@@ -1006,7 +1006,7 @@ class AssociationsManager:
 
     @staticmethod
     def default_access_function(x, val):
-        x.str_value = val
+        x.interface_str_value = val
 
     @property
     # @strictly_typed

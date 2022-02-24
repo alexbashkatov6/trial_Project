@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class AttributeData:
+class AttributeErrorData:
     cls_name: str
     obj_name: str
     attr_name: str

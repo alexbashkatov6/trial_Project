@@ -8,11 +8,11 @@ from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Link, NodeInterfa
 from default_ordered_dict import DefaultOrderedDict
 from new_soi_objects import StationObjectImage, StationObjectDescriptor, AttribValues, IndexManagementCommand, \
     CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, LightSOI, RailPointSOI, BorderSOI, SectionSOI, \
-    AttributeEvaluateError
+    AttributeEvaluateError, NameDescriptor
 from soi_files_handler import read_station_config
 from extended_itertools import flatten
 from cell_access_functions import find_cell_name, element_cell_by_type
-from attribute_data import AttributeData
+from attribute_data import AttributeErrorData
 
 from config_names import GLOBAL_CS_NAME
 
@@ -52,7 +52,7 @@ class StorageDG:
         self.to_self_node_dict: defaultdict[str, dict[str, tuple[PolarNode, ObjNodeCell]]] = defaultdict(dict)
         self.to_child_attribute_dict: defaultdict[str, defaultdict[str, list[tuple]]] = \
             defaultdict(lambda: defaultdict(list))
-        self.link_to_attribute_dict: dict[Link, AttributeData] = {}
+        self.link_to_attribute_dict: dict[Link, AttributeErrorData] = {}
         self.to_parent_link_dict: defaultdict[str, defaultdict[str, defaultdict[str, dict[int, Link]]]] = \
             defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         self.dg = OneComponentTwoSidedPG()
@@ -76,9 +76,11 @@ class StorageDG:
     def bind_descriptors(self):
         for cls in StationObjectImage.__subclasses__():
             for attr_name in cls.__dict__:
-                if (not attr_name.startswith("__")) and \
-                        isinstance(descr := getattr(cls, attr_name), StationObjectDescriptor):
-                    descr.obj_dict = self.soi_objects[descr.contains_cls_name]
+                if not attr_name.startswith("__"):
+                    if isinstance(descr := getattr(cls, attr_name), StationObjectDescriptor):
+                        descr.obj_dict = self.soi_objects[descr.contains_cls_name]
+                    if isinstance(descr := getattr(cls, attr_name), NameDescriptor):
+                        descr.obj_dict = self.soi_objects[descr.contains_cls_name]
 
     def reset_clean_storages(self):
         for cls_name in self.soi_objects:
@@ -172,7 +174,7 @@ class StorageDG:
                         self.to_child_attribute_dict[contains_cls_name][parent_name].append((obj, attr_name, index))
                         link = self.dg.connect_inf_handling(self_node.ni_pu, parent_node.ni_nd)
                         self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = link
-                        self.link_to_attribute_dict[link] = AttributeData(cls_name, obj_name, attr_name, index)
+                        self.link_to_attribute_dict[link] = AttributeErrorData(cls_name, obj_name, attr_name, index)
 
     def full_check_cycle_dg(self):
         routes = self.dg.walk(self.dg.inf_pu.ni_nd)
@@ -282,14 +284,14 @@ class StorageDG:
         if attr_name == "name":
             if new_value in obj_dict:
                 raise DBExistingNameError("Name {} already exists".format(new_value),
-                                          AttributeData(cls_name, obj_name, attr_name))
+                                          AttributeErrorData(cls_name, obj_name, attr_name))
             if self.current_object_is_new:
-                self.current_object.change_attrib_value("name", new_value)
+                self.current_object.change_single_attrib_value("name", new_value)
             else:
                 self.rename_object(cls_name, obj_name, new_value)
         else:
             if self.current_object_is_new:
-                self.current_object.change_attrib_value(attr_name, new_value, index)
+                self.current_object.change_single_attrib_value(attr_name, new_value, index)
             else:
                 self.change_attrib_value_existing(attr_name, new_value, index)
         return old_value
@@ -313,12 +315,12 @@ class StorageDG:
         self.to_child_attribute_dict[cls_name].pop(old_obj_name)
 
         # 3. rename obj
-        obj.change_attrib_value("name", new_obj_name)
+        obj.change_single_attrib_value("name", new_obj_name)
 
         # 4. rename obj in dependent attributes
         for dependent_obj_tuple in self.to_child_attribute_dict[cls_name][new_obj_name]:
             dependent_obj, attr_name, index = dependent_obj_tuple
-            dependent_obj.change_attrib_value(attr_name, new_obj_name, index)
+            dependent_obj.change_single_attrib_value(attr_name, new_obj_name, index)
 
     def try_change_attr_value(self, cls_name: str, obj_name: str, attr_name: str, new_value: str, index: int,
                               contains_cls_name: str) -> Optional[tuple[Link, tuple[NodeInterface, NodeInterface]]]:
@@ -364,8 +366,8 @@ class StorageDG:
                 self.dg.disconnect_inf_handling(*old_link.ni_s)
                 new_link = self.dg.connect_inf_handling(*new_ni_tuple)
                 self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = new_link
-                self.link_to_attribute_dict[new_link] = AttributeData(cls_name, obj_name, attr_name, index)
-        obj.change_attrib_value(attr_name, new_value, index)
+                self.link_to_attribute_dict[new_link] = AttributeErrorData(cls_name, obj_name, attr_name, index)
+        obj.change_single_attrib_value(attr_name, new_value, index)
 
 
 if __name__ == "__main__":

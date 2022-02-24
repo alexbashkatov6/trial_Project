@@ -1,6 +1,6 @@
 from typing import Union
 
-from attribute_data import AttributeData
+from attribute_data import AttributeErrorData
 
 # def form_message_from_error(e: Exception) -> str:
 #     cls_name = ""
@@ -35,9 +35,10 @@ from attribute_data import AttributeData
 #         result_text += ")"
 #     return result_text
 
+
 def form_message_from_error(e: Exception) -> str:
     message = e.args[0]
-    attr_data: Union[AttributeData, list[AttributeData]] = e.args[1]
+    attr_data: Union[AttributeErrorData, list[AttributeErrorData]] = e.args[1]
     result_text = "Error occurred: {}".format(message)
     result_text += "\nObjects:"
     if not isinstance(attr_data, list):
