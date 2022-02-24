@@ -331,6 +331,13 @@ class StationObjectImage:
             attr_prop_values = [attr_prop_values]
         return [apv.str_confirmed_value for apv in attr_prop_values]
 
+    """ interface list attribute str suggested value getter """
+    def list_attr_str_suggested_value(self, attr_name: str):
+        attr_prop_values = getattr(self, attr_name)
+        if isinstance(attr_prop_values, AttribProperties):
+            attr_prop_values = [attr_prop_values]
+        return [apv.suggested_value for apv in attr_prop_values]
+
     """ interface list attribute confirmed value getter """
     def attr_confirmed_value(self, attr_name: str):
         attr_prop_values = getattr(self, attr_name)

@@ -13,6 +13,7 @@ from soi_files_handler import read_station_config, ReadFileNameError
 from form_exception_message import form_message_from_error
 from default_ordered_dict import DefaultOrderedDict
 from attribute_data import AttributeData
+from attrib_and_object_properties import ObjectProperties, ComplexAttribProperties, SingleAttribProperties
 
 from config_names import STATION_IN_CONFIG_FOLDER, GLOBAL_CS_NAME
 
@@ -104,10 +105,21 @@ class CommandSupervisor:
                     attr_value: Union[AttribProperties, list[AttribProperties]] = getattr(obj, attr_name)
                     if isinstance(attr_value, list):
                         for i, attr_val in enumerate(attr_value):
-                            od_struct["attributes"]["{}_{}".format(attr_name, i+1)] = attr_val.str_confirmed_value
+                            od_struct["attributes"]["{}_{}".format(attr_name, i + 1)] = self.str_values_logic(attr_val)
                     else:
-                        od_struct["attributes"][attr_name] = attr_value.str_confirmed_value
+                        od_struct["attributes"][attr_name] = self.str_values_logic(attr_value)
                 self.objs_dict[cls_name_str][obj_name] = od_struct
+
+    def str_values_logic(self, attr_value: Union[AttribProperties, list[AttribProperties]]) -> str:
+        last_imp_val = attr_value.last_input_value
+        conf_val = attr_value.str_confirmed_value
+        sugg_val = attr_value.suggested_value
+        if conf_val:
+            return conf_val
+        elif sugg_val:
+            return sugg_val
+        else:
+            return last_imp_val
 
     def model_building(self, images: list[StationObjectImage]):
         print("model_building")

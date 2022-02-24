@@ -459,8 +459,8 @@ class PaintingArea(QWidget):
                                           (fg.bottomRight().x(), fg.bottomRight().y())))
 
     def mouseDoubleClickEvent(self, a0: QMouseEvent) -> None:
-        print('localPos toPoint', self.frameGeometry())
-        print(a0.localPos().toPoint())
+        # print('localPos toPoint', self.frameGeometry())
+        # print(a0.localPos().toPoint())
         self.flag = not self.flag
         self.repaint()
 
