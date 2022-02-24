@@ -12,6 +12,8 @@ from default_ordered_dict import DefaultOrderedDict
 # from attrib_properties import AttribProperties
 # from attrib_index import CompositeAttributeIndex
 from attribute_data import AttributeData
+from attrib_and_object_properties import ClassProperties, ObjectProperties, ComplexAttribProperties, \
+    SingleAttribProperties
 
 from config_names import GLOBAL_CS_NAME
 
@@ -72,17 +74,10 @@ class ChangeAttribList:
 
 
 @dataclass
-class AttribProperties:
+class AttribValues:
     last_input_value: str = ""
     confirmed_value: Any = ""
     str_confirmed_value: str = ""
-    suggested_value: str = ""
-
-    # is_required: str = ""
-    # count_requirement: str = ""
-    # min_count: str = ""
-    # exactly_count: str = ""
-    # check_status: str = ""
 
 
 @dataclass
@@ -104,7 +99,7 @@ class UniversalDescriptor:
     def __set_name__(self, owner, name):
         self.name = name
 
-    def __get__(self, instance, owner) -> Union[UniversalDescriptor, AttribProperties, list[AttribProperties]]:
+    def __get__(self, instance, owner) -> Union[UniversalDescriptor, AttribValues, list[AttribValues]]:
         if not instance:
             return self
         return getattr(instance, "_{}".format(self.name))
@@ -116,7 +111,7 @@ class UniversalDescriptor:
             assert isinstance(value[0], str)
             str_value = value[0].strip()
             if not hasattr(instance, "_{}".format(self.name)):
-                ap_for_handle = AttribProperties()
+                ap_for_handle = AttribValues()
                 setattr(instance, "_{}".format(self.name), ap_for_handle)
             else:
                 ap_for_handle = getattr(instance, "_{}".format(self.name))
@@ -130,14 +125,14 @@ class UniversalDescriptor:
 
             if not hasattr(instance, "_{}".format(self.name)):
                 setattr(instance, "_{}".format(self.name), [])
-            old_ap_list: list[AttribProperties] = getattr(instance, "_{}".format(self.name))
+            old_ap_list: list[AttribValues] = getattr(instance, "_{}".format(self.name))
             if command in ["remove_index", "append", "set_index"]:
                 str_value = value[0].strip()
                 if command == "remove_index":
                     old_ap_list.pop(index)
                     return
                 if command == "append":
-                    ap_for_handle = AttribProperties()
+                    ap_for_handle = AttribValues()
                     old_ap_list.append(ap_for_handle)
                 if command == "set_index":
                     ad.index = index
@@ -150,11 +145,11 @@ class UniversalDescriptor:
                     ad = AttributeData(instance.__class__.__name__, instance.name, self.name)
                     ad.index = i
                     str_value = str_value.strip()
-                    ap_for_handle = AttribProperties()
+                    ap_for_handle = AttribValues()
                     self.handling_ap(ap_for_handle, str_value, check_mode, ad)
                     old_ap_list.append(ap_for_handle)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
+    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeData):
         ap.last_input_value = new_str_value
 
 
@@ -176,7 +171,7 @@ class EnumDescriptor(UniversalDescriptor):
     def possible_values(self, values: Iterable[str]):
         self._possible_values = list(values)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
+    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeData):
         super().handling_ap(ap, new_str_value, check_mode, ad)
         if new_str_value:  #  and self.possible_values
             if new_str_value not in self.possible_values:
@@ -202,7 +197,7 @@ class StationObjectDescriptor(UniversalDescriptor):
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
         self._obj_dict = odict
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
+    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeData):
         super().handling_ap(ap, new_str_value, check_mode, ad)
         if new_str_value and check_mode:
             if new_str_value not in self.obj_dict:
@@ -219,7 +214,7 @@ class IntDescriptor(UniversalDescriptor):
                  min_count: int = -1, exactly_count: int = -1):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
+    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeData):
         super().handling_ap(ap, new_str_value, check_mode, ad)
         if new_str_value:
             try:
@@ -235,7 +230,7 @@ class PicketDescriptor(UniversalDescriptor):
                  min_count: int = -1, exactly_count: int = -1):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
 
-    def handling_ap(self, ap: AttribProperties, new_str_value: str, check_mode: bool, ad: AttributeData):
+    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeData):
         super().handling_ap(ap, new_str_value, check_mode, ad)
         if new_str_value:
             try:
@@ -245,11 +240,25 @@ class PicketDescriptor(UniversalDescriptor):
                 raise AETypeAttributeError("Value '{}' is not picket coordinate".format(new_str_value), ad)
 
 
+def str_values_logic(attr_value: Union[AttribValues, list[AttribValues]]) -> tuple[str, bool]:
+    is_suggested = False
+    last_imp_val = attr_value.last_input_value
+    conf_val = attr_value.str_confirmed_value
+    # sugg_val = attr_value.suggested_value
+    if conf_val:
+        return conf_val, is_suggested
+    # elif sugg_val:
+    #     is_suggested = True
+    #     return sugg_val, is_suggested
+    else:
+        return last_imp_val, is_suggested
+
+
 class StationObjectImage:
-    # name = SOIName()
 
     def __init__(self):
         self.name = ""
+        self.object_prop_struct = ObjectProperties()
         self.active_attrs: list[str] = [attr_name for attr_name in self.__class__.__dict__
                                         if not attr_name.startswith("__")]
         # all attrs initialization
@@ -269,9 +278,42 @@ class StationObjectImage:
         if self.__class__ in SWITCH_ATTR_LISTS:
             for attr_name in SWITCH_ATTR_LISTS[self.__class__]:
                 chal: ChangeAttribList = SWITCH_ATTR_LISTS[self.__class__][attr_name]
-                # print("preferred_value", chal.preferred_value)
                 self.change_attrib_value(attr_name, chal.preferred_value)
-        # print("init success")
+
+        # self.init_object_prop_struct()
+
+    def init_object_prop_struct(self) -> None:
+        obj_prop = self.object_prop_struct
+        obj_prop.name = self.name
+        for attr_name in self.active_attrs:
+            complex_attr = ComplexAttribProperties()
+            complex_attr.name = attr_name
+            attr_value: Union[AttribValues, list[AttribValues]] = getattr(self, attr_name)
+            if isinstance(attr_value, list):
+                complex_attr.is_list = True
+                for i, attr_val in enumerate(attr_value):
+                    single_attr = SingleAttribProperties()
+                    single_attr.index = i
+                    single_attr.str_value, single_attr.is_suggested = str_values_logic(attr_val)
+                    complex_attr.single_attr_list.append(single_attr)
+            else:
+                single_attr = SingleAttribProperties()
+                single_attr.str_value, single_attr.is_suggested = str_values_logic(attr_value)
+                complex_attr.single_attr_list.append(single_attr)
+            obj_prop.attrib_list.append(complex_attr)
+
+    def get_complex_attr_prop(self, attr_name: str) -> ComplexAttribProperties:
+        for complex_attr_prop_candidate in self.object_prop_struct.attrib_list:
+            if complex_attr_prop_candidate.name == attr_name:
+                return complex_attr_prop_candidate
+        assert False
+
+    def get_single_attr_prop(self, attr_name: str, index: int = -1) -> SingleAttribProperties:
+        complex_attr_prop = self.get_complex_attr_prop(attr_name)
+        for single_attr_prop_candidate in complex_attr_prop.single_attr_list:
+            if single_attr_prop_candidate.index == index:
+                return single_attr_prop_candidate
+        assert False
 
     """ interface attribute setter """
     def change_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]], index: int = -1,
@@ -279,6 +321,7 @@ class StationObjectImage:
 
         # set attr
         if attr_name == "name":
+            self.object_prop_struct.name = attr_value
             setattr(self, attr_name, attr_value)
             return
         else:
@@ -306,7 +349,7 @@ class StationObjectImage:
 
     def reload_attr_value(self, attr_name: str):
         attr_prop_values = getattr(self, attr_name)
-        if isinstance(attr_prop_values, AttribProperties):
+        if isinstance(attr_prop_values, AttribValues):
             self.change_attrib_value(attr_name, attr_prop_values.last_input_value)
         else:
             self.change_attrib_value(attr_name, self.list_attr_input_value(attr_name))
@@ -314,7 +357,7 @@ class StationObjectImage:
     """ interface list attribute input str getter """
     def list_attr_input_value(self, attr_name: str):
         attr_prop_values = getattr(self, attr_name)
-        if isinstance(attr_prop_values, AttribProperties):
+        if isinstance(attr_prop_values, AttribValues):
             attr_prop_values = [attr_prop_values]
         return [apv.last_input_value for apv in attr_prop_values]
 
@@ -327,21 +370,21 @@ class StationObjectImage:
     """ interface list attribute str confirmed value getter """
     def list_attr_str_confirmed_value(self, attr_name: str):
         attr_prop_values = getattr(self, attr_name)
-        if isinstance(attr_prop_values, AttribProperties):
+        if isinstance(attr_prop_values, AttribValues):
             attr_prop_values = [attr_prop_values]
         return [apv.str_confirmed_value for apv in attr_prop_values]
 
-    """ interface list attribute str suggested value getter """
-    def list_attr_str_suggested_value(self, attr_name: str):
-        attr_prop_values = getattr(self, attr_name)
-        if isinstance(attr_prop_values, AttribProperties):
-            attr_prop_values = [attr_prop_values]
-        return [apv.suggested_value for apv in attr_prop_values]
+    # """ interface list attribute str suggested value getter """
+    # def list_attr_str_suggested_value(self, attr_name: str):
+    #     attr_prop_values = getattr(self, attr_name)
+    #     if isinstance(attr_prop_values, AttribValues):
+    #         attr_prop_values = [attr_prop_values]
+    #     return [apv.suggested_value for apv in attr_prop_values]
 
     """ interface list attribute confirmed value getter """
     def attr_confirmed_value(self, attr_name: str):
         attr_prop_values = getattr(self, attr_name)
-        if isinstance(attr_prop_values, AttribProperties):
+        if isinstance(attr_prop_values, AttribValues):
             return attr_prop_values.confirmed_value
         else:
             return [attr_prop_value.confirmed_value for attr_prop_value in attr_prop_values]

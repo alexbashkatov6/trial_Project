@@ -6,7 +6,7 @@ from copy import deepcopy, copy
 from cell_object import CellObject
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Link, NodeInterface
 from default_ordered_dict import DefaultOrderedDict
-from new_soi_objects import StationObjectImage, StationObjectDescriptor, AttribProperties, IndexManagementCommand, \
+from new_soi_objects import StationObjectImage, StationObjectDescriptor, AttribValues, IndexManagementCommand, \
     CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, LightSOI, RailPointSOI, BorderSOI, SectionSOI, \
     AttributeEvaluateError
 from soi_files_handler import read_station_config

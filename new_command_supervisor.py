@@ -7,7 +7,7 @@ from typing import Optional, Any, Union
 from custom_enum import CustomEnum
 from new_soi_rectifier import StorageDG, DependenciesBuildError
 from new_model_builder import ModelBuilder, ModelBuildError
-from new_soi_objects import StationObjectImage, AttributeEvaluateError, AttribProperties
+from new_soi_objects import StationObjectImage, AttributeEvaluateError, AttribValues
 from extended_itertools import single_element
 from soi_files_handler import read_station_config, ReadFileNameError
 from form_exception_message import form_message_from_error
@@ -102,7 +102,7 @@ class CommandSupervisor:
                 obj: StationObjectImage = soi[cls_name][obj_name]
                 od_struct = {"attributes": OrderedDict(), "error_status": ""}
                 for attr_name in obj.active_attrs:
-                    attr_value: Union[AttribProperties, list[AttribProperties]] = getattr(obj, attr_name)
+                    attr_value: Union[AttribValues, list[AttribValues]] = getattr(obj, attr_name)
                     if isinstance(attr_value, list):
                         for i, attr_val in enumerate(attr_value):
                             od_struct["attributes"]["{}_{}".format(attr_name, i + 1)] = self.str_values_logic(attr_val)
@@ -110,14 +110,14 @@ class CommandSupervisor:
                         od_struct["attributes"][attr_name] = self.str_values_logic(attr_value)
                 self.objs_dict[cls_name_str][obj_name] = od_struct
 
-    def str_values_logic(self, attr_value: Union[AttribProperties, list[AttribProperties]]) -> str:
+    def str_values_logic(self, attr_value: Union[AttribValues, list[AttribValues]]) -> str:
         last_imp_val = attr_value.last_input_value
         conf_val = attr_value.str_confirmed_value
-        sugg_val = attr_value.suggested_value
+        # sugg_val = attr_value.suggested_value
         if conf_val:
             return conf_val
-        elif sugg_val:
-            return sugg_val
+        # elif sugg_val:
+        #     return sugg_val
         else:
             return last_imp_val
 
