@@ -17,21 +17,19 @@ class InterfaceExchange:
         return result
 
 
-@dataclass
 class ClassProperties(InterfaceExchange):
     name: str = ""
-    objects_list: list = field(default_factory=list)
+    objects_list: list[ObjectProperties] = field(default_factory=list)
 
 
-@dataclass
 class ObjectProperties(InterfaceExchange):
     name: str = ""  # which is title
     error_message: str = ""
-    attrib_list: list = field(default_factory=list)
-    active_attrs: list[ComplexAttribProperties] = field(default_factory=list)
+    creation_readiness: bool = False
+    attrib_list: list[ComplexAttribProperties] = field(default_factory=list)
+    active_attrs: list[str] = field(default_factory=list)
 
 
-@dataclass
 class ComplexAttribProperties(InterfaceExchange):
     name: str = ""  # which is attribute
     temporary_value: str = ""
@@ -42,7 +40,6 @@ class ComplexAttribProperties(InterfaceExchange):
     single_attr_list: list[SingleAttribProperties] = field(default_factory=list)
 
 
-@dataclass
 class SingleAttribProperties(InterfaceExchange):
     index: int = -1
 

@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from new_command_supervisor import CommandSupervisor
+from old_command_supervisor import CommandSupervisor
 from default_ordered_dict import DefaultOrderedDict
 
 

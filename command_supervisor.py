@@ -5,15 +5,15 @@ import pandas as pd
 from typing import Optional, Any, Union
 
 from custom_enum import CustomEnum
-from new_soi_rectifier import StorageDG, DependenciesBuildError
-from new_model_builder import ModelBuilder, ModelBuildError
-from new_soi_objects import StationObjectImage, AttributeEvaluateError, AttribValues
+from old_soi_rectifier import StorageDG, DependenciesBuildError
+from old_model_builder import ModelBuilder, ModelBuildError
+from soi_objects import StationObjectImage, AttributeEvaluateError, AttribValues
 from extended_itertools import single_element
 from soi_files_handler import read_station_config, ReadFileNameError
 from form_exception_message import form_message_from_error
 from default_ordered_dict import DefaultOrderedDict
 from attribute_data import AttributeErrorData
-from dataclass_properties import ObjectProperties, ComplexAttribProperties, SingleAttribProperties
+from soi_metadata import ObjectProperties, ComplexAttribProperties, SingleAttribProperties
 
 from config_names import STATION_IN_CONFIG_FOLDER, GLOBAL_CS_NAME
 

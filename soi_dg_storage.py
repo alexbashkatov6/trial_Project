@@ -6,7 +6,7 @@ from copy import deepcopy, copy
 from cell_object import CellObject
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Link, NodeInterface
 from default_ordered_dict import DefaultOrderedDict
-from new_soi_objects import StationObjectImage, StationObjectDescriptor, AttribValues, IndexManagementCommand, \
+from soi_objects import StationObjectImage, StationObjectDescriptor, AttribValues, IndexManagementCommand, \
     CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, LightSOI, RailPointSOI, BorderSOI, SectionSOI, \
     AttributeEvaluateError, NameDescriptor
 from soi_files_handler import read_station_config
@@ -201,7 +201,7 @@ class StorageDG:
 
     def dependent_objects_names(self, cls_name: str, obj_name: str) -> list[tuple[str, str]]:
         self_node = self.to_self_node_dict[cls_name][obj_name][0]
-        dependent_nodes = list(flatten(self.dg.shortest_coverage(self_node.ni_nd)))
+        dependent_nodes = list(flatten(self.dg.longest_coverage(self_node.ni_nd)))
         result = []
         for node in dependent_nodes:
             cell: ObjNodeCell = element_cell_by_type(node, ObjNodeCell)

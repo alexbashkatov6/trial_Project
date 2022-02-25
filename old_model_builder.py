@@ -3,7 +3,7 @@ from collections import OrderedDict
 import math
 
 from enums_images import CEAxisCreationMethod, CEAxisOrLine, CELightRouteType, CEBorderType, CESectionType
-from new_soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
+from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, \
     LightSOI, RailPointSOI, BorderSOI, SectionSOI
 from two_sided_graph import OneComponentTwoSidedPG, PolarNode, Route, NodeInterface
 from cell_object import CellObject

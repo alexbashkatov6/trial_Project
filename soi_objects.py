@@ -12,7 +12,7 @@ from default_ordered_dict import DefaultOrderedDict
 # from attrib_properties import AttribProperties
 # from attrib_index import CompositeAttributeIndex
 from attribute_data import AttributeErrorData
-from dataclass_properties import ClassProperties, ObjectProperties, ComplexAttribProperties, \
+from soi_metadata import ClassProperties, ObjectProperties, ComplexAttribProperties, \
     SingleAttribProperties
 from form_exception_message import form_message_from_error
 
@@ -442,7 +442,11 @@ class StationObjectImage:
         complex_attr = self.get_complex_attr_prop(attr_name)
         single_attr = self.get_single_attr_prop(attr_name, index)
 
-        """ 1. Empty input """
+        """ 1. New == old input """
+        if attr_value == single_attr.last_input_str_value:
+            return
+
+        """ 2. Empty input """
         if attr_value == "":
             if single_attr.suggested_str_value:
                 single_attr.interface_str_value = single_attr.suggested_str_value
@@ -453,47 +457,53 @@ class StationObjectImage:
                 single_attr.error_message = ""
                 return
 
-        """ 2. New == old input """
-        if attr_value == single_attr.last_input_str_value:
+        """ 3. File read input - delayed check """
+        if not file_read_mode:
+            assert not isinstance(attr_value, list)
+
+        if file_read_mode:
+            assert index == -1
+            if isinstance(attr_value, list):
+                assert getattr(self.__class__, attr_name).is_list
+            complex_attr.temporary_value = attr_value
             return
 
-        """ 3. List input """
-        if isinstance(attr_value, list):
-            assert file_read_mode
-            assert index == -1
-            assert getattr(self.__class__, attr_name).is_list
-            single_attr.last_input_str_value = attr_value
-
-        """ 4. Single value input """
-        if attr_name == "name":
-            single_attr.last_input_str_value = attr_value
-            attr_value: str
-            try:
-                setattr(self, attr_name, attr_value)
-            except AENameRepeatingError as e:
-                single_attr.error_message = form_message_from_error(e)
-            else:
-                single_attr.error_message = ""
+        """ 4. Interactive input """
+        single_attr.last_input_str_value = attr_value
+        attr_value: str
+        try:
+            setattr(self, attr_name, attr_value)
+        except AttributeEvaluateError as e:
+            single_attr.error_message = form_message_from_error(e)
+            self.object_prop_struct.creation_readiness = False
+        else:
+            single_attr.error_message = ""
+            if attr_name == "name":
                 self.object_prop_struct.name = attr_value
-            finally:
-                single_attr.interface_str_value = attr_value
-                return
+        finally:
+            single_attr.interface_str_value = attr_value
+            return
 
-    def check_delay(self):
+    @property
+    def active_complex_attrs(self) -> list[ComplexAttribProperties]:
+        return [self.get_complex_attr_prop(complex_attr_name) for complex_attr_name in self.object_prop_struct.active_attrs]
+
+    def delayed_check(self):
         """ when attributes read from file, need to check after all names got """
-        for complex_attr in self.object_prop_struct.active_attrs:
+        for complex_attr in self.active_complex_attrs:
             assert len(complex_attr.single_attr_list) == 1
             if complex_attr.is_list:
+                """ now parsing here, not in file read """
                 list_str_value = [s.strip() for s in complex_attr.temporary_value.split(" ") if s]
                 setattr(self, complex_attr.name, (list_str_value,
                                                   IndexManagementCommand(command="set_list")))
             else:
-                pass
-
+                setattr(self, complex_attr.name, (complex_attr.temporary_value,
+                                                  IndexManagementCommand(command="set_list", index=-1)))
 
     def change_object_refresh(self):
         """ when focus out, we need to reset all str_value-s of single attrs from failed to last_applied """
-        for complex_attr in self.object_prop_struct.active_attrs:
+        for complex_attr in self.active_complex_attrs:
             for single_attr in complex_attr.single_attr_list:
                 single_attr.interface_str_value = single_attr.last_applied_str_value
 
@@ -511,11 +521,11 @@ class StationObjectImage:
     def apply_obj_creation(self):
         """ to store last_applied values """
         """ ! check auto-values not implemented """
-        for complex_attr in self.object_prop_struct.active_attrs:
+        for complex_attr in self.active_complex_attrs:
             for single_attr in complex_attr.single_attr_list:
                 single_attr.last_applied_str_value = single_attr.last_input_str_value
 
-
+    # def default_switch_attrs(self):
 
 
 

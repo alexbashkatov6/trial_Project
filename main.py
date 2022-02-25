@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QObject
 
 from new_main_window import MW
-from adapter_core_to_pyqt_interface import AdapterCorePyqtInterface
+from old_adapter_core_to_pyqt_interface import AdapterCorePyqtInterface
 
 
 def excepthook(exc_type, exc_value, exc_tb):
