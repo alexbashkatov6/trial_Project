@@ -215,3 +215,8 @@ for i in reversed(range(1, 3)):
     print(i)
 
 print([s for s in "    ".split(" ") if s])
+
+a = [1,2,3]
+b = reversed(a)
+b.append(4)
+

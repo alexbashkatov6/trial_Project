@@ -53,12 +53,17 @@ class MainHandler:
         self.model_builder: ModelBuilder = ModelBuilder()
         self.storage_dg: StorageDG = StorageDG()
         self.current_object: Optional[StationObjectImage] = None
+        self.current_object_is_new = True
 
         """ external states """
         self.curr_obj_creation_readiness: bool = False
+        self.object_attrib_dict = None
+        self.cls_objects_dict = None
 
         """ external changes flags """
         self.changed_creation_readiness: bool = False
+        self.changed_object_attrib_dict: bool = False
+        self.changed_cls_objects_dict: bool = False
 
     """ 
         Interface input commands:
@@ -98,13 +103,19 @@ class MainHandler:
         pass
 
     def eval_routes(self, dir_name: str):
-        pass
+        self.model_builder.eval_routes(dir_name)
 
     def create_new_object(self, cls_name: str):
-        pass
+        self.current_object: StationObjectImage = eval(cls_name)()
+        self.current_object_is_new = True
 
     def change_current_object(self, cls_name: str, obj_name: str):
-        pass
+        curr_obj = self.current_object
+        for complex_attr in curr_obj.active_complex_attrs:
+            for single_attr in complex_attr.single_attr_list:
+                single_attr.interface_str_value = single_attr.last_applied_str_value
+        self.current_object = self.storage_dg.soi_objects[cls_name][obj_name]
+        self.current_object_is_new = False
 
     def delete_request(self, cls_name: str, obj_name: str):
         pass
@@ -117,7 +128,7 @@ class MainHandler:
         new_value = new_value.strip()
         curr_obj = self.current_object
         object_prop_struct = curr_obj.object_prop_struct
-        complex_attr = curr_obj.get_complex_attr_prop(attr_name)
+        # complex_attr = curr_obj.get_complex_attr_prop(attr_name)
         single_attr = curr_obj.get_single_attr_prop(attr_name, index)
 
         """ 1. New == old input """
@@ -162,7 +173,10 @@ class MainHandler:
             self.model_rebuild_logic(attr_name, new_value, index)
 
     def apply_creation_new_object(self):
-        pass
+        curr_obj = self.current_object
+        for complex_attr in curr_obj.active_complex_attrs:
+            for single_attr in complex_attr.single_attr_list:
+                single_attr.last_applied_str_value = single_attr.last_input_str_value
 
     def append_attrib_single_value(self, attr_name: str):
         pass
@@ -200,6 +214,7 @@ class MainHandler:
         """ 1. Default build switches """
         for cls in SWITCH_ATTR_LISTS:
             change_list_dict = SWITCH_ATTR_LISTS[cls]
+            new_attributes_reversed = []
             if isinstance(self.current_object, cls) and (attr_name in change_list_dict):
                 change_attrib_list = change_list_dict[attr_name]
                 for remove_value in change_attrib_list.remove_list(new_value):
@@ -208,8 +223,9 @@ class MainHandler:
                 index_insert = object_prop_struct.active_attrs.index(attr_name) + 1
                 for add_value in reversed(change_attrib_list.add_list(new_value)):
                     if add_value not in object_prop_struct.active_attrs:
+                        new_attributes_reversed.append(add_value)
                         object_prop_struct.active_attrs.insert(index_insert, add_value)
-                return
+                new_attributes = list(reversed(new_attributes_reversed))
 
     def model_rebuild_logic(self, attr_name: str, new_value: str, index: int):
         curr_obj = self.current_object
