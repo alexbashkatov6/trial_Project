@@ -80,23 +80,23 @@ class AETypeAttributeError(AttributeEvaluateError):
 
 # ------------        IMAGE OBJECTS CLASSES        ------------ #
 
-class ChangeAttribList:
-    def __init__(self, attr_value_add_dict: OrderedDict[str, list[str]]):
-        self.attr_value_add_dict = attr_value_add_dict
-
-    @property
-    def preferred_value(self):
-        return list(self.attr_value_add_dict.keys())[0]
-
-    def add_list(self, attr_value):
-        return self.attr_value_add_dict[attr_value]
-
-    def remove_list(self, attr_value):
-        result = []
-        for attr_val in self.attr_value_add_dict:
-            if attr_val != attr_value:
-                result.extend(self.attr_value_add_dict[attr_val])
-        return result
+# class ChangeAttribList:
+#     def __init__(self, attr_value_add_dict: OrderedDict[str, list[str]]):
+#         self.attr_value_add_dict = attr_value_add_dict
+#
+#     @property
+#     def preferred_value(self):
+#         return list(self.attr_value_add_dict.keys())[0]
+#
+#     def add_list(self, attr_value):
+#         return self.attr_value_add_dict[attr_value]
+#
+#     def remove_list(self, attr_value):
+#         result = []
+#         for attr_val in self.attr_value_add_dict:
+#             if attr_val != attr_value:
+#                 result.extend(self.attr_value_add_dict[attr_val])
+#         return result
 
 
 @dataclass
@@ -324,8 +324,8 @@ class StationObjectImage:
     def __init__(self):
         self.object_prop_struct: ObjectProperties = ObjectProperties()
         self.name = ""
-        self.active_attrs = [attr_name for attr_name in self.__class__.__dict__
-                             if not attr_name.startswith("__")]
+        # self.active_attrs = [attr_name for attr_name in self.__class__.__dict__
+        #                      if not attr_name.startswith("__")]
 
     def get_complex_attr_prop(self, attr_name: str) -> ComplexAttribProperties:
         result_set = set()
@@ -356,13 +356,13 @@ class StationObjectImage:
     #     self.object_prop_struct.name = val
         # self.get_single_attr_prop("name").str_value = val
 
-    @property
-    def active_attrs(self) -> list[str]:
-        return self.object_prop_struct.active_attrs
-
-    @active_attrs.setter
-    def active_attrs(self, val: list[str]) -> None:
-        self.object_prop_struct.active_attrs = val
+    # @property
+    # def active_attrs(self) -> list[str]:
+    #     return self.object_prop_struct.active_attrs
+    #
+    # @active_attrs.setter
+    # def active_attrs(self, val: list[str]) -> None:
+    #     self.object_prop_struct.active_attrs = val
 
         # all attrs initialization
         # for attr_name in self.active_attrs:
@@ -632,19 +632,19 @@ class SectionSOI(StationObjectImage):
     border_points = StationObjectDescriptor("PointSOI", is_list=True)
 
 
-SWITCH_ATTR_LISTS = {CoordinateSystemSOI: {"dependence": ChangeAttribList(OrderedDict({"independent": [],
-                                                                                       "dependent": [
-                                                                                           "cs_relative_to",
-                                                                                           "x",
-                                                                                           "co_x",
-                                                                                           "co_y"]}))},
-                     AxisSOI: {"creation_method": ChangeAttribList(OrderedDict({"rotational": [
-                         "center_point",
-                         "alpha"],
-                         "translational": ["y"]}))},
-                     PointSOI: {"on": ChangeAttribList(OrderedDict({"axis": ["axis"],
-                                                                    "line": ["line"]}))}
-                     }
+# SWITCH_ATTR_LISTS = {CoordinateSystemSOI: {"dependence": ChangeAttribList(OrderedDict({"independent": [],
+#                                                                                        "dependent": [
+#                                                                                            "cs_relative_to",
+#                                                                                            "x",
+#                                                                                            "co_x",
+#                                                                                            "co_y"]}))},
+#                      AxisSOI: {"creation_method": ChangeAttribList(OrderedDict({"rotational": [
+#                          "center_point",
+#                          "alpha"],
+#                          "translational": ["y"]}))},
+#                      PointSOI: {"on": ChangeAttribList(OrderedDict({"axis": ["axis"],
+#                                                                     "line": ["line"]}))}
+#                      }
 
 if __name__ == "__main__":
     test_1 = False

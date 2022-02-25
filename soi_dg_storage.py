@@ -200,6 +200,7 @@ class StorageDG:
         return result
 
     def dependent_objects_names(self, cls_name: str, obj_name: str) -> list[tuple[str, str]]:
+        """ ordered list of dependent objects """
         self_node = self.to_self_node_dict[cls_name][obj_name][0]
         dependent_nodes = list(flatten(self.dg.longest_coverage(self_node.ni_nd)))
         result = []
