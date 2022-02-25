@@ -35,9 +35,9 @@ class ComplexAttribProperties(InterfaceExchange):
     # requirement_type: str = ""  # "enum" "soi" "int" "picket"
     temporary_value: str = ""
     is_list: bool = False
-    req_exactly_count: int = -1
-    req_min_count: int = -1
-    is_mutable: bool = False
+    exactly_count: int = -1
+    min_count: int = -1
+    immutable: bool = False
     single_attr_list: list[SingleAttribProperties] = field(default_factory=list)
 
 

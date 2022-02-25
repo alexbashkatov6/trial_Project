@@ -115,12 +115,13 @@ class IndexManagementCommand:
 class UniversalDescriptor:
 
     def __init__(self, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1):
+                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
         self.is_required = is_required
         self.is_list = is_list
         assert (min_count == -1) or (exactly_count == -1)
         self.min_count = min_count
         self.exactly_count = exactly_count
+        self.immutable = immutable
 
     def __set_name__(self, owner, name):
         self.name = name
@@ -182,8 +183,9 @@ class UniversalDescriptor:
 class EnumDescriptor(UniversalDescriptor):
 
     def __init__(self, possible_values: list[str] = None, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
+                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                         immutable=immutable)
         if not possible_values:
             self._possible_values = []
         else:
@@ -210,8 +212,9 @@ class EnumDescriptor(UniversalDescriptor):
 class StationObjectDescriptor(UniversalDescriptor):
 
     def __init__(self, contains_cls_name: str, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
+                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                         immutable=immutable)
         self.contains_cls_name = contains_cls_name
         self._obj_dict = OrderedDict()
 
@@ -237,8 +240,9 @@ class StationObjectDescriptor(UniversalDescriptor):
 class IntDescriptor(UniversalDescriptor):
 
     def __init__(self, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
+                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                         immutable=immutable)
 
     def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeErrorData):
         super().handling_ap(ap, new_str_value, check_mode, ad)
@@ -253,8 +257,9 @@ class IntDescriptor(UniversalDescriptor):
 class PicketDescriptor(UniversalDescriptor):
 
     def __init__(self, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
+                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                         immutable=immutable)
 
     def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeErrorData):
         super().handling_ap(ap, new_str_value, check_mode, ad)
@@ -269,8 +274,9 @@ class PicketDescriptor(UniversalDescriptor):
 class NameDescriptor(UniversalDescriptor):
 
     def __init__(self, contains_cls_name: str, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count)
+                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                         immutable=immutable)
         self.contains_cls_name = contains_cls_name
         self._obj_dict = OrderedDict()
 
@@ -323,9 +329,30 @@ class StationObjectImage:
 
     def __init__(self):
         self.object_prop_struct: ObjectProperties = ObjectProperties()
-        self.name = ""
-        # self.active_attrs = [attr_name for attr_name in self.__class__.__dict__
-        #                      if not attr_name.startswith("__")]
+        self.init_object_prop_struct()
+
+    def init_object_prop_struct(self):
+        obj_prop = self.object_prop_struct
+        cls = self.__class__
+        for attr_name in [key for key in cls.__dict__.keys() if not key.startswith("__")]:
+            complex_attr = ComplexAttribProperties()
+            descriptor: UniversalDescriptor = getattr(cls, attr_name)
+            complex_attr.name = attr_name
+            complex_attr.is_list = descriptor.is_list
+            complex_attr.min_count = descriptor.min_count
+            complex_attr.exactly_count = descriptor.exactly_count
+            complex_attr.immutable = descriptor.immutable
+            if complex_attr.min_count != -1:
+                for index in range(complex_attr.min_count):
+                    single_attr = SingleAttribProperties()
+                    single_attr.index = index
+                    complex_attr.single_attr_list.append(single_attr)
+            if complex_attr.exactly_count != -1:
+                for index in range(complex_attr.exactly_count):
+                    single_attr = SingleAttribProperties()
+                    single_attr.index = index
+                    complex_attr.single_attr_list.append(single_attr)
+            obj_prop.attrib_list.append(complex_attr)
 
     def get_complex_attr_prop(self, attr_name: str) -> ComplexAttribProperties:
         result_set = set()
@@ -346,24 +373,6 @@ class StationObjectImage:
         assert len(result_set) < 2, "More then 1 found"
         return result_set.pop()
 
-    # @property
-    # def name(self) -> str:
-    #     return self.object_prop_struct.name
-        # return self.get_single_attr_prop("name").str_value
-
-    # @name.setter
-    # def name(self, val: str) -> None:
-    #     self.object_prop_struct.name = val
-        # self.get_single_attr_prop("name").str_value = val
-
-    # @property
-    # def active_attrs(self) -> list[str]:
-    #     return self.object_prop_struct.active_attrs
-    #
-    # @active_attrs.setter
-    # def active_attrs(self, val: list[str]) -> None:
-    #     self.object_prop_struct.active_attrs = val
-
         # all attrs initialization
         # for attr_name in self.active_attrs:
         #     descr: UniversalDescriptor = getattr(self.__class__, attr_name)
@@ -377,13 +386,6 @@ class StationObjectImage:
         #             for _ in range(descr.exactly_count):
         #                 setattr(self, attr_name, ("", False, IndexManagementCommand(command="append")))
 
-        # switch attrs initialization
-        # if self.__class__ in SWITCH_ATTR_LISTS:
-        #     for attr_name in SWITCH_ATTR_LISTS[self.__class__]:
-        #         chal: ChangeAttribList = SWITCH_ATTR_LISTS[self.__class__][attr_name]
-        #         self.change_attrib_value(attr_name, chal.preferred_value)
-
-        # self.init_object_prop_struct()
 
     # def init_object_prop_struct(self) -> None:
     #     obj_prop = self.object_prop_struct

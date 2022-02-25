@@ -211,21 +211,30 @@ class MainHandler:
         curr_obj = self.current_object
         object_prop_struct = curr_obj.object_prop_struct
 
-        """ 1. Default build switches """
+        """ 1. Default build switches handling """
+        old_attributes = []
+        new_attributes = []
         for cls in SWITCH_ATTR_LISTS:
             change_list_dict = SWITCH_ATTR_LISTS[cls]
-            new_attributes_reversed = []
             if isinstance(self.current_object, cls) and (attr_name in change_list_dict):
                 change_attrib_list = change_list_dict[attr_name]
                 for remove_value in change_attrib_list.remove_list(new_value):
                     if remove_value in object_prop_struct.active_attrs:
+                        old_attributes.append(remove_value)
                         object_prop_struct.active_attrs.remove(remove_value)
                 index_insert = object_prop_struct.active_attrs.index(attr_name) + 1
                 for add_value in reversed(change_attrib_list.add_list(new_value)):
                     if add_value not in object_prop_struct.active_attrs:
-                        new_attributes_reversed.append(add_value)
+                        new_attributes.append(add_value)
                         object_prop_struct.active_attrs.insert(index_insert, add_value)
-                new_attributes = list(reversed(new_attributes_reversed))
+        for old_attr in old_attributes:
+            complex_attr_prop = curr_obj.get_complex_attr_prop(old_attr)
+            for single_attr in complex_attr_prop.single_attr_list:
+                single_attr.interface_str_value = single_attr.last_applied_str_value
+        for new_attr in new_attributes:
+            complex_attr_prop = curr_obj.get_complex_attr_prop(new_attr)
+            for single_attr in complex_attr_prop.single_attr_list:
+                self.change_attribute_value(complex_attr_prop.name, single_attr.interface_str_value, single_attr.index)
 
     def model_rebuild_logic(self, attr_name: str, new_value: str, index: int):
         curr_obj = self.current_object
