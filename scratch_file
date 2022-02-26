@@ -1196,3 +1196,159 @@ class SOIListValues:
                 # obj_names: list[str] = [(cell.cls_name, cell.obj_name) for cell in cells]
                 # raise DBCycleError("Cycle in dependencies was found",
                 #                    [AttributeData(cls_name, obj_name, "") for cls_name, obj_name in obj_names])
+
+
+
+    """ interface attribute setter """
+    def change_single_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]], index: int = -1,
+                                   file_read_mode: bool = True):
+        complex_attr = self.get_complex_attr_prop(attr_name)
+        single_attr = self.get_single_attr_prop(attr_name, index)
+
+        """ 1. New == old input """
+        if attr_value == single_attr.last_input_str_value:
+            return
+
+        """ 2. Empty input """
+        if attr_value == "":
+            if single_attr.suggested_str_value:
+                single_attr.interface_str_value = single_attr.suggested_str_value
+                return
+            if single_attr.is_required:
+                return
+            else:
+                single_attr.error_message = ""
+                return
+
+        """ 3. File read input - delayed check """
+        if not file_read_mode:
+            assert not isinstance(attr_value, list)
+
+        if file_read_mode:
+            assert index == -1
+            if isinstance(attr_value, list):
+                assert getattr(self.__class__, attr_name).is_list
+            complex_attr.temporary_value = attr_value
+            return
+
+        """ 4. Interactive input """
+        single_attr.last_input_str_value = attr_value
+        attr_value: str
+        try:
+            setattr(self, attr_name, attr_value)
+        except AttributeEvaluateError as e:
+            single_attr.error_message = form_message_from_error(e)
+            self.object_prop_struct.creation_readiness = False
+        else:
+            single_attr.error_message = ""
+            if attr_name == "name":
+                self.object_prop_struct.name = attr_value
+        finally:
+            single_attr.interface_str_value = attr_value
+            return
+
+    @property
+    def active_complex_attrs(self) -> list[ComplexAttribProperties]:
+        return [self.get_complex_attr_prop(complex_attr_name) for complex_attr_name in self.object_prop_struct.active_attrs]
+
+    def delayed_check(self):
+        """ when attributes read from file, need to check after all names got """
+        for complex_attr in self.active_complex_attrs:
+            assert len(complex_attr.single_attr_list) == 1
+            if complex_attr.is_list:
+                """ now parsing here, not in file read """
+                list_str_value = [s.strip() for s in complex_attr.temporary_value.split(" ") if s]
+                setattr(self, complex_attr.name, (list_str_value,
+                                                  IndexManagementCommand(command="set_list")))
+            else:
+                setattr(self, complex_attr.name, (complex_attr.temporary_value,
+                                                  IndexManagementCommand(command="set_list", index=-1)))
+
+    def change_object_refresh(self):
+        """ when focus out, we need to reset all str_value-s of single attrs from failed to last_applied """
+        for complex_attr in self.active_complex_attrs:
+            for single_attr in complex_attr.single_attr_list:
+                single_attr.interface_str_value = single_attr.last_applied_str_value
+
+    def append_index_to_attrib(self, attr_name: str):
+        complex_attr = self.get_complex_attr_prop(attr_name)
+
+    def remove_index_from_attrib(self, attr_name: str, index: int):
+        complex_attr = self.get_complex_attr_prop(attr_name)
+        single_attr = self.get_single_attr_prop(attr_name, index)
+
+    def suggest_attr_value(self, attr_name: str, attr_value: str, index: int = -1):
+        single_attr = self.get_single_attr_prop(attr_name, index)
+        single_attr.suggested_str_value = attr_value
+
+    def apply_obj_creation(self):
+        """ to store last_applied values """
+        """ ! check auto-values not implemented """
+        for complex_attr in self.active_complex_attrs:
+            for single_attr in complex_attr.single_attr_list:
+                single_attr.last_applied_str_value = single_attr.last_input_str_value
+
+    # def default_switch_attrs(self):
+
+
+
+
+    def reload_attr_value(self, attr_name: str):
+        attr_prop_values = getattr(self, attr_name)
+        if isinstance(attr_prop_values, AttribValues):
+            self.change_single_attrib_value(attr_name, attr_prop_values.last_input_value)
+        else:
+            self.change_single_attrib_value(attr_name, self.list_attr_input_value(attr_name))
+
+    """ interface list attribute input str getter """
+    def list_attr_input_value(self, attr_name: str):
+        attr_prop_values = getattr(self, attr_name)
+        if isinstance(attr_prop_values, AttribValues):
+            attr_prop_values = [attr_prop_values]
+        return [apv.last_input_value for apv in attr_prop_values]
+
+    def single_attr_input_value(self, attr_name: str, index: int = -1):
+        if attr_name == "name":
+            return self.name
+        laiv = self.list_attr_input_value(attr_name)
+        return laiv[index] if index != -1 else laiv[0]
+
+    """ interface list attribute str confirmed value getter """
+    def list_attr_str_confirmed_value(self, attr_name: str):
+        attr_prop_values = getattr(self, attr_name)
+        if isinstance(attr_prop_values, AttribValues):
+            attr_prop_values = [attr_prop_values]
+        return [apv.str_confirmed_value for apv in attr_prop_values]
+
+    # """ interface list attribute str suggested value getter """
+    # def list_attr_str_suggested_value(self, attr_name: str):
+    #     attr_prop_values = getattr(self, attr_name)
+    #     if isinstance(attr_prop_values, AttribValues):
+    #         attr_prop_values = [attr_prop_values]
+    #     return [apv.suggested_value for apv in attr_prop_values]
+
+    """ interface list attribute confirmed value getter """
+    def attr_confirmed_value(self, attr_name: str):
+        attr_prop_values = getattr(self, attr_name)
+        if isinstance(attr_prop_values, AttribValues):
+            return attr_prop_values.confirmed_value
+        else:
+            return [attr_prop_value.confirmed_value for attr_prop_value in attr_prop_values]
+
+                # if " " in attr_val:
+                #     attr_val = attr_val.split(" ")
+                # if attr_name == "name":
+                #     if not attr_val.isalnum():
+                #         raise RFNoNameError("Name '{}' is not valid identifier".format(attr_val), AttributeErrorData(cls_name_del_soi, attr_val, "name"))
+                #     if not attr_val:
+                #         raise RFNoNameError("No-name-object in class", AttributeErrorData(cls_name_del_soi, "", "name"))
+                #     if attr_val in result[cls_name_soi]:
+                #         raise RFExistingNameError("Name already exists", AttributeErrorData(cls_name_del_soi, attr_val,
+                #                                                                             "name"))
+                #     result[cls_name_soi][attr_val] = new_obj
+                #     new_obj.change_single_attrib_value(attr_name, attr_val, file_read_mode=False)
+                # else:
+                #     try:
+                #         new_obj.change_single_attrib_value(attr_name, attr_val, file_read_mode=False)
+                #     except AttributeEvaluateError as e:
+                #         raise RFAttributeError(e.args[0], AttributeErrorData(cls_name_del_soi, new_obj.name, attr_name))

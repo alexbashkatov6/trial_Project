@@ -2,19 +2,23 @@ import os
 import re
 import time
 from functools import partial
+from collections import OrderedDict
 
 from PyQt5.QtWidgets import QWidgetItem, QMainWindow, QTextEdit, QAction, QToolBar, QPushButton, QHBoxLayout, \
-    QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView, QToolTip, QMenu
+    QVBoxLayout, QLabel, QGridLayout, QWidget, QLayout, QLineEdit, QSplitter, QComboBox, QTreeView, QToolTip, QMenu, \
+    QFileDialog, QMessageBox
 from PyQt5.QtGui import QIcon, QPainter, QPen, QValidator, QMouseEvent, QFocusEvent, QContextMenuEvent, QFont, QColor, \
     QResizeEvent, QPainterPath
-from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot, QRect, QPoint, QEvent, QTimer, QModelIndex, QObject
 from PyQt5.Qt import QStandardItemModel, QStandardItem, qApp
 # from PyQt5 import QList
 
+from default_ordered_dict import DefaultOrderedDict
 from nv_attribute_format import AttributeFormat
-from nv_config import CLASSES_SEQUENCE, GROUND_CS_NAME, PICTURE_FOLDER, \
+from nv_config import GROUND_CS_NAME, PICTURE_FOLDER, \
     TOOLS_TOOLBAR_HEIGHT, TREE_TOOLBAR_WIDTH, ATTRIBUTES_TOOLBAR_WIDTH, MAIN_AREA_MIN_HEIGHT, MAIN_AREA_MIN_WIDTH, \
     MIN_SELECTION_REGION_SIZE
+from config_names import CLASSES_SEQUENCE
 
 
 # from nv_attributed_objects import BSSObjectStatus
@@ -45,7 +49,7 @@ class ToolBarOfClasses(QToolBar):
     def construct_widget(self, min_size):
         self.setMinimumSize(min_size, min_size)
         for pic_name in self.pic_names_sorted_list:
-            icon = QIcon('{}/{}.jpg'.format(PICTURE_FOLDER, pic_name))
+            icon = QIcon('{}/{}.png'.format(PICTURE_FOLDER, pic_name))
             qb = QPushButton(icon, '')
             qb.setIconSize(QSize(min_size, min_size))
             qb.setToolTip(pic_name[pic_name.find('_') + 1:])
@@ -208,227 +212,227 @@ class ToolBarOfAttributes(QToolBar):
             focus_widget.returnPressed.emit()
 
 
-class CustomTW(QTreeView):
-    send_data_fill = pyqtSignal(str)
-    send_data_edit = pyqtSignal(str)
-    send_data_right_click = pyqtSignal(str)
-    send_data_hover = pyqtSignal(str)
-    send_data_pick = pyqtSignal(str)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setMouseTracking(True)
-        self.setHeaderHidden(True)
-        self.setExpandsOnDoubleClick(False)
-        self.timer = QTimer(self)
-        self.first_timer_notification = True
-        self.millisecs_of_notification = 1000
-        self.obj_hovered_name = ''
-        self.current_cursor_point = QPoint(0, 0)
-        self.timer_double_click = QTimer(self)
-        self.double_click = False
-        self.data_release = None
-        self.timer_double_click.timeout.connect(self.release_data_emit)
-
-    def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
-
-        if a0.button() == Qt.RightButton:
-            data = self.indexAt(a0.localPos().toPoint()).data()
-            if not (data is None):
-                self.send_data_right_click.emit(data)
-        if a0.button() == Qt.LeftButton:
-            data = self.indexAt(a0.localPos().toPoint()).data()
-            if data in CLASSES_SEQUENCE:
-                super().mouseReleaseEvent(a0)
-                return
-            if self.double_click:
-                self.timer_double_click.stop()
-                self.double_click = False
-            elif not self.timer_double_click.isActive():
-                self.timer_double_click.start(qApp.doubleClickInterval())
-                self.data_release = data
-
-    def mousePressEvent(self, a0: QMouseEvent) -> None:
-
-        if a0.button() == Qt.LeftButton:
-            data = self.indexAt(a0.localPos().toPoint()).data()
-            if (data in CLASSES_SEQUENCE) or (data is None):
-                super().mousePressEvent(a0)
-                return
-            if self.timer_double_click.isActive():
-                self.double_click = True
-                self.send_name_fill(self.data_release)
-
-    def release_data_emit(self):
-        if not (self.data_release is None):
-            self.send_data_pick.emit(self.data_release)
-            self.timer_double_click.stop()
-
-    def mouseMoveEvent(self, a0: QEvent) -> None:
-        self.timer.stop()
-        self.timer.timeout.connect(self.timeout_handling)
-        self.timer.start(self.millisecs_of_notification)
-        self.first_timer_notification = True
-        if isinstance(a0, QMouseEvent):
-            data = self.indexAt(a0.localPos().toPoint()).data()
-            self.current_cursor_point = a0.globalPos()
-            if data is None:
-                self.obj_hovered_name = ''
-            else:
-                self.obj_hovered_name = data
-
-    def enterEvent(self, a0: QEvent) -> None:
-        self.timer = QTimer(self)
-
-    def leaveEvent(self, a0: QEvent) -> None:
-        self.timer.stop()
-
-    @pyqtSlot()
-    def timeout_handling(self):
-        if self.first_timer_notification:
-            self.first_timer_notification = False
-            ohn = self.obj_hovered_name
-            if ohn and (ohn not in self.parent().class_nodes):
-                self.send_data_hover.emit(self.obj_hovered_name)
-
-    def contextMenuEvent(self, a0: QContextMenuEvent):
-        data = self.indexAt(a0.pos()).data()
-        if data and (data not in self.parent().class_nodes):
-            contextMenu = QMenu(self)
-            fillAct = contextMenu.addAction("Fill")
-            fillAct.triggered.connect(partial(self.send_name_fill, val=self.indexAt(a0.pos())))
-            if data != GROUND_CS_NAME:
-                editAct = contextMenu.addAction("Edit")
-                editAct.triggered.connect(partial(self.send_name_edit, val=self.indexAt(a0.pos())))
-                deleteAct = contextMenu.addAction("Delete")
-
-            action = contextMenu.exec_(self.mapToGlobal(a0.pos()))
-
-    def finish_operations(self):
-        self.expandAll()
-
-    def send_name_fill(self, val):
-        if val is None:
-            return
-        if type(val) != str:
-            val = val.data()
-        if val not in self.parent().class_nodes:
-            self.send_data_fill.emit(val)
-
-    def send_name_edit(self, val):
-        if val.data() not in self.parent().class_nodes:
-            self.send_data_edit.emit(val.data())
-
-
-class ObjectsTree(QWidget):
-    send_data_fill = pyqtSignal(str)
-    send_data_edit = pyqtSignal(str)
-    send_data_right_click = pyqtSignal(str)
-    send_data_hover = pyqtSignal(str)
-    send_data_pick = pyqtSignal(str)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.vbox = QVBoxLayout(self)
-        self.setLayout(self.vbox)
-        self.clean()
-
-    def clean(self):
-        self.class_nodes = set()
-        if hasattr(self, 'tree_view'):
-            self.tree_view.setParent(None)
-        self.tree_view = CustomTW(self)
-        self.tree_model = QStandardItemModel()
-        self.root_node = self.tree_model.invisibleRootItem()
-        self.tree_view.setModel(self.tree_model)
-        self.vbox.addWidget(self.tree_view)
-
-        self.tree_view.send_data_fill.connect(self.send_data_fill)
-        self.tree_view.send_data_edit.connect(self.send_data_edit)
-        self.tree_view.send_data_right_click.connect(self.send_data_right_click)
-        self.tree_view.send_data_hover.connect(self.send_data_hover)
-        self.tree_view.send_data_pick.connect(self.send_data_pick)
-
-    def init_from_graph_tree(self, tree_dict):
-        self.clean()
-        for class_name in tree_dict:
-            item_class = QStandardItem(class_name)
-            item_class.setEditable(False)
-            item_class.setSelectable(False)
-            self.root_node.appendRow(item_class)
-            self.class_nodes.add(class_name)
-            for obj_name, obj_pick_status, obj_corrupt_status in tree_dict[class_name]:
-                item_obj = QStandardItem(obj_name)
-                item_obj.setEditable(False)
-                item_class.appendRow(item_obj)
-
-                if obj_pick_status == 'p_default':
-                    item_obj.setData(QColor('white'), Qt.BackgroundColorRole)
-                if obj_pick_status == 'picked':
-                    item_obj.setData(QColor('green'), Qt.BackgroundColorRole)
-                if obj_pick_status == 'pick_directly_dependent':
-                    item_obj.setData(QColor('greenyellow'), Qt.BackgroundColorRole)
-                if obj_pick_status == 'pick_indirectly_dependent':
-                    item_obj.setData(QColor('yellow'), Qt.BackgroundColorRole)
-
-                if obj_corrupt_status == 'c_default':
-                    item_obj.setData(QColor('black'), Qt.ForegroundRole)
-                if obj_corrupt_status == 'corrupted':
-                    item_obj.setData(QColor('red'), Qt.ForegroundRole)
-                if obj_corrupt_status == 'corrupt_dependent':
-                    item_obj.setData(QColor('orange'), Qt.ForegroundRole)
-        self.tree_view.finish_operations()
+# class CustomTW(QTreeView):
+#     send_data_fill = pyqtSignal(str)
+#     send_data_edit = pyqtSignal(str)
+#     send_data_right_click = pyqtSignal(str)
+#     send_data_hover = pyqtSignal(str)
+#     send_data_pick = pyqtSignal(str)
+#
+#     def __init__(self, parent=None):
+#         super().__init__(parent)
+#         self.setMouseTracking(True)
+#         self.setHeaderHidden(True)
+#         self.setExpandsOnDoubleClick(False)
+#         self.timer = QTimer(self)
+#         self.first_timer_notification = True
+#         self.millisecs_of_notification = 1000
+#         self.obj_hovered_index = ''
+#         self.current_cursor_point = QPoint(0, 0)
+#         self.timer_double_click = QTimer(self)
+#         self.double_click = False
+#         self.data_release = None
+#         self.timer_double_click.timeout.connect(self.release_data_emit)
+#
+#     def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
+#
+#         if a0.button() == Qt.RightButton:
+#             data = self.indexAt(a0.localPos().toPoint()).data()
+#             if not (data is None):
+#                 self.send_data_right_click.emit(data)
+#         if a0.button() == Qt.LeftButton:
+#             data = self.indexAt(a0.localPos().toPoint()).data()
+#             if data in CLASSES_SEQUENCE:
+#                 super().mouseReleaseEvent(a0)
+#                 return
+#             if self.double_click:
+#                 self.timer_double_click.stop()
+#                 self.double_click = False
+#             elif not self.timer_double_click.isActive():
+#                 self.timer_double_click.start(qApp.doubleClickInterval())
+#                 self.data_release = data
+#
+#     def mousePressEvent(self, a0: QMouseEvent) -> None:
+#
+#         if a0.button() == Qt.LeftButton:
+#             data = self.indexAt(a0.localPos().toPoint()).data()
+#             if (data in CLASSES_SEQUENCE) or (data is None):
+#                 super().mousePressEvent(a0)
+#                 return
+#             if self.timer_double_click.isActive():
+#                 self.double_click = True
+#                 self.send_name_fill(self.data_release)
+#
+#     def release_data_emit(self):
+#         if not (self.data_release is None):
+#             self.send_data_pick.emit(self.data_release)
+#             self.timer_double_click.stop()
+#
+#     def mouseMoveEvent(self, a0: QEvent) -> None:
+#         self.timer.stop()
+#         self.timer.timeout.connect(self.timeout_handling)
+#         self.timer.start(self.millisecs_of_notification)
+#         self.first_timer_notification = True
+#         if isinstance(a0, QMouseEvent):
+#             data = self.indexAt(a0.localPos().toPoint()).data()
+#             self.current_cursor_point = a0.globalPos()
+#             if data is None:
+#                 self.obj_hovered_index = ''
+#             else:
+#                 self.obj_hovered_index = data
+#
+#     def enterEvent(self, a0: QEvent) -> None:
+#         self.timer = QTimer(self)
+#
+#     def leaveEvent(self, a0: QEvent) -> None:
+#         self.timer.stop()
+#
+#     @pyqtSlot()
+#     def timeout_handling(self):
+#         if self.first_timer_notification:
+#             self.first_timer_notification = False
+#             ohn = self.obj_hovered_index
+#             if ohn and (ohn not in self.parent().class_nodes):
+#                 self.send_data_hover.emit(self.obj_hovered_index)
+#
+#     def contextMenuEvent(self, a0: QContextMenuEvent):
+#         data = self.indexAt(a0.pos()).data()
+#         if data and (data not in self.parent().class_nodes):
+#             contextMenu = QMenu(self)
+#             fillAct = contextMenu.addAction("Fill")
+#             fillAct.triggered.connect(partial(self.send_name_fill, val=self.indexAt(a0.pos())))
+#             if data != GROUND_CS_NAME:
+#                 editAct = contextMenu.addAction("Edit")
+#                 editAct.triggered.connect(partial(self.send_name_edit, val=self.indexAt(a0.pos())))
+#                 deleteAct = contextMenu.addAction("Delete")
+#
+#             action = contextMenu.exec_(self.mapToGlobal(a0.pos()))
+#
+#     def finish_operations(self):
+#         self.expandAll()
+#
+#     def send_name_fill(self, val):
+#         if val is None:
+#             return
+#         if type(val) != str:
+#             val = val.data()
+#         if val not in self.parent().class_nodes:
+#             self.send_data_fill.emit(val)
+#
+#     def send_name_edit(self, val):
+#         if val.data() not in self.parent().class_nodes:
+#             self.send_data_edit.emit(val.data())
 
 
-class ToolBarOfObjects(QToolBar):
-    send_data_fill = pyqtSignal(str)
-    send_data_edit = pyqtSignal(str)
-    send_data_right_click = pyqtSignal(str)
-    send_data_hover = pyqtSignal(str)
-    send_data_pick = pyqtSignal(str)
-    send_leave = pyqtSignal()
+# class ObjectsTree(QWidget):
+#     send_data_fill = pyqtSignal(str)
+#     send_data_edit = pyqtSignal(str)
+#     send_data_right_click = pyqtSignal(str)
+#     send_data_hover = pyqtSignal(str)
+#     send_data_pick = pyqtSignal(str)
+#
+#     def __init__(self, parent=None):
+#         super().__init__(parent)
+#         self.vbox = QVBoxLayout(self)
+#         self.setLayout(self.vbox)
+#         self.clean()
+#
+#     def clean(self):
+#         self.class_nodes = set()
+#         if hasattr(self, 'tree_view'):
+#             self.tree_view.setParent(None)
+#         self.tree_view = CustomTW(self)
+#         self.tree_model = QStandardItemModel()
+#         self.root_node = self.tree_model.invisibleRootItem()
+#         self.tree_view.setModel(self.tree_model)
+#         self.vbox.addWidget(self.tree_view)
+#
+#         self.tree_view.send_data_fill.connect(self.send_data_fill)
+#         self.tree_view.send_data_edit.connect(self.send_data_edit)
+#         self.tree_view.send_data_right_click.connect(self.send_data_right_click)
+#         self.tree_view.send_data_hover.connect(self.send_data_hover)
+#         self.tree_view.send_data_pick.connect(self.send_data_pick)
+#
+#     def init_from_graph_tree(self, tree_dict):
+#         self.clean()
+#         for class_name in tree_dict:
+#             item_class = QStandardItem(class_name)
+#             item_class.setEditable(False)
+#             item_class.setSelectable(False)
+#             self.root_node.appendRow(item_class)
+#             self.class_nodes.add(class_name)
+#             for obj_name, obj_pick_status, obj_corrupt_status in tree_dict[class_name]:
+#                 item_obj = QStandardItem(obj_name)
+#                 item_obj.setEditable(False)
+#                 item_class.appendRow(item_obj)
+#
+#                 if obj_pick_status == 'p_default':
+#                     item_obj.setData(QColor('white'), Qt.BackgroundColorRole)
+#                 if obj_pick_status == 'picked':
+#                     item_obj.setData(QColor('green'), Qt.BackgroundColorRole)
+#                 if obj_pick_status == 'pick_directly_dependent':
+#                     item_obj.setData(QColor('greenyellow'), Qt.BackgroundColorRole)
+#                 if obj_pick_status == 'pick_indirectly_dependent':
+#                     item_obj.setData(QColor('yellow'), Qt.BackgroundColorRole)
+#
+#                 if obj_corrupt_status == 'c_default':
+#                     item_obj.setData(QColor('black'), Qt.ForegroundRole)
+#                 if obj_corrupt_status == 'corrupted':
+#                     item_obj.setData(QColor('red'), Qt.ForegroundRole)
+#                 if obj_corrupt_status == 'corrupt_dependent':
+#                     item_obj.setData(QColor('orange'), Qt.ForegroundRole)
+#         self.tree_view.finish_operations()
 
-    def __init__(self, min_size):
-        super().__init__()
-        self.setMovable(False)
-        self.setMinimumSize(min_size, min_size)
-        self.wgt_main = QWidget(self)
-        self.addWidget(self.wgt_main)
 
-        self.title_label = QLabel('Tree of objects', self)
-        self.title_label.setAlignment(Qt.AlignHCenter)
-
-        self.objects_tree = ObjectsTree(self)
-
-        self.vbox = QVBoxLayout(self)
-        self.vbox.addWidget(self.title_label)
-        self.vbox.addWidget(self.objects_tree)
-        self.wgt_main.setLayout(self.vbox)
-
-        self.objects_tree.send_data_fill.connect(self.send_data_fill)
-        self.objects_tree.send_data_edit.connect(self.send_data_edit)
-        self.objects_tree.send_data_right_click.connect(self.send_data_right_click)
-        self.objects_tree.send_data_hover.connect(self.send_data_hover)
-        self.objects_tree.send_data_pick.connect(self.send_data_pick)
-
-    def mousePressEvent(self, a0: QMouseEvent) -> None:
-        if a0.button() == Qt.LeftButton:
-            if a0.source() == 0:
-                self.send_leave.emit()
-
-    @pyqtSlot(dict)
-    def set_tree(self, tree_dict):
-        self.objects_tree.init_from_graph_tree(tree_dict)
-
-    @pyqtSlot(list)
-    def show_info_about_object(self, af_list):
-        result_str = ''
-        for af in af_list:
-            if af.attr_type == 'title':
-                result_str += '{}\n'.format(af.attr_name)
-            if (af.attr_type == 'splitter') or (af.attr_type == 'str_value'):
-                result_str += '{}: {}\n'.format(af.attr_name, af.attr_value)
-        QToolTip.showText(self.objects_tree.tree_view.current_cursor_point, result_str.rstrip())
+# class ToolBarOfObjects(QToolBar):
+#     send_data_fill = pyqtSignal(str)
+#     send_data_edit = pyqtSignal(str)
+#     send_data_right_click = pyqtSignal(str)
+#     send_data_hover = pyqtSignal(str)
+#     send_data_pick = pyqtSignal(str)
+#     send_leave = pyqtSignal()
+#
+#     def __init__(self, min_size):
+#         super().__init__()
+#         self.setMovable(False)
+#         self.setMinimumSize(min_size, min_size)
+#         self.wgt_main = QWidget(self)
+#         self.addWidget(self.wgt_main)
+#
+#         self.title_label = QLabel('Tree of objects', self)
+#         self.title_label.setAlignment(Qt.AlignHCenter)
+#
+#         self.objects_tree = ObjectsTree(self)
+#
+#         self.vbox = QVBoxLayout(self)
+#         self.vbox.addWidget(self.title_label)
+#         self.vbox.addWidget(self.objects_tree)
+#         self.wgt_main.setLayout(self.vbox)
+#
+#         self.objects_tree.send_data_fill.connect(self.send_data_fill)
+#         self.objects_tree.send_data_edit.connect(self.send_data_edit)
+#         self.objects_tree.send_data_right_click.connect(self.send_data_right_click)
+#         self.objects_tree.send_data_hover.connect(self.send_data_hover)
+#         self.objects_tree.send_data_pick.connect(self.send_data_pick)
+#
+#     def mousePressEvent(self, a0: QMouseEvent) -> None:
+#         if a0.button() == Qt.LeftButton:
+#             if a0.source() == 0:
+#                 self.send_leave.emit()
+#
+#     @pyqtSlot(dict)
+#     def set_tree(self, tree_dict):
+#         self.objects_tree.init_from_graph_tree(tree_dict)
+#
+#     @pyqtSlot(list)
+#     def show_info_about_object(self, af_list):
+#         result_str = ''
+#         for af in af_list:
+#             if af.attr_type == 'title':
+#                 result_str += '{}\n'.format(af.attr_name)
+#             if (af.attr_type == 'splitter') or (af.attr_type == 'str_value'):
+#                 result_str += '{}: {}\n'.format(af.attr_name, af.attr_value)
+#         QToolTip.showText(self.objects_tree.tree_view.current_cursor_point, result_str.rstrip())
 
 
 class PaintingArea(QWidget):
@@ -455,8 +459,8 @@ class PaintingArea(QWidget):
                                           (fg.bottomRight().x(), fg.bottomRight().y())))
 
     def mouseDoubleClickEvent(self, a0: QMouseEvent) -> None:
-        print('localPos toPoint', self.frameGeometry())
-        print(a0.localPos().toPoint())
+        # print('localPos toPoint', self.frameGeometry())
+        # print(a0.localPos().toPoint())
         self.flag = not self.flag
         self.repaint()
 
@@ -511,36 +515,293 @@ class PaintingArea(QWidget):
         self.painter.drawPath(path2)
 
 
-class MW(QMainWindow):
+class TreeToolBarWidget(QTreeView):
+    send_obj_double_clicked = pyqtSignal(str, str)
+    send_add_new = pyqtSignal(str)
+    send_attrib_request = pyqtSignal(str, str)
+    send_delete_request = pyqtSignal(str, str)
 
     def __init__(self):
         super().__init__()
 
-        # central wgt
-        self.pa = PaintingArea(MAIN_AREA_MIN_WIDTH, MAIN_AREA_MIN_HEIGHT)
-        self.setCentralWidget(self.pa)
+        self.setMouseTracking(True)
+        self.timer = QTimer(self)
+        self.first_timer_notification = True
+        self.millisecs_of_notification = 1000
+        self.current_cursor_point = QPoint(0, 0)
+        self.obj_hovered_index = None
 
-        # Top tool bar format
+        self.tree_model = QStandardItemModel()
+        self.root_node = self.tree_model.invisibleRootItem()
+        self.setModel(self.tree_model)
+        self.setHeaderHidden(True)
+        self.class_names: set[str] = set()
+        self.obj_names: set[str] = set()
+        self.index_to_str_tuple: dict[QModelIndex, tuple[str, str]] = {}
+        self.expanded_indexes = set()
+        self.got_dict = DefaultOrderedDict(OrderedDict)
+        self.expanded.connect(self.add_expanded_index)
+        self.collapsed.connect(self.remove_expanded_index)
+
+    def add_expanded_index(self, idx: QModelIndex):
+        self.expanded_indexes.add(idx)
+
+    def remove_expanded_index(self, idx: QModelIndex):
+        self.expanded_indexes.remove(idx)
+
+    def from_dict(self, d: DefaultOrderedDict):
+        self.got_dict = d
+        # print("got d", d)
+        self.class_names.clear()
+        self.obj_names.clear()
+        self.index_to_str_tuple.clear()
+
+        self.root_node.removeRows(0, self.root_node.rowCount())
+        self.root_node.emitDataChanged()
+        for class_name in d:
+            self.class_names.add(class_name)
+            item_class = QStandardItem(class_name)
+            item_class.setEditable(False)
+            item_class.setSelectable(False)
+            self.root_node.appendRow(item_class)
+            for obj_name in d[class_name]:
+                self.obj_names.add(obj_name)
+                item_obj = QStandardItem(obj_name)
+                item_obj.setEditable(False)
+                # item_obj.setSelectable(False)
+                item_class.appendRow(item_obj)
+                self.index_to_str_tuple[item_obj.index()] = (class_name, obj_name)
+                if d[class_name][obj_name]["error_status"]:
+                    item_obj.setData(QColor('red'), Qt.ForegroundRole)
+                    item_class.setData(QColor('red'), Qt.ForegroundRole)
+        for idx in self.expanded_indexes:
+            self.expand(idx)
+
+    def enterEvent(self, a0: QEvent) -> None:
+        self.timer = QTimer(self)
+        super().enterEvent(a0)
+
+    def leaveEvent(self, a0: QEvent) -> None:
+        self.timer.stop()
+        super().leaveEvent(a0)
+
+    def mouseMoveEvent(self, a0: QEvent) -> None:
+        self.timer.stop()
+        self.timer.timeout.connect(self.timeout_handling)
+        self.timer.start(self.millisecs_of_notification)
+        self.first_timer_notification = True
+        if isinstance(a0, QMouseEvent):
+            idx = self.indexAt(a0.localPos().toPoint())
+            self.current_cursor_point = a0.globalPos()
+            if idx not in self.index_to_str_tuple:  # (data is None) or
+                self.obj_hovered_index = None
+            else:
+                self.obj_hovered_index = idx
+        super().mouseMoveEvent(a0)
+
+    def timeout_handling(self):
+        if self.first_timer_notification:
+            self.first_timer_notification = False
+            ohn = self.obj_hovered_index
+            if not (ohn is None):
+                cls_name, obj_name = self.index_to_str_tuple[ohn]
+                attr_odict = self.got_dict[cls_name][obj_name]['attributes']
+                begin_str = obj_name  # "Attributes:"
+                result_str = ""
+                max_len = 0
+                for attr_name, attr_val in attr_odict.items():
+                    add_str = "{}: {}\n".format(attr_name, attr_val)
+                    max_len = len(add_str) if len(add_str) > max_len else max_len
+                    result_str += add_str
+                begin_str = begin_str.center(max_len)
+                result_str = begin_str + "\n" + result_str
+                # print("begin str:", begin_str, "end")
+                QToolTip.showText(self.current_cursor_point, result_str[:-1])
+
+    def mouseDoubleClickEvent(self, a0: QMouseEvent) -> None:
+        idx = self.indexAt(a0.localPos().toPoint())
+        data = idx.data()
+        if data and (data not in self.class_names):
+            self.send_obj_double_clicked.emit(*self.index_to_str_tuple[idx])
+
+    def contextMenuEvent(self, a0: QContextMenuEvent):
+        idx = self.indexAt(a0.pos())
+        data = idx.data()
+        if data:
+            contextMenu = QMenu(self)
+            if data in self.class_names:
+                contextMenu.addAction("Create").triggered.\
+                    connect(partial(self.send_add_new.emit, data))
+
+            elif data in self.obj_names:
+                contextMenu.addAction("Attributes").triggered.\
+                    connect(partial(self.send_attrib_request.emit, *self.index_to_str_tuple[idx]))
+                contextMenu.addAction("Delete").triggered.\
+                    connect(partial(self.send_delete_request.emit, *self.index_to_str_tuple[idx]))
+
+            contextMenu.exec_(self.mapToGlobal(a0.pos()))
+
+
+class TreeToolBar(QToolBar):
+    def __init__(self):
+        super().__init__()
+        self.setMovable(False)
+        self.setMinimumWidth(300)
+        self.tree_view = TreeToolBarWidget()
+        self.addWidget(self.tree_view)
+        # self.installEventFilter()
+
+    # def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+    #     print("eventFilter")
+    #     if event.type() == QEvent.MouseMove:
+    #         print("HoverEnter")
+    #         QMouseEvent.
+    #         # event: QMouseEvent
+    #         # self.onHovered(event.localPos().toPoint())
+    #     return super().eventFilter(obj, event)
+
+
+class AttributeWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+
+
+class AttributeToolBar(QToolBar):
+    def __init__(self):
+        super().__init__()
+        self.setMovable(False)
+        self.setMinimumWidth(300)
+        self.column_wgt = AttributeWidget()
+        self.addWidget(self.column_wgt)
+
+
+class MW(QMainWindow):
+    config_directory_selected = pyqtSignal(str)
+    undo = pyqtSignal()
+    redo = pyqtSignal()
+    eval_routes_directory_selected = pyqtSignal(str)
+    deletion_confirmed = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self.setGeometry(40, 40, 1840, 980)
+        self.setWindowTitle('Painter')
+        self.stb = self.statusBar()
+
+        # menus
+        menu_bar = self.menuBar()
+
+        file_menu = menu_bar.addMenu('&File')
+        open_action = file_menu.addAction("&Open config")
+        open_action.setShortcut("Ctrl+O")
+        open_action.triggered.connect(self.open_config)
+
+        edit_menu = menu_bar.addMenu('&Edit')
+        undo_action = edit_menu.addAction("&Undo")
+        undo_action.setShortcut("Ctrl+Z")
+        undo_action.triggered.connect(self.undo)
+        redo_action = edit_menu.addAction("&Redo")
+        redo_action.setShortcut("Ctrl+Y")
+        redo_action.triggered.connect(self.redo)
+
+        eval_menu = menu_bar.addMenu('&Evaluations')
+        eval_routes_action = eval_menu.addAction("&Eval routes")
+        eval_routes_action.triggered.connect(self.eval_routes)
+
+        # toolbars
         self.ttb = ToolBarOfClasses()
-        # self.ttb.
         self.ttb.extract_pictures(CLASSES_SEQUENCE)
         self.ttb.construct_widget(TOOLS_TOOLBAR_HEIGHT)
-
-        # Right tool bar format
-        self.rtb = ToolBarOfAttributes(ATTRIBUTES_TOOLBAR_WIDTH)
-
-        # Left tool bar format
-        self.ltb = ToolBarOfObjects(TREE_TOOLBAR_WIDTH)
-
         self.addToolBar(Qt.TopToolBarArea, self.ttb)
-        self.addToolBar(Qt.RightToolBarArea, self.rtb)
+
+        self.ltb = TreeToolBar()
         self.addToolBar(Qt.LeftToolBarArea, self.ltb)
 
-        # self.statusBar()
+        self.rtb = AttributeToolBar()
+        self.addToolBar(Qt.RightToolBarArea, self.rtb)
 
-        menubar = self.menuBar()
-        menubar.addMenu('&File')
 
-        self.setGeometry(10, 40, 10, 10)
-        self.setWindowTitle('Main window')
         self.show()
+
+    def open_config(self):
+        quick_version = True
+        if quick_version:
+            self.config_directory_selected.emit(os.path.join(os.getcwd(), "station_in_config"))
+        else:
+            dir_name = QFileDialog.getExistingDirectory(self, 'Open', './')
+            if not dir_name:
+                return
+            self.config_directory_selected.emit(dir_name)
+
+    def eval_routes(self):
+        quick_version = True
+        if quick_version:
+            self.eval_routes_directory_selected.emit(os.path.join(os.getcwd(), "eval_results"))
+        else:
+            dir_name = QFileDialog.getExistingDirectory(self, 'Open', './')
+            if not dir_name:
+                return
+            self.eval_routes_directory_selected.emit(dir_name)
+
+    def deletion_warning(self, del_names: list[tuple[str, str]]):
+        msg = QMessageBox()
+        btn_apply = QMessageBox.StandardButton.Apply
+        btn_cancel = QMessageBox.StandardButton.Cancel
+        msg.addButton(btn_apply)
+        msg.addButton(btn_cancel)
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText("Warning")
+        warn_text = 'Next objects will be deleted:'
+        for cls_name in CLASSES_SEQUENCE:
+            if warn_text[-1] != "\n":
+                warn_text += "\n"
+            cls_exist = False
+            for item in del_names:
+                if item[0] == cls_name:
+                    cls_exist = True
+                    warn_text += "{}, ".format(item[1])
+            if cls_exist:
+                warn_text = warn_text[:-2]+" "
+                warn_text += "({})".format(cls_name)
+        msg.setInformativeText(warn_text)
+        msg.setWindowTitle("Warning")
+        msg.exec_()
+        if msg.clickedButton() == msg.button(QMessageBox.StandardButton.Apply):
+            self.deletion_confirmed.emit()
+
+    def error_message(self, message: str):
+        print("ERROR MESSAGE")
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setText("Error")
+        msg.setWindowTitle("Error")
+        msg.setInformativeText(message)
+        msg.exec_()
+
+        # central wgt
+        # self.pa = PaintingArea(MAIN_AREA_MIN_WIDTH, MAIN_AREA_MIN_HEIGHT)
+        # self.setCentralWidget(self.pa)
+        #
+        # # Top tool bar format
+        # self.ttb = ToolBarOfClasses()
+        # # self.ttb.
+        # self.ttb.extract_pictures(CLASSES_SEQUENCE)
+        # self.ttb.construct_widget(TOOLS_TOOLBAR_HEIGHT)
+        #
+        # # Right tool bar format
+        # self.rtb = ToolBarOfAttributes(ATTRIBUTES_TOOLBAR_WIDTH)
+        #
+        # # Left tool bar format
+        # self.ltb = ToolBarOfObjects(TREE_TOOLBAR_WIDTH)
+        #
+        # self.addToolBar(Qt.TopToolBarArea, self.ttb)
+        # self.addToolBar(Qt.RightToolBarArea, self.rtb)
+        # self.addToolBar(Qt.LeftToolBarArea, self.ltb)
+        #
+        # # self.statusBar()
+        #
+        # menubar = self.menuBar()
+        # menubar.addMenu('&File')
+        #
+        # self.setGeometry(10, 40, 10, 10)
+        # self.setWindowTitle('Main window')

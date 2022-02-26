@@ -105,29 +105,29 @@ class ModelBuilder:
             if isinstance(image, CoordinateSystemSOI):
                 # print("CoordinateSystemSOI")
                 model_object = CoordinateSystemMO(self.names_mo["CoordinateSystem"][
-                                                      image.attr_confirmed_value("cs_relative_to").name],
-                                                  image.attr_confirmed_value("x"),
-                                                  image.attr_confirmed_value("co_x") == "true",
-                                                  image.attr_confirmed_value("co_y") == "true")
+                                                      image.cs_relative_to.name],
+                                                  image.x,
+                                                  image.co_x == "true",
+                                                  image.co_y == "true")
                 model_object.name = image_name
                 self.names_mo["CoordinateSystem"][image_name] = model_object
 
             if isinstance(image, AxisSOI):
                 cs_rel: CoordinateSystemMO = self.names_mo["CoordinateSystem"][
-                                                      image.attr_confirmed_value("cs_relative_to").name]
-                if image.attr_confirmed_value("creation_method") == "translational":
-                    cs_rel_mo: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.attr_confirmed_value("cs_relative_to").name]
+                                                      image.cs_relative_to.name]
+                if image.creation_method == "translational":
+                    cs_rel_mo: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.cs_relative_to.name]
                     center_point_x = cs_rel.absolute_x
-                    center_point_y = image.attr_confirmed_value("y") * int(2 * (int(cs_rel_mo.absolute_co_y) - 0.5))
+                    center_point_y = image.y * int(2 * (int(cs_rel_mo.absolute_co_y) - 0.5))
                     angle = 0
                 else:
-                    center_point_soi: PointSOI = image.attr_confirmed_value("center_point")
+                    center_point_soi: PointSOI = image.center_point
                     # print("center_point_soi", center_point_soi)
                     center_point_mo: PointMO = self.names_mo["Point"][center_point_soi]
                     center_point_x = center_point_mo.x
                     center_point_y = center_point_mo.y
-                    angle = image.attr_confirmed_value("alpha")
-                    if center_point_soi.attr_confirmed_value("on") == "line":
+                    angle = image.alpha
+                    if center_point_soi.on == "line":
                         raise MBSkeletonError("Building axis by point on line is impossible",
                                               AttributeErrorData(cls_name, obj_name, "center_point"))
                     if Angle(angle) == Angle(math.pi/2):
@@ -148,19 +148,19 @@ class ModelBuilder:
                         raise MBSkeletonError("Cannot re-build existing axis",
                                               AttributeErrorData(cls_name, obj_name, ""))
 
-                if image.attr_confirmed_value("creation_method") == "rotational":
-                    center_point_soi: PointSOI = image.attr_confirmed_value("center_point")
+                if image.creation_method == "rotational":
+                    center_point_soi: PointSOI = image.center_point
                     model_object.append_point(center_point_soi)
                 self.names_mo["Axis"][image_name] = model_object
 
             if isinstance(image, PointSOI):
-                cs_rel: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.attr_confirmed_value("cs_relative_to").name]
-                point_x = cs_rel.absolute_x + image.attr_confirmed_value("x") * cs_rel.absolute_co_x
-                if image.attr_confirmed_value("on") == "axis":
-                    axis: AxisMO = self.names_mo["Axis"][image.attr_confirmed_value("axis").name]
+                cs_rel: CoordinateSystemMO = self.names_mo["CoordinateSystem"][image.cs_relative_to.name]
+                point_x = cs_rel.absolute_x + image.x * cs_rel.absolute_co_x
+                if image.on == "axis":
+                    axis: AxisMO = self.names_mo["Axis"][image.axis.name]
                     pnt2D = lines_intersection(axis.line2D, Line2D(Point2D(point_x, 0), angle=Angle(math.pi / 2)))
                 else:
-                    line: LineMO = self.names_mo["Line"][image.attr_confirmed_value("line").name]
+                    line: LineMO = self.names_mo["Line"][image.line.name]
                     try:
                         pnt2D_y = line.boundedCurves[0].y_by_x(point_x)
                     except OutBorderException:
@@ -183,30 +183,30 @@ class ModelBuilder:
                     except PointsEqualException:
                         raise MBSkeletonError("Cannot re-build existing point", AttributeErrorData(cls_name, obj_name, ""))
 
-                if image.attr_confirmed_value("on") == "axis":
-                    axis: AxisMO = self.names_mo["Axis"][image.attr_confirmed_value("axis").name]
+                if image.on == "axis":
+                    axis: AxisMO = self.names_mo["Axis"][image.axis.name]
                     self.point_to_axis_handling(model_object, axis)
                 else:
-                    line: LineMO = self.names_mo["Line"][image.attr_confirmed_value("line").name]
+                    line: LineMO = self.names_mo["Line"][image.line.name]
                     self.point_to_line_handling(model_object, line)
                 self.names_mo["Point"][image_name] = model_object
 
             if isinstance(image, LineSOI):
-                points_so: list[PointSOI] = image.attr_confirmed_value("points")
+                points_so: list[PointSOI] = image.points
                 points_mo: list[PointMO] = [self.names_mo["Point"][point.name] for point in points_so]
                 if len(points_mo) != 2:
                     raise MBSkeletonError("Count of points should be == 2", AttributeErrorData(cls_name, obj_name, "points"))
                 point_1, point_2 = points_mo[0], points_mo[1]
                 axises_mo: list[AxisMO] = []
                 for i, point_so in enumerate(points_so):
-                    if point_so.attr_confirmed_value("on") == "line":
-                        line_mo: LineMO = self.names_mo["Line"][point_so.attr_confirmed_value("line").name]
+                    if point_so.on == "line":
+                        line_mo: LineMO = self.names_mo["Line"][point_so.line.name]
                         if not line_mo.axis:
                             raise MBSkeletonError("Cannot build line by point on line",
                                                   AttributeErrorData(cls_name, obj_name, "points", i))
                         axises_mo.append(line_mo.axis)
                     else:
-                        axis_mo: AxisMO = self.names_mo["Axis"][point_so.attr_confirmed_value("axis").name]
+                        axis_mo: AxisMO = self.names_mo["Axis"][point_so.axis.name]
                         axises_mo.append(axis_mo)
                 axis_1, axis_2 = axises_mo[0], axises_mo[1]
                 if axis_1 is axis_2:
@@ -313,8 +313,8 @@ class ModelBuilder:
             obj_name = image_name
 
             if isinstance(image, LightSOI):
-                center_point: PointMO = self.names_mo["Point"][image.attr_confirmed_value("center_point").name]
-                direct_point: PointMO = self.names_mo["Point"][image.attr_confirmed_value("direct_point").name]
+                center_point: PointMO = self.names_mo["Point"][image.center_point.name]
+                direct_point: PointMO = self.names_mo["Point"][image.direct_point.name]
 
                 if center_point is direct_point:
                     raise MBEquipmentError("Direction point is equal to central point",
@@ -328,8 +328,8 @@ class ModelBuilder:
                     raise MBEquipmentError("Route from central point to direction point not found",
                                            AttributeErrorData(cls_name, obj_name, "direct_point"))
 
-                model_object = LightMO(image.attr_confirmed_value("light_route_type"), routes_node_to_node[1].end_str,
-                                       image.attr_confirmed_value("colors"), image.attr_confirmed_value("light_stick_type"))
+                model_object = LightMO(image.light_route_type, routes_node_to_node[1].end_str,
+                                       image.colors, image.light_stick_type)
                 center_point_node.append_cell_obj(LightCell(image_name))
 
                 model_object.name = image_name
@@ -343,9 +343,9 @@ class ModelBuilder:
             obj_name = image_name
 
             if isinstance(image, RailPointSOI):
-                center_point: PointMO = self.names_mo["Point"][image.attr_confirmed_value("center_point").name]
-                plus_point: PointMO = self.names_mo["Point"][image.attr_confirmed_value("dir_plus_point").name]
-                minus_point: PointMO = self.names_mo["Point"][image.attr_confirmed_value("dir_minus_point").name]
+                center_point: PointMO = self.names_mo["Point"][image.center_point.name]
+                plus_point: PointMO = self.names_mo["Point"][image.dir_plus_point.name]
+                minus_point: PointMO = self.names_mo["Point"][image.dir_minus_point.name]
 
                 # check direction
                 center_point_node = find_cell_name(self.smg.not_inf_nodes, PointCell, center_point.name)[1]
@@ -391,12 +391,12 @@ class ModelBuilder:
             obj_name = image_name
 
             if isinstance(image, BorderSOI):
-                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, image.attr_confirmed_value("point").name)[1]
+                point_node: PolarNode = find_cell_name(self.smg.not_inf_nodes, PointCell, image.point.name)[1]
                 inf_ni_str = None
                 if point_node in self.smg.nodes_inf_connected:
                     inf_ni_str = self.smg.nodes_inf_connected[point_node].opposite_end_str
 
-                model_object = BorderMO(image.attr_confirmed_value("border_type"), inf_ni_str)
+                model_object = BorderMO(image.border_type, inf_ni_str)
                 point_node.append_cell_obj(BorderCell(image_name))
                 model_object.name = image_name
                 self.names_mo["Border"][image_name] = model_object
@@ -409,7 +409,7 @@ class ModelBuilder:
             obj_name = image_name
 
             if isinstance(image, SectionSOI):
-                border_points: list[PointMO] = [self.names_mo["Point"][point.name] for point in image.attr_confirmed_value("border_points")]
+                border_points: list[PointMO] = [self.names_mo["Point"][point.name] for point in image.border_points]
                 point_nodes: list[PolarNode] = [find_cell_name(self.smg.not_inf_nodes, PointCell, point.name)[1]
                                                 for point in border_points]
                 closed_links, closed_nodes = self.smg.closed_links_nodes(point_nodes)

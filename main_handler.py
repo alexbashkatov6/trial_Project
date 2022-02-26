@@ -7,7 +7,7 @@ from model_builder import ModelBuilder
 from soi_dg_storage import StorageDG
 from files_operations import read_station_config
 from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI,\
-    AttributeEvaluateError
+    AttributeEvaluateError, IndexManagementCommand
 from form_exception_message import form_message_from_error
 from soi_metadata import ClassProperties, ObjectProperties, ComplexAttribProperties, SingleAttribProperties
 
@@ -16,14 +16,10 @@ class ChangeAttribList:
     def __init__(self, attr_value_add_dict: OrderedDict[str, list[str]]):
         self.attr_value_add_dict = attr_value_add_dict
 
-    @property
-    def preferred_value(self):
-        return list(self.attr_value_add_dict.keys())[0]
-
-    def add_list(self, attr_value):
+    def add_list(self, attr_value) -> list[str]:
         return self.attr_value_add_dict[attr_value]
 
-    def remove_list(self, attr_value):
+    def remove_list(self, attr_value) -> list[str]:
         result = []
         for attr_val in self.attr_value_add_dict:
             if attr_val != attr_value:
@@ -56,14 +52,14 @@ class MainHandler:
         self.current_object_is_new = True
 
         """ external states """
+        self.cls_objects_dict: OrderedDict = OrderedDict()
+        self.current_object_attrib_dict: OrderedDict = OrderedDict()
         self.curr_obj_creation_readiness: bool = False
-        self.object_attrib_dict = None
-        self.cls_objects_dict = None
 
         """ external changes flags """
-        self.changed_creation_readiness: bool = False
-        self.changed_object_attrib_dict: bool = False
         self.changed_cls_objects_dict: bool = False
+        self.changed_current_object_attrib_dict: bool = False
+        self.changed_creation_readiness: bool = False
 
     """ 
         Interface input commands:
@@ -91,7 +87,24 @@ class MainHandler:
     """
 
     def read_station_config(self, dir_name: str):
-        pass
+        od_cls_objects = read_station_config(dir_name)
+        self.storage_dg.init_names_dict(od_cls_objects)
+        soi_objects_no_gcs = self.storage_dg.soi_objects_no_gcs
+        for cls_name in soi_objects_no_gcs:
+            for obj in soi_objects_no_gcs[cls_name].values():
+                obj: StationObjectImage
+                for complex_attr in obj.object_prop_struct.attrib_list:
+                    if complex_attr.active:
+                        attr_name = complex_attr.name
+                        temp_val = complex_attr.temporary_value
+                        if complex_attr.is_list:
+                            elem_str_values = [val.strip() for val in temp_val.split(" ") if val]
+                            for index, str_value in enumerate(elem_str_values):
+                                self.append_attrib_single_value(attr_name)
+                                self.change_attribute_value(attr_name, str_value, index)
+                        else:
+                            self.append_attrib_single_value(attr_name)
+                            self.change_attribute_value(attr_name, temp_val, -1)
 
     def dump_station_config(self, dir_name: str):
         pass
@@ -127,8 +140,9 @@ class MainHandler:
         """ interactive mode """
         new_value = new_value.strip()
         curr_obj = self.current_object
+        cls = curr_obj.__class__
         object_prop_struct = curr_obj.object_prop_struct
-        # complex_attr = curr_obj.get_complex_attr_prop(attr_name)
+        complex_attr = curr_obj.get_complex_attr_prop(attr_name)
         single_attr = curr_obj.get_single_attr_prop(attr_name, index)
 
         """ 1. New == old input """
@@ -157,7 +171,10 @@ class MainHandler:
 
         """ 3. Input in general """
         try:
-            setattr(curr_obj, attr_name, new_value)
+            if complex_attr.is_list:
+                setattr(curr_obj, attr_name, (new_value, IndexManagementCommand(command="set_index", index=index)))
+            else:
+                setattr(curr_obj, attr_name, new_value)
         except AttributeEvaluateError as e:
             single_attr.error_message = form_message_from_error(e)
             self.check_changed_curr_obj_creation_readiness()
@@ -179,10 +196,13 @@ class MainHandler:
                 single_attr.last_applied_str_value = single_attr.last_input_str_value
 
     def append_attrib_single_value(self, attr_name: str):
-        pass
+        self.current_object.append_complex_attr_index(attr_name)
+        complex_attr = self.current_object.get_complex_attr_prop(attr_name)
+        self.change_attribute_value(attr_name, "", len(complex_attr.single_attr_list)-1)
 
     def remove_attrib_single_value(self, attr_name: str, index: int):
-        pass
+        self.current_object.remove_complex_attr_index(attr_name, index)
+        self.current_object.remove_descriptor_index(attr_name, index)
 
     """ Internal logic """
 
@@ -209,32 +229,24 @@ class MainHandler:
     def switch_logic(self, attr_name: str, new_value: str, index: int):
         """ switch_logic """
         curr_obj = self.current_object
-        object_prop_struct = curr_obj.object_prop_struct
+        # object_prop_struct = curr_obj.object_prop_struct
 
         """ 1. Default build switches handling """
-        old_attributes = []
-        new_attributes = []
         for cls in SWITCH_ATTR_LISTS:
             change_list_dict = SWITCH_ATTR_LISTS[cls]
             if isinstance(self.current_object, cls) and (attr_name in change_list_dict):
                 change_attrib_list = change_list_dict[attr_name]
-                for remove_value in change_attrib_list.remove_list(new_value):
-                    if remove_value in object_prop_struct.active_attrs:
-                        old_attributes.append(remove_value)
-                        object_prop_struct.active_attrs.remove(remove_value)
-                index_insert = object_prop_struct.active_attrs.index(attr_name) + 1
-                for add_value in reversed(change_attrib_list.add_list(new_value)):
-                    if add_value not in object_prop_struct.active_attrs:
-                        new_attributes.append(add_value)
-                        object_prop_struct.active_attrs.insert(index_insert, add_value)
-        for old_attr in old_attributes:
-            complex_attr_prop = curr_obj.get_complex_attr_prop(old_attr)
-            for single_attr in complex_attr_prop.single_attr_list:
-                single_attr.interface_str_value = single_attr.last_applied_str_value
-        for new_attr in new_attributes:
-            complex_attr_prop = curr_obj.get_complex_attr_prop(new_attr)
-            for single_attr in complex_attr_prop.single_attr_list:
-                self.change_attribute_value(complex_attr_prop.name, single_attr.interface_str_value, single_attr.index)
+                for deactivate_attr_name in change_attrib_list.remove_list(new_value):
+                    complex_attr_prop = curr_obj.get_complex_attr_prop(deactivate_attr_name)
+                    complex_attr_prop.active = False
+                    """ single attr values rollback """
+                    for single_attr in complex_attr_prop.single_attr_list:
+                        single_attr.interface_str_value = single_attr.last_applied_str_value
+                for activate_attr_name in change_attrib_list.add_list(new_value):
+                    complex_attr_prop = curr_obj.get_complex_attr_prop(activate_attr_name)
+                    complex_attr_prop.active = True
+                    for single_attr in complex_attr_prop.single_attr_list:
+                        self.change_attribute_value(complex_attr_prop.name, single_attr.interface_str_value, single_attr.index)
 
     def model_rebuild_logic(self, attr_name: str, new_value: str, index: int):
         curr_obj = self.current_object

@@ -4,7 +4,7 @@ import traceback
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QObject
 
-from main_window import MainWindow
+from old_main_window import MainWindow
 from file_tpl_handler import FileTPLHandler
 from file_id_handler import FileIdHandler
 # from objects_handler import ObjectsHandler

@@ -17,30 +17,33 @@ class InterfaceExchange:
         return result
 
 
+@dataclass
 class ClassProperties(InterfaceExchange):
     name: str = ""
     objects_list: list[ObjectProperties] = field(default_factory=list)
 
 
+@dataclass
 class ObjectProperties(InterfaceExchange):
     name: str = ""  # which is title
     error_message: str = ""
     creation_readiness: bool = False
     attrib_list: list[ComplexAttribProperties] = field(default_factory=list)
-    active_attrs: list[str] = field(default_factory=list)
 
 
+@dataclass
 class ComplexAttribProperties(InterfaceExchange):
     name: str = ""  # which is attribute
-    # requirement_type: str = ""  # "enum" "soi" "int" "picket"
+    active: bool = False
     temporary_value: str = ""
     is_list: bool = False
-    exactly_count: int = -1
+    exact_count: int = -1
     min_count: int = -1
     immutable: bool = False
     single_attr_list: list[SingleAttribProperties] = field(default_factory=list)
 
 
+@dataclass
 class SingleAttribProperties(InterfaceExchange):
     index: int = -1
 

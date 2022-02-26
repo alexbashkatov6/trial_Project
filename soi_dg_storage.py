@@ -69,17 +69,25 @@ class StorageDG:
         self.bind_descriptors()
         self.reset_clean_storages()
 
+    @property
+    def soi_objects_no_gcs(self) -> DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]:
+        result = DefaultOrderedDict(OrderedDict)
+        for cls_name in self.soi_objects:
+            for obj_name, obj in self.soi_objects[cls_name].items():
+                if obj_name == GLOBAL_CS_NAME:
+                    continue
+                result[cls_name][obj_name] = obj
+        return result
+
     def init_soi_classes(self):
         for cls in StationObjectImage.__subclasses__():
-            self.soi_objects[cls.__name__]
+            self.soi_objects[cls.__name__] = OrderedDict()
 
     def bind_descriptors(self):
         for cls in StationObjectImage.__subclasses__():
             for attr_name in cls.__dict__:
                 if not attr_name.startswith("__"):
-                    if isinstance(descr := getattr(cls, attr_name), StationObjectDescriptor):
-                        descr.obj_dict = self.soi_objects[descr.contains_cls_name]
-                    if isinstance(descr := getattr(cls, attr_name), NameDescriptor):
+                    if isinstance(descr := getattr(cls, attr_name), (StationObjectDescriptor, NameDescriptor)):
                         descr.obj_dict = self.soi_objects[descr.contains_cls_name]
 
     def reset_clean_storages(self):
@@ -107,8 +115,15 @@ class StorageDG:
             for obj_name, obj in self.soi_objects[cls_name].items():
                 self.backup_soi[cls_name][obj_name] = obj
 
-    def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]) -> \
-            None:
+    def init_names_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
+        self.reset_clean_storages()
+        for cls_name in od:
+            for obj_name, obj in od[cls_name].items():
+                if obj_name == GLOBAL_CS_NAME:
+                    continue
+                self.add_obj_to_soi(obj)
+
+    def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
         self.save_state()
         self.reset_clean_storages()
 

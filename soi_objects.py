@@ -23,6 +23,21 @@ class AttributeEvaluateError(Exception):
     pass
 
 
+""" complex_attr exceptions """
+
+
+class ComplexAttrError(Exception):
+    pass
+
+
+class NotFoundComplexAttrError(ComplexAttrError):
+    pass
+
+
+class ManyFoundComplexAttrError(ComplexAttrError):
+    pass
+
+
 """ name exceptions """
 
 
@@ -64,41 +79,6 @@ class AETypeAttributeError(AttributeEvaluateError):
     pass
 
 
-# ------------        ORIGINAL DESCRIPTORS        ------------ #
-
-# class SOIName:
-#     def __get__(self, instance, owner):
-#         assert instance, "Only for instance"
-#         return getattr(instance, "_name")
-#
-#     def __set__(self, instance, value: str):
-#         instance._name = value
-
-
-# ------------        BASE SOI-ATTRIBUTE DESCRIPTORS        ------------ #
-
-
-# ------------        IMAGE OBJECTS CLASSES        ------------ #
-
-# class ChangeAttribList:
-#     def __init__(self, attr_value_add_dict: OrderedDict[str, list[str]]):
-#         self.attr_value_add_dict = attr_value_add_dict
-#
-#     @property
-#     def preferred_value(self):
-#         return list(self.attr_value_add_dict.keys())[0]
-#
-#     def add_list(self, attr_value):
-#         return self.attr_value_add_dict[attr_value]
-#
-#     def remove_list(self, attr_value):
-#         result = []
-#         for attr_val in self.attr_value_add_dict:
-#             if attr_val != attr_value:
-#                 result.extend(self.attr_value_add_dict[attr_val])
-#         return result
-
-
 @dataclass
 class AttribValues:
     last_input_value: str = ""
@@ -115,76 +95,68 @@ class IndexManagementCommand:
 class UniversalDescriptor:
 
     def __init__(self, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
+                 min_count: int = -1, exact_count: int = -1, immutable: bool = False):
         self.is_required = is_required
         self.is_list = is_list
-        assert (min_count == -1) or (exactly_count == -1)
+        assert (min_count == -1) or (exact_count == -1)
         self.min_count = min_count
-        self.exactly_count = exactly_count
+        self.exact_count = exact_count
         self.immutable = immutable
 
     def __set_name__(self, owner, name):
         self.name = name
 
-    def __get__(self, instance, owner) -> Union[UniversalDescriptor, AttribValues, list[AttribValues]]:
+    def __get__(self, instance, owner):
         if not instance:
             return self
         return getattr(instance, "_{}".format(self.name))
 
-    def __set__(self, instance, value: tuple[Union[str, list[str]], bool, Optional[IndexManagementCommand]]):
+    def __set__(self, instance, value: Union[str, tuple[Union[str, list[str]], Optional[IndexManagementCommand]]]):
         ad = AttributeErrorData(instance.__class__.__name__, instance.name, self.name)
-        check_mode = value[1]
         if not self.is_list:
-            assert isinstance(value[0], str)
-            str_value = value[0].strip()
-            if not hasattr(instance, "_{}".format(self.name)):
-                ap_for_handle = AttribValues()
-                setattr(instance, "_{}".format(self.name), ap_for_handle)
-            else:
-                ap_for_handle = getattr(instance, "_{}".format(self.name))
-            self.handling_ap(ap_for_handle, str_value, check_mode, ad)
+            assert isinstance(value, str)
+            str_value = value.strip()
+            setattr(instance, "_{}".format(self.name), self.handling_ap(str_value, ad))
         else:
-            assert len(value) == 3
-            command = value[2].command
-            index = value[2].index
-            # print("in set", value)
-            # print("in set", instance.__class__.__name__, instance.name, self.name, command, index)
-
-            if not hasattr(instance, "_{}".format(self.name)):
-                setattr(instance, "_{}".format(self.name), [])
-            old_ap_list: list[AttribValues] = getattr(instance, "_{}".format(self.name))
-            if command in ["remove_index", "append", "set_index"]:
+            assert isinstance(value, tuple)
+            assert len(value) == 2
+            command = value[1].command
+            index = value[1].index
+            old_values_list: list = getattr(instance, "_{}".format(self.name))
+            if command == "remove_index":
+                old_values_list.pop(index)
+            # elif command == "append":
+            #     str_value = value[0].strip()
+            #     ad.index = index
+            #     old_values_list.append(self.handling_ap(str_value, ad))
+            elif command == "set_index":
                 str_value = value[0].strip()
-                if command == "remove_index":
-                    old_ap_list.pop(index)
-                    return
-                if command == "append":
-                    ap_for_handle = AttribValues()
-                    old_ap_list.append(ap_for_handle)
-                if command == "set_index":
-                    ad.index = index
-                    ap_for_handle = old_ap_list[index]
-                self.handling_ap(ap_for_handle, str_value, check_mode, ad)
-            elif command == "set_list":
-                old_ap_list.clear()
-                str_list: list[str] = value[0]
-                for i, str_value in enumerate(str_list):
-                    ad = AttributeErrorData(instance.__class__.__name__, instance.name, self.name)
-                    ad.index = i
-                    str_value = str_value.strip()
-                    ap_for_handle = AttribValues()
-                    self.handling_ap(ap_for_handle, str_value, check_mode, ad)
-                    old_ap_list.append(ap_for_handle)
+                ad.index = index
+                assert index <= len(old_values_list)
+                if index == len(old_values_list):
+                    old_values_list.append(self.handling_ap(str_value, ad))
+                else:
+                    old_values_list[index] = self.handling_ap(str_value, ad)
+            # elif command == "set_list":
+            #     old_values_list.clear()
+            #     str_list: list[str] = value[0]
+            #     for i, str_value in enumerate(str_list):
+            #         ad = AttributeErrorData(instance.__class__.__name__, instance.name, self.name)
+            #         ad.index = i
+            #         str_value = str_value.strip()
+            #         old_values_list.append(self.handling_ap(str_value, ad))
+            else:
+                assert False
 
-    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeErrorData):
-        ap.last_input_value = new_str_value
+    def handling_ap(self, new_str_value: str, ad: AttributeErrorData):
+        pass
 
 
 class EnumDescriptor(UniversalDescriptor):
 
     def __init__(self, possible_values: list[str] = None, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                 min_count: int = -1, exact_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exact_count=exact_count,
                          immutable=immutable)
         if not possible_values:
             self._possible_values = []
@@ -199,21 +171,18 @@ class EnumDescriptor(UniversalDescriptor):
     def possible_values(self, values: Iterable[str]):
         self._possible_values = list(values)
 
-    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeErrorData):
-        super().handling_ap(ap, new_str_value, check_mode, ad)
-        if new_str_value:  #  and self.possible_values
-            if new_str_value not in self.possible_values:
-                raise AEEnumValueAttributeError("Value '{}' not in possible list: '{}'".format(new_str_value,
+    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> str:
+        if new_str_value not in self.possible_values:
+            raise AEEnumValueAttributeError("Value '{}' not in possible list: '{}'".format(new_str_value,
                                                                                            self.possible_values), ad)
-            ap.confirmed_value = new_str_value
-            ap.str_confirmed_value = new_str_value
+        return new_str_value
 
 
 class StationObjectDescriptor(UniversalDescriptor):
 
     def __init__(self, contains_cls_name: str, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                 min_count: int = -1, exact_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exact_count=exact_count,
                          immutable=immutable)
         self.contains_cls_name = contains_cls_name
         self._obj_dict = OrderedDict()
@@ -226,56 +195,47 @@ class StationObjectDescriptor(UniversalDescriptor):
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
         self._obj_dict = odict
 
-    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeErrorData):
-        super().handling_ap(ap, new_str_value, check_mode, ad)
-        if new_str_value and check_mode:
-            if new_str_value not in self.obj_dict:
-                print("ad", ad)
-                raise AEObjectNotFoundError("Object '{}' not found in class '{}'".format(new_str_value,
-                                                                                         self.contains_cls_name), ad)
-            ap.confirmed_value = self.obj_dict[new_str_value]
-            ap.str_confirmed_value = new_str_value
+    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> StationObjectImage:
+        if new_str_value not in self.obj_dict:
+            raise AEObjectNotFoundError("Object '{}' not found in class '{}'".format(new_str_value,
+                                                                                     self.contains_cls_name), ad)
+        return self.obj_dict[new_str_value]
 
 
 class IntDescriptor(UniversalDescriptor):
 
     def __init__(self, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                 min_count: int = -1, exact_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exact_count=exact_count,
                          immutable=immutable)
 
-    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeErrorData):
-        super().handling_ap(ap, new_str_value, check_mode, ad)
-        if new_str_value:
-            try:
-                ap.confirmed_value = int(new_str_value)
-                ap.str_confirmed_value = new_str_value
-            except ValueError:
-                raise AETypeAttributeError("Value '{}' is not int".format(new_str_value), ad)
+    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> int:
+        try:
+            return int(new_str_value)
+        except ValueError:
+            raise AETypeAttributeError("Value '{}' is not int".format(new_str_value), ad)
 
 
 class PicketDescriptor(UniversalDescriptor):
 
     def __init__(self, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                 min_count: int = -1, exact_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exact_count=exact_count,
                          immutable=immutable)
 
-    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeErrorData):
-        super().handling_ap(ap, new_str_value, check_mode, ad)
-        if new_str_value:
-            try:
-                ap.confirmed_value = PicketCoordinate(new_str_value).value
-                ap.str_confirmed_value = new_str_value
-            except PicketCoordinateParsingCoError:
-                raise AETypeAttributeError("Value '{}' is not picket coordinate".format(new_str_value), ad)
+    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> int:
+        super().handling_ap(new_str_value, ad)
+        try:
+            return PicketCoordinate(new_str_value).value
+        except PicketCoordinateParsingCoError:
+            raise AETypeAttributeError("Value '{}' is not picket coordinate".format(new_str_value), ad)
 
 
 class NameDescriptor(UniversalDescriptor):
 
     def __init__(self, contains_cls_name: str, *, is_required: bool = True, is_list: bool = False,
-                 min_count: int = -1, exactly_count: int = -1, immutable: bool = False):
-        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exactly_count=exactly_count,
+                 min_count: int = -1, exact_count: int = -1, immutable: bool = False):
+        super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exact_count=exact_count,
                          immutable=immutable)
         self.contains_cls_name = contains_cls_name
         self._obj_dict = OrderedDict()
@@ -288,18 +248,15 @@ class NameDescriptor(UniversalDescriptor):
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
         self._obj_dict = odict
 
-    def handling_ap(self, ap: AttribValues, new_str_value: str, check_mode: bool, ad: AttributeErrorData):
-        super().handling_ap(ap, new_str_value, check_mode, ad)
-        if new_str_value and check_mode:
-            if (not new_str_value) or new_str_value.isspace():
-                raise AENameEmptyError("Name is empty", ad)
-            if not new_str_value.isalnum():
-                raise AENameNotIdentifierError("Name '{}' is not valid identifier".format(new_str_value), ad)
-            if new_str_value in self.obj_dict:
-                raise AENameRepeatingError("Name '{}' repeats in class '{}'".format(new_str_value,
-                                                                                    self.contains_cls_name), ad)
-            ap.confirmed_value = self.obj_dict[new_str_value]
-            ap.str_confirmed_value = new_str_value
+    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> str:
+        if (not new_str_value) or new_str_value.isspace():
+            raise AENameEmptyError("Name is empty", ad)
+        if not new_str_value.isalnum():
+            raise AENameNotIdentifierError("Name '{}' is not valid identifier".format(new_str_value), ad)
+        if new_str_value in self.obj_dict:
+            raise AENameRepeatingError("Name '{}' repeats in class '{}'".format(new_str_value,
+                                                                                self.contains_cls_name), ad)
+        return new_str_value
 
     def make_name_suggestion(self) -> str:
         i = 0
@@ -311,24 +268,11 @@ class NameDescriptor(UniversalDescriptor):
         return candid_name
 
 
-def str_values_logic(attr_value: Union[AttribValues, list[AttribValues]]) -> tuple[str, bool]:
-    is_suggested = False
-    last_imp_val = attr_value.last_input_value
-    conf_val = attr_value.str_confirmed_value
-    # sugg_val = attr_value.suggested_value
-    if conf_val:
-        return conf_val, is_suggested
-    # elif sugg_val:
-    #     is_suggested = True
-    #     return sugg_val, is_suggested
-    else:
-        return last_imp_val, is_suggested
-
-
 class StationObjectImage:
 
     def __init__(self):
         self.object_prop_struct: ObjectProperties = ObjectProperties()
+        self.init_list_descriptors()
         self.init_object_prop_struct()
 
     def init_object_prop_struct(self):
@@ -340,239 +284,71 @@ class StationObjectImage:
             complex_attr.name = attr_name
             complex_attr.is_list = descriptor.is_list
             complex_attr.min_count = descriptor.min_count
-            complex_attr.exactly_count = descriptor.exactly_count
+            complex_attr.exact_count = descriptor.exact_count
             complex_attr.immutable = descriptor.immutable
             if complex_attr.min_count != -1:
                 for index in range(complex_attr.min_count):
-                    single_attr = SingleAttribProperties()
-                    single_attr.index = index
-                    complex_attr.single_attr_list.append(single_attr)
-            if complex_attr.exactly_count != -1:
-                for index in range(complex_attr.exactly_count):
-                    single_attr = SingleAttribProperties()
-                    single_attr.index = index
-                    complex_attr.single_attr_list.append(single_attr)
+                    self.append_complex_attr_index(attr_name)
+            if complex_attr.exact_count != -1:
+                for index in range(complex_attr.exact_count):
+                    self.append_complex_attr_index(attr_name)
             obj_prop.attrib_list.append(complex_attr)
 
+    def init_list_descriptors(self):
+        cls = self.__class__
+        for attr_name in [key for key in cls.__dict__.keys() if not key.startswith("__")]:
+            descriptor: UniversalDescriptor = getattr(cls, attr_name)
+            if descriptor.is_list:
+                setattr(self, "_{}".format(attr_name), [])
+
+    def append_complex_attr_index(self, attr_name: str):
+        complex_attr = self.get_complex_attr_prop(attr_name)
+        single_attr = SingleAttribProperties()
+        if complex_attr.is_list:
+            single_attr.index = len(complex_attr.single_attr_list)
+            complex_attr.single_attr_list.append(single_attr)
+            # setattr(self, attr_name, ("", IndexManagementCommand(command="append")))
+        else:
+            assert not complex_attr.single_attr_list
+            single_attr.index = -1
+            complex_attr.single_attr_list.append(single_attr)
+            # setattr(self, attr_name, "")
+
+    def remove_complex_attr_index(self, attr_name: str, index: int):
+        complex_attr = self.get_complex_attr_prop(attr_name)
+        complex_attr.single_attr_list.pop(index)
+
+    def remove_descriptor_index(self, attr_name: str, index: int):
+        setattr(self, attr_name, ("", IndexManagementCommand(command="remove_index", index=index)))
+
     def get_complex_attr_prop(self, attr_name: str) -> ComplexAttribProperties:
-        result_set = set()
+        result_list = []
         for complex_attr_prop_candidate in self.object_prop_struct.attrib_list:
             if complex_attr_prop_candidate.name == attr_name:
-                result_set.add(complex_attr_prop_candidate)
-        assert result_set, "Attr not found"
-        assert len(result_set) < 2, "More then 1 found"
-        return result_set.pop()
+                result_list.append(complex_attr_prop_candidate)
+        if not result_list:
+            raise NotFoundComplexAttrError("Attr '{}' not found in object".format(attr_name))
+        if len(result_list) > 1:
+            raise ManyFoundComplexAttrError("More then 1 '{}' found in object".format(attr_name))
+        return result_list.pop()
 
     def get_single_attr_prop(self, attr_name: str, index: int = -1) -> SingleAttribProperties:
-        result_set = set()
+        result_list = []
         complex_attr_prop = self.get_complex_attr_prop(attr_name)
         for single_attr_prop_candidate in complex_attr_prop.single_attr_list:
             if single_attr_prop_candidate.index == index:
-                result_set.add(single_attr_prop_candidate)
-        assert result_set, "Attr not found"
-        assert len(result_set) < 2, "More then 1 found"
-        return result_set.pop()
-
-        # all attrs initialization
-        # for attr_name in self.active_attrs:
-        #     descr: UniversalDescriptor = getattr(self.__class__, attr_name)
-        #     if not descr.is_list:
-        #         setattr(self, attr_name, ("", False))
-        #     else:
-        #         if descr.min_count != -1:
-        #             for _ in range(descr.min_count):
-        #                 setattr(self, attr_name, ("", False, IndexManagementCommand(command="append")))
-        #         if descr.exactly_count != -1:
-        #             for _ in range(descr.exactly_count):
-        #                 setattr(self, attr_name, ("", False, IndexManagementCommand(command="append")))
-
-
-    # def init_object_prop_struct(self) -> None:
-    #     obj_prop = self.object_prop_struct
-    #     obj_prop.name = self.name
-    #     for attr_name in self.active_attrs:
-    #         complex_attr = ComplexAttribProperties()
-    #         complex_attr.name = attr_name
-    #         attr_value: Union[AttribValues, list[AttribValues]] = getattr(self, attr_name)
-    #         if isinstance(attr_value, list):
-    #             complex_attr.is_list = True
-    #             for i, attr_val in enumerate(attr_value):
-    #                 single_attr = SingleAttribProperties()
-    #                 single_attr.index = i
-    #                 single_attr.str_value, single_attr.is_suggested = str_values_logic(attr_val)
-    #                 complex_attr.single_attr_list.append(single_attr)
-    #         else:
-    #             single_attr = SingleAttribProperties()
-    #             single_attr.str_value, single_attr.is_suggested = str_values_logic(attr_value)
-    #             complex_attr.single_attr_list.append(single_attr)
-    #         obj_prop.attrib_list.append(complex_attr)
-
-    # def change_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]], index: int = -1,
-    #                         check_mode: bool = True):
-
-        # set attr
-        # if attr_name == "name":
-        #     self.object_prop_struct.name = attr_value
-        #     setattr(self, attr_name, attr_value)
-        #     return
-        # else:
-        #     descr: UniversalDescriptor = getattr(self.__class__, attr_name)
-        #     if not descr.is_list:
-        #         assert isinstance(attr_value, str)
-        #         setattr(self, attr_name, (attr_value, check_mode))
-        #     elif index == -1:
-        #         if isinstance(attr_value, str):
-        #             attr_value = [attr_value]
-        #         setattr(self, attr_name, (attr_value, check_mode, IndexManagementCommand(command="set_list")))
-        #     else:
-        #         setattr(self, attr_name, (attr_value, check_mode, IndexManagementCommand(command="set_index", index=index)))
-
-        # switch attr
-        # if (self.__class__ in SWITCH_ATTR_LISTS) and (attr_name in SWITCH_ATTR_LISTS[self.__class__]):
-        #     chal: ChangeAttribList = SWITCH_ATTR_LISTS[self.__class__][attr_name]
-        #     for remove_value in chal.remove_list(attr_value):
-        #         if remove_value in self.active_attrs:
-        #             self.active_attrs.remove(remove_value)
-        #     index_insert = self.active_attrs.index(attr_name) + 1
-        #     for add_value in reversed(chal.add_list(attr_value)):
-        #         if add_value not in self.active_attrs:
-        #             self.active_attrs.insert(index_insert, add_value)
-
-    """ interface attribute setter """
-    def change_single_attrib_value(self, attr_name: str, attr_value: Union[str, list[str]], index: int = -1,
-                                   file_read_mode: bool = True):
-        complex_attr = self.get_complex_attr_prop(attr_name)
-        single_attr = self.get_single_attr_prop(attr_name, index)
-
-        """ 1. New == old input """
-        if attr_value == single_attr.last_input_str_value:
-            return
-
-        """ 2. Empty input """
-        if attr_value == "":
-            if single_attr.suggested_str_value:
-                single_attr.interface_str_value = single_attr.suggested_str_value
-                return
-            if single_attr.is_required:
-                return
-            else:
-                single_attr.error_message = ""
-                return
-
-        """ 3. File read input - delayed check """
-        if not file_read_mode:
-            assert not isinstance(attr_value, list)
-
-        if file_read_mode:
-            assert index == -1
-            if isinstance(attr_value, list):
-                assert getattr(self.__class__, attr_name).is_list
-            complex_attr.temporary_value = attr_value
-            return
-
-        """ 4. Interactive input """
-        single_attr.last_input_str_value = attr_value
-        attr_value: str
-        try:
-            setattr(self, attr_name, attr_value)
-        except AttributeEvaluateError as e:
-            single_attr.error_message = form_message_from_error(e)
-            self.object_prop_struct.creation_readiness = False
-        else:
-            single_attr.error_message = ""
-            if attr_name == "name":
-                self.object_prop_struct.name = attr_value
-        finally:
-            single_attr.interface_str_value = attr_value
-            return
+                result_list.append(single_attr_prop_candidate)
+        assert result_list, "Attr not found"
+        assert len(result_list) < 2, "More then 1 found"
+        return result_list.pop()
 
     @property
     def active_complex_attrs(self) -> list[ComplexAttribProperties]:
-        return [self.get_complex_attr_prop(complex_attr_name) for complex_attr_name in self.object_prop_struct.active_attrs]
+        return [complex_attr for complex_attr in self.object_prop_struct.attrib_list if complex_attr.active]
 
-    def delayed_check(self):
-        """ when attributes read from file, need to check after all names got """
-        for complex_attr in self.active_complex_attrs:
-            assert len(complex_attr.single_attr_list) == 1
-            if complex_attr.is_list:
-                """ now parsing here, not in file read """
-                list_str_value = [s.strip() for s in complex_attr.temporary_value.split(" ") if s]
-                setattr(self, complex_attr.name, (list_str_value,
-                                                  IndexManagementCommand(command="set_list")))
-            else:
-                setattr(self, complex_attr.name, (complex_attr.temporary_value,
-                                                  IndexManagementCommand(command="set_list", index=-1)))
-
-    def change_object_refresh(self):
-        """ when focus out, we need to reset all str_value-s of single attrs from failed to last_applied """
-        for complex_attr in self.active_complex_attrs:
-            for single_attr in complex_attr.single_attr_list:
-                single_attr.interface_str_value = single_attr.last_applied_str_value
-
-    def append_index_to_attrib(self, attr_name: str):
-        complex_attr = self.get_complex_attr_prop(attr_name)
-
-    def remove_index_from_attrib(self, attr_name: str, index: int):
-        complex_attr = self.get_complex_attr_prop(attr_name)
-        single_attr = self.get_single_attr_prop(attr_name, index)
-
-    def suggest_attr_value(self, attr_name: str, attr_value: str, index: int = -1):
-        single_attr = self.get_single_attr_prop(attr_name, index)
-        single_attr.suggested_str_value = attr_value
-
-    def apply_obj_creation(self):
-        """ to store last_applied values """
-        """ ! check auto-values not implemented """
-        for complex_attr in self.active_complex_attrs:
-            for single_attr in complex_attr.single_attr_list:
-                single_attr.last_applied_str_value = single_attr.last_input_str_value
-
-    # def default_switch_attrs(self):
-
-
-
-
-    def reload_attr_value(self, attr_name: str):
-        attr_prop_values = getattr(self, attr_name)
-        if isinstance(attr_prop_values, AttribValues):
-            self.change_single_attrib_value(attr_name, attr_prop_values.last_input_value)
-        else:
-            self.change_single_attrib_value(attr_name, self.list_attr_input_value(attr_name))
-
-    """ interface list attribute input str getter """
-    def list_attr_input_value(self, attr_name: str):
-        attr_prop_values = getattr(self, attr_name)
-        if isinstance(attr_prop_values, AttribValues):
-            attr_prop_values = [attr_prop_values]
-        return [apv.last_input_value for apv in attr_prop_values]
-
-    def single_attr_input_value(self, attr_name: str, index: int = -1):
-        if attr_name == "name":
-            return self.name
-        laiv = self.list_attr_input_value(attr_name)
-        return laiv[index] if index != -1 else laiv[0]
-
-    """ interface list attribute str confirmed value getter """
-    def list_attr_str_confirmed_value(self, attr_name: str):
-        attr_prop_values = getattr(self, attr_name)
-        if isinstance(attr_prop_values, AttribValues):
-            attr_prop_values = [attr_prop_values]
-        return [apv.str_confirmed_value for apv in attr_prop_values]
-
-    # """ interface list attribute str suggested value getter """
-    # def list_attr_str_suggested_value(self, attr_name: str):
-    #     attr_prop_values = getattr(self, attr_name)
-    #     if isinstance(attr_prop_values, AttribValues):
-    #         attr_prop_values = [attr_prop_values]
-    #     return [apv.suggested_value for apv in attr_prop_values]
-
-    """ interface list attribute confirmed value getter """
-    def attr_confirmed_value(self, attr_name: str):
-        attr_prop_values = getattr(self, attr_name)
-        if isinstance(attr_prop_values, AttribValues):
-            return attr_prop_values.confirmed_value
-        else:
-            return [attr_prop_value.confirmed_value for attr_prop_value in attr_prop_values]
+    # def from_temporary_to_stable(self):
+    #     for complex_attr_prop_candidate in self.object_prop_struct.attrib_list:
+    #         pass
 
 
 class CoordinateSystemSOI(StationObjectImage):
@@ -604,7 +380,7 @@ class PointSOI(StationObjectImage):
 
 class LineSOI(StationObjectImage):
     name = NameDescriptor("LineSOI")
-    points = StationObjectDescriptor("PointSOI", is_list=True)
+    points = StationObjectDescriptor("PointSOI", is_list=True, exact_count=2)
 
 
 class LightSOI(StationObjectImage):
@@ -612,7 +388,7 @@ class LightSOI(StationObjectImage):
     light_route_type = EnumDescriptor(CELightRouteType.possible_values)
     center_point = StationObjectDescriptor("PointSOI")
     direct_point = StationObjectDescriptor("PointSOI")
-    colors = EnumDescriptor(CELightColor.possible_values, is_list=True)
+    colors = EnumDescriptor(CELightColor.possible_values, is_list=True, min_count=1)
     light_stick_type = EnumDescriptor(CELightStickType.possible_values)
 
 
@@ -631,22 +407,8 @@ class BorderSOI(StationObjectImage):
 
 class SectionSOI(StationObjectImage):
     name = NameDescriptor("SectionSOI")
-    border_points = StationObjectDescriptor("PointSOI", is_list=True)
+    border_points = StationObjectDescriptor("PointSOI", is_list=True, min_count=2)
 
-
-# SWITCH_ATTR_LISTS = {CoordinateSystemSOI: {"dependence": ChangeAttribList(OrderedDict({"independent": [],
-#                                                                                        "dependent": [
-#                                                                                            "cs_relative_to",
-#                                                                                            "x",
-#                                                                                            "co_x",
-#                                                                                            "co_y"]}))},
-#                      AxisSOI: {"creation_method": ChangeAttribList(OrderedDict({"rotational": [
-#                          "center_point",
-#                          "alpha"],
-#                          "translational": ["y"]}))},
-#                      PointSOI: {"on": ChangeAttribList(OrderedDict({"axis": ["axis"],
-#                                                                     "line": ["line"]}))}
-#                      }
 
 if __name__ == "__main__":
     test_1 = False

@@ -4,7 +4,7 @@ import traceback
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QObject
 
-from new_main_window import MW
+from main_window import MW
 from old_adapter_core_to_pyqt_interface import AdapterCorePyqtInterface
 
 
