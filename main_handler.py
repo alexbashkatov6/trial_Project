@@ -104,7 +104,7 @@ class MainHandler:
                                 self.change_attribute_value(attr_name, str_value, index)
                         else:
                             self.append_attrib_single_value(attr_name)
-                            self.change_attribute_value(attr_name, temp_val, -1)
+                            self.change_attribute_value(attr_name, temp_val)
 
     def dump_station_config(self, dir_name: str):
         pass
@@ -136,14 +136,15 @@ class MainHandler:
     def delete_confirmed(self):
         pass
 
-    def change_attribute_value(self, attr_name: str, new_value: str, index: int):
-        """ interactive mode """
+    def change_attribute_value(self, attr_name: str, new_value: str, index: int = -1):
         new_value = new_value.strip()
         curr_obj = self.current_object
         cls = curr_obj.__class__
+        cls_name = cls.__name__
         object_prop_struct = curr_obj.object_prop_struct
         complex_attr = curr_obj.get_complex_attr_prop(attr_name)
         single_attr = curr_obj.get_single_attr_prop(attr_name, index)
+        old_applied_value = single_attr.last_applied_str_value
 
         """ 1. New == old input """
         if new_value == single_attr.last_input_str_value:
@@ -169,7 +170,7 @@ class MainHandler:
                 self.check_changed_curr_obj_creation_readiness()
                 return
 
-        """ 3. Input in general """
+        """ 3. Check input in general """
         try:
             if complex_attr.is_list:
                 setattr(curr_obj, attr_name, (new_value, IndexManagementCommand(command="set_index", index=index)))
@@ -179,10 +180,17 @@ class MainHandler:
             single_attr.error_message = form_message_from_error(e)
             self.check_changed_curr_obj_creation_readiness()
             return
-        single_attr.error_message = ""
+        else:
+            single_attr.error_message = ""
+
+        """ 4. If success, make dg operations """
         if attr_name == "name":
             object_prop_struct.name = new_value
+            self.storage_dg.rename_object(cls_name, old_applied_value, new_value)
             return
+        else:
+            pass
+
         self.switch_logic(attr_name, new_value, index)
         self.check_changed_curr_obj_creation_readiness()
 
@@ -198,7 +206,10 @@ class MainHandler:
     def append_attrib_single_value(self, attr_name: str):
         self.current_object.append_complex_attr_index(attr_name)
         complex_attr = self.current_object.get_complex_attr_prop(attr_name)
-        self.change_attribute_value(attr_name, "", len(complex_attr.single_attr_list)-1)
+        if complex_attr.is_list:
+            self.change_attribute_value(attr_name, "", len(complex_attr.single_attr_list)-1)
+        else:
+            self.change_attribute_value(attr_name, "")
 
     def remove_attrib_single_value(self, attr_name: str, index: int):
         self.current_object.remove_complex_attr_index(attr_name, index)

@@ -122,6 +122,7 @@ class StorageDG:
                 if obj_name == GLOBAL_CS_NAME:
                     continue
                 self.add_obj_to_soi(obj)
+                self.init_obj_node_dg(obj)
 
     def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
         self.save_state()
