@@ -4,10 +4,10 @@ from collections import OrderedDict
 
 from command_supervisor import CommandSupervisor
 from model_builder import ModelBuilder
-from soi_dg_storage import SOIDependenceGraph, SOIStorage
+from soi_dg_storage import SOIDependenceGraph, SOIStorage, DependenciesBuildError
 from files_operations import read_station_config
 from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI,\
-    AttributeEvaluateError, IndexManagementCommand
+    AttributeEvaluateError, IndexManagementCommand, StationObjectDescriptor
 from form_exception_message import form_message_from_error
 from soi_metadata import ClassProperties, ObjectProperties, ComplexAttribProperties, SingleAttribProperties
 from attribute_object_key import ObjectKey, AttributeKey
@@ -154,6 +154,7 @@ class MainHandler:
         curr_obj_is_new = self.current_object_is_new
         cls = curr_obj.__class__
         cls_name = cls.__name__
+        descriptor = getattr(cls, attr_name)
         obj_name = curr_obj.name
         object_prop_struct = curr_obj.object_prop_struct
         complex_attr = curr_obj.get_complex_attr_prop(attr_name)
@@ -197,6 +198,7 @@ class MainHandler:
             return
         else:
             single_attr.error_message = ""
+            self.check_changed_curr_obj_creation_readiness()
 
         """ 4. If change attr name, rename obj """
         if attr_name == "name":
@@ -205,10 +207,28 @@ class MainHandler:
         """ 5. If success, make dg operations """
         if not curr_obj_is_new:
             if attr_name == "name":
-                self.clean_storage_dg.rename_object(cls_name, old_applied_value, new_value)
+                self.clean_storage_dg.replace_obj_key(ObjectKey(cls_name, old_applied_value),
+                                                      ObjectKey(cls_name, new_value))
                 return
-            else:
-                self.clean_storage_dg.change_attrib_value_existing(cls_name, obj_name, attr_name, new_value, index)
+            elif isinstance(descriptor, StationObjectDescriptor):
+                contains_cls_name = descriptor.contains_cls_name
+                parent_obj_key, child_obj_key = \
+                    self.clean_storage_dg.remove_dependence(AttributeKey(cls_name, obj_name, attr_name, index))
+                try:
+                    self.clean_storage_dg.make_dependence(ObjectKey(contains_cls_name, new_value),
+                                                          ObjectKey(cls_name, obj_name),
+                                                          AttributeKey(cls_name, obj_name, attr_name, index))
+                except DependenciesBuildError as e:
+                    """ rollback """
+                    self.clean_storage_dg.remove_dependence(AttributeKey(cls_name, obj_name, attr_name, index))
+                    self.clean_storage_dg.make_dependence(parent_obj_key,
+                                                          child_obj_key,
+                                                          AttributeKey(cls_name, obj_name, attr_name, index))
+                    single_attr.error_message = form_message_from_error(e)
+                    self.check_changed_curr_obj_creation_readiness()
+                else:
+                    single_attr.error_message = ""
+                    self.check_changed_curr_obj_creation_readiness()
 
         self.switch_logic(attr_name, new_value, index)
         self.check_changed_curr_obj_creation_readiness()

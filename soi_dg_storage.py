@@ -160,8 +160,12 @@ class SOIDependenceGraph:
         self.link_to_attribute_key[new_link] = attr_key
         self.check_new_cycles(parent_obj_key)
 
-    def remove_dependence(self, attr_key: AttributeKey):
-        self.dg.disconnect_inf_handling(*self.attribute_key_to_link[attr_key].ni_s)
+    def remove_dependence(self, attr_key: AttributeKey) -> tuple[ObjectKey, ObjectKey]:
+        link = self.attribute_key_to_link[attr_key]
+        ni_1, ni_2 = link.ni_s
+        parent_node, child_node = (ni_1.pn, ni_2.pn) if ni_1.end == "nd" else (ni_2.pn, ni_1.pn)
+        self.dg.disconnect_inf_handling(*link.ni_s)
+        return self.node_to_obj_key[parent_node], self.node_to_obj_key[child_node]
 
     def check_new_cycles(self, obj_key: ObjectKey):
         node = self.obj_key_to_node[obj_key]
