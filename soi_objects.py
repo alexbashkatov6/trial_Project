@@ -11,7 +11,7 @@ from picket_coordinate import PicketCoordinate, PicketCoordinateParsingCoError
 from default_ordered_dict import DefaultOrderedDict
 # from attrib_properties import AttribProperties
 # from attrib_index import CompositeAttributeIndex
-from attribute_data import AttributeErrorData
+from attribute_object_key import AttributeKey
 from soi_metadata import ClassProperties, ObjectProperties, ComplexAttribProperties, \
     SingleAttribProperties
 from form_exception_message import form_message_from_error
@@ -112,7 +112,7 @@ class UniversalDescriptor:
         return getattr(instance, "_{}".format(self.name))
 
     def __set__(self, instance, value: Union[str, tuple[Union[str, list[str]], Optional[IndexManagementCommand]]]):
-        ad = AttributeErrorData(instance.__class__.__name__, instance.name, self.name)
+        ad = AttributeKey(instance.__class__.__name__, instance.name, self.name)
         if not self.is_list:
             assert isinstance(value, str)
             str_value = value.strip()
@@ -125,10 +125,6 @@ class UniversalDescriptor:
             old_values_list: list = getattr(instance, "_{}".format(self.name))
             if command == "remove_index":
                 old_values_list.pop(index)
-            # elif command == "append":
-            #     str_value = value[0].strip()
-            #     ad.index = index
-            #     old_values_list.append(self.handling_ap(str_value, ad))
             elif command == "set_index":
                 str_value = value[0].strip()
                 ad.index = index
@@ -137,18 +133,10 @@ class UniversalDescriptor:
                     old_values_list.append(self.handling_ap(str_value, ad))
                 else:
                     old_values_list[index] = self.handling_ap(str_value, ad)
-            # elif command == "set_list":
-            #     old_values_list.clear()
-            #     str_list: list[str] = value[0]
-            #     for i, str_value in enumerate(str_list):
-            #         ad = AttributeErrorData(instance.__class__.__name__, instance.name, self.name)
-            #         ad.index = i
-            #         str_value = str_value.strip()
-            #         old_values_list.append(self.handling_ap(str_value, ad))
             else:
                 assert False
 
-    def handling_ap(self, new_str_value: str, ad: AttributeErrorData):
+    def handling_ap(self, new_str_value: str, ad: AttributeKey):
         pass
 
 
@@ -171,7 +159,7 @@ class EnumDescriptor(UniversalDescriptor):
     def possible_values(self, values: Iterable[str]):
         self._possible_values = list(values)
 
-    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> str:
+    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> str:
         if new_str_value not in self.possible_values:
             raise AEEnumValueAttributeError("Value '{}' not in possible list: '{}'".format(new_str_value,
                                                                                            self.possible_values), ad)
@@ -195,7 +183,7 @@ class StationObjectDescriptor(UniversalDescriptor):
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
         self._obj_dict = odict
 
-    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> StationObjectImage:
+    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> StationObjectImage:
         if new_str_value not in self.obj_dict:
             raise AEObjectNotFoundError("Object '{}' not found in class '{}'".format(new_str_value,
                                                                                      self.contains_cls_name), ad)
@@ -209,7 +197,7 @@ class IntDescriptor(UniversalDescriptor):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exact_count=exact_count,
                          immutable=immutable)
 
-    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> int:
+    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> int:
         try:
             return int(new_str_value)
         except ValueError:
@@ -223,7 +211,7 @@ class PicketDescriptor(UniversalDescriptor):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exact_count=exact_count,
                          immutable=immutable)
 
-    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> int:
+    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> int:
         super().handling_ap(new_str_value, ad)
         try:
             return PicketCoordinate(new_str_value).value
@@ -248,7 +236,7 @@ class NameDescriptor(UniversalDescriptor):
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
         self._obj_dict = odict
 
-    def handling_ap(self, new_str_value: str, ad: AttributeErrorData) -> str:
+    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> str:
         if (not new_str_value) or new_str_value.isspace():
             raise AENameEmptyError("Name is empty", ad)
         if not new_str_value.isalnum():
@@ -269,6 +257,7 @@ class NameDescriptor(UniversalDescriptor):
 
 
 class StationObjectImage:
+    name = ""
 
     def __init__(self):
         self.object_prop_struct: ObjectProperties = ObjectProperties()
@@ -346,68 +335,72 @@ class StationObjectImage:
     def active_complex_attrs(self) -> list[ComplexAttribProperties]:
         return [complex_attr for complex_attr in self.object_prop_struct.attrib_list if complex_attr.active]
 
+    @property
+    def active_attr_names(self) -> list[str]:
+        return [complex_attr.name for complex_attr in self.active_complex_attrs]
+
     # def from_temporary_to_stable(self):
     #     for complex_attr_prop_candidate in self.object_prop_struct.attrib_list:
     #         pass
 
 
 class CoordinateSystemSOI(StationObjectImage):
-    name = NameDescriptor("CoordinateSystemSOI")
+    name = NameDescriptor("CoordinateSystem")
     dependence = EnumDescriptor(CEDependence.possible_values)
-    cs_relative_to = StationObjectDescriptor("CoordinateSystemSOI")
+    cs_relative_to = StationObjectDescriptor("CoordinateSystem")
     x = IntDescriptor()
     co_x = EnumDescriptor(CEBool.possible_values)
     co_y = EnumDescriptor(CEBool.possible_values)
 
 
 class AxisSOI(StationObjectImage):
-    name = NameDescriptor("AxisSOI")
-    cs_relative_to = StationObjectDescriptor("CoordinateSystemSOI")
+    name = NameDescriptor("Axis")
+    cs_relative_to = StationObjectDescriptor("CoordinateSystem")
     creation_method = EnumDescriptor(CEAxisCreationMethod.possible_values)
     y = IntDescriptor()
-    center_point = StationObjectDescriptor("PointSOI")
+    center_point = StationObjectDescriptor("Point")
     alpha = IntDescriptor()
 
 
 class PointSOI(StationObjectImage):
-    name = NameDescriptor("PointSOI")
+    name = NameDescriptor("Point")
     on = EnumDescriptor(CEAxisOrLine.possible_values)
-    axis = StationObjectDescriptor("AxisSOI")
-    line = StationObjectDescriptor("LineSOI")
-    cs_relative_to = StationObjectDescriptor("CoordinateSystemSOI")
+    axis = StationObjectDescriptor("Axis")
+    line = StationObjectDescriptor("Line")
+    cs_relative_to = StationObjectDescriptor("CoordinateSystem")
     x = PicketDescriptor()
 
 
 class LineSOI(StationObjectImage):
-    name = NameDescriptor("LineSOI")
-    points = StationObjectDescriptor("PointSOI", is_list=True, exact_count=2)
+    name = NameDescriptor("Line")
+    points = StationObjectDescriptor("Point", is_list=True, exact_count=2)
 
 
 class LightSOI(StationObjectImage):
-    name = NameDescriptor("LightSOI")
+    name = NameDescriptor("Light")
     light_route_type = EnumDescriptor(CELightRouteType.possible_values)
-    center_point = StationObjectDescriptor("PointSOI")
-    direct_point = StationObjectDescriptor("PointSOI")
+    center_point = StationObjectDescriptor("Point")
+    direct_point = StationObjectDescriptor("Point")
     colors = EnumDescriptor(CELightColor.possible_values, is_list=True, min_count=1)
     light_stick_type = EnumDescriptor(CELightStickType.possible_values)
 
 
 class RailPointSOI(StationObjectImage):
-    name = NameDescriptor("RailPointSOI")
-    center_point = StationObjectDescriptor("PointSOI")
-    dir_plus_point = StationObjectDescriptor("PointSOI")
-    dir_minus_point = StationObjectDescriptor("PointSOI")
+    name = NameDescriptor("RailPoint")
+    center_point = StationObjectDescriptor("Point")
+    dir_plus_point = StationObjectDescriptor("Point")
+    dir_minus_point = StationObjectDescriptor("Point")
 
 
 class BorderSOI(StationObjectImage):
-    name = NameDescriptor("BorderSOI")
-    point = StationObjectDescriptor("PointSOI")
+    name = NameDescriptor("Border")
+    point = StationObjectDescriptor("Point")
     border_type = EnumDescriptor(CEBorderType.possible_values)
 
 
 class SectionSOI(StationObjectImage):
-    name = NameDescriptor("SectionSOI")
-    border_points = StationObjectDescriptor("PointSOI", is_list=True, min_count=2)
+    name = NameDescriptor("Section")
+    border_points = StationObjectDescriptor("Point", is_list=True, min_count=2)
 
 
 if __name__ == "__main__":

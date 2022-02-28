@@ -12,7 +12,7 @@ from soi_objects import StationObjectImage, StationObjectDescriptor, AttribValue
 from soi_files_handler import read_station_config
 from extended_itertools import flatten
 from cell_access_functions import find_cell_name, element_cell_by_type
-from attribute_data import AttributeErrorData
+from attribute_object_key import AttributeKey
 
 from config_names import GLOBAL_CS_NAME
 
@@ -52,7 +52,7 @@ class StorageDG:
         self.to_self_node_dict: defaultdict[str, dict[str, tuple[PolarNode, ObjNodeCell]]] = defaultdict(dict)
         self.to_child_attribute_dict: defaultdict[str, defaultdict[str, list[tuple]]] = \
             defaultdict(lambda: defaultdict(list))
-        self.link_to_attribute_dict: dict[Link, AttributeErrorData] = {}
+        self.link_to_attribute_dict: dict[Link, AttributeKey] = {}
         self.to_parent_link_dict: defaultdict[str, defaultdict[str, defaultdict[str, dict[int, Link]]]] = \
             defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         self.dg = OneComponentTwoSidedPG()
@@ -174,7 +174,7 @@ class StorageDG:
                         self.to_child_attribute_dict[contains_cls_name][parent_name].append((obj, attr_name, index))
                         link = self.dg.connect_inf_handling(self_node.ni_pu, parent_node.ni_nd)
                         self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = link
-                        self.link_to_attribute_dict[link] = AttributeErrorData(cls_name, obj_name, attr_name, index)
+                        self.link_to_attribute_dict[link] = AttributeKey(cls_name, obj_name, attr_name, index)
 
     def full_check_cycle_dg(self):
         routes = self.dg.walk(self.dg.inf_pu.ni_nd)
@@ -284,7 +284,7 @@ class StorageDG:
         if attr_name == "name":
             if new_value in obj_dict:
                 raise DBExistingNameError("Name {} already exists".format(new_value),
-                                          AttributeErrorData(cls_name, obj_name, attr_name))
+                                          AttributeKey(cls_name, obj_name, attr_name))
             if self.current_object_is_new:
                 self.current_object.change_single_attrib_value("name", new_value)
             else:
@@ -366,7 +366,7 @@ class StorageDG:
                 self.dg.disconnect_inf_handling(*old_link.ni_s)
                 new_link = self.dg.connect_inf_handling(*new_ni_tuple)
                 self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = new_link
-                self.link_to_attribute_dict[new_link] = AttributeErrorData(cls_name, obj_name, attr_name, index)
+                self.link_to_attribute_dict[new_link] = AttributeKey(cls_name, obj_name, attr_name, index)
         obj.change_single_attrib_value(attr_name, new_value, index)
 
 

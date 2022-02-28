@@ -1352,3 +1352,211 @@ class SOIListValues:
                 #         new_obj.change_single_attrib_value(attr_name, attr_val, file_read_mode=False)
                 #     except AttributeEvaluateError as e:
                 #         raise RFAttributeError(e.args[0], AttributeErrorData(cls_name_del_soi, new_obj.name, attr_name))
+
+
+    # def reload_from_dict(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
+    #     self.save_state()
+    #     self.reset_clean_storages()
+    #
+    #     # Stage 1 - add names, nodes and their cells initialization
+    #     for cls_name in od:
+    #         for obj_name, obj in od[cls_name].items():
+    #             if obj_name == GLOBAL_CS_NAME:
+    #                 continue
+    #             self.add_obj_to_soi(obj)
+    #             self.init_obj_node_dg(obj)
+    #
+    #     # Stage 2 - nodes connections and attributes reload
+    #     for cls_name in od:
+    #         for obj_name, obj in od[cls_name].items():
+    #             if obj_name == GLOBAL_CS_NAME:
+    #                 continue
+    #             self.obj_attrib_evaluation(obj)
+    #             self.make_obj_conections(obj)
+    #
+    #     # Stage 3 - check cycles
+    #     self.full_check_cycle_dg()
+
+    # def obj_attrib_evaluation(self, obj: StationObjectImage):
+    #     cls_name = obj.__class__.__name__
+    #     obj_name = obj.name
+    #     if obj_name != GLOBAL_CS_NAME:
+    #         for attr_name in obj.active_attrs:
+    #             descr = getattr(obj.__class__, attr_name)
+    #             if isinstance(descr, StationObjectDescriptor):
+    #                 try:
+    #                     obj.reload_attr_value(attr_name)
+    #                 except AttributeEvaluateError as e:
+    #                     raise DBAttributeError(e.args[0], e.args[1])
+
+
+    # def save_state(self):
+    #     self.backup_soi = DefaultOrderedDict(OrderedDict)
+    #     for cls_name in self.soi_objects:
+    #         for obj_name, obj in self.soi_objects[cls_name].items():
+    #             self.backup_soi[cls_name][obj_name] = obj
+
+
+    # def make_obj_conections(self, obj: StationObjectImage):
+    #     cls_name = obj.__class__.__name__
+    #     obj_name = obj.name
+    #     for attr_name in obj.active_attrs:
+    #         if (not attr_name.startswith("__")) and \
+    #                 isinstance(descr := getattr(obj.__class__, attr_name), StationObjectDescriptor):
+    #             contains_cls_name = descr.contains_cls_name
+    #             obj_names_dict = self.soi_objects[contains_cls_name]
+    #             attr_prop_str_values = obj.list_attr_str_confirmed_value(attr_name)
+    #             for index, parent_name in enumerate(attr_prop_str_values):
+    #                 if len(attr_prop_str_values) == 1:
+    #                     index = -1
+    #                 if parent_name in obj_names_dict:
+    #                     self_node = self.to_self_node_cell_dict[cls_name][obj_name][0]
+    #                     parent_node = self.to_self_node_cell_dict[contains_cls_name][parent_name][0]
+    #                     self.to_child_attribute_dict[contains_cls_name][parent_name].append((obj, attr_name, index))
+    #                     link = self.dg.connect_inf_handling(self_node.ni_pu, parent_node.ni_nd)
+    #                     self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = link
+    #                     self.link_to_attribute_dict[link] = AttributeAccessDict(cls_name, obj_name, attr_name, index)
+    #
+    # def full_check_cycle_dg(self):
+    #     routes = self.dg.walk(self.dg.inf_pu.ni_nd)
+    #     route_links = set()
+    #     for route in routes:
+    #         route_links |= set(route.links)
+    #     if len(route_links) < len(self.dg.links):
+    #         links = self.dg.links - route_links
+    #         raise DBIsolatedNodesError("Isolated cycles in dependencies was found",
+    #                                    [self.link_to_attribute_dict[link] for link in links])
+    #     for route_ in routes:
+    #         if route_.is_cycle:
+    #             links = route_.cycle_links
+    #             raise DBCycleError("Cycle in dependencies was found",
+    #                                [self.link_to_attribute_dict[link] for link in links])
+
+
+        # self.to_self_node_cell_dict: defaultdict[str, dict[str, tuple[PolarNode, ObjectKey]]] = defaultdict(dict)
+        # self.to_child_attribute_dict: defaultdict[str, defaultdict[str, list[tuple]]] = \
+        #     defaultdict(lambda: defaultdict(list))
+        # self.link_to_attribute_dict: dict[Link, AttributeKey] = {}
+        # self.to_parent_link_dict: defaultdict[str, defaultdict[str, defaultdict[str, dict[int, Link]]]] = \
+        #     defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+        # self.parent_obj_key_to_child_attributes_keys: dict[ObjectKey, list[AttributeKey]] = {}
+        # gcs_cell = ObjNodeCell("CoordinateSystemSOI", GLOBAL_CS_NAME)
+        # self.gcs_node.append_cell_obj(gcs_cell)
+
+
+            # elif command == "append":
+            #     str_value = value[0].strip()
+            #     ad.index = index
+            #     old_values_list.append(self.handling_ap(str_value, ad))
+            # elif command == "set_list":
+            #     old_values_list.clear()
+            #     str_list: list[str] = value[0]
+            #     for i, str_value in enumerate(str_list):
+            #         ad = AttributeErrorData(instance.__class__.__name__, instance.name, self.name)
+            #         ad.index = i
+            #         str_value = str_value.strip()
+            #         old_values_list.append(self.handling_ap(str_value, ad))
+
+
+    # def init_nodes(self, od: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
+    #     self.reset_clean_storages()
+    #     for cls_name in od:
+    #         for obj_name, obj in od[cls_name].items():
+    #             if obj_name == GLOBAL_CS_NAME:
+    #                 continue
+    #             self.init_obj_node_dg(obj)
+
+    # def init_obj_node_dg(self, obj: StationObjectImage):
+    #     cls_name = obj.__class__.__name__
+    #     obj_name = obj.name
+    #     node = self.dg.insert_node()
+    #     self.node_to_obj_key[node] = ObjectKey(cls_name, obj_name)
+
+
+
+
+    # def recover_objects(self, rec_obj: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
+    #     new_soi_objects = DefaultOrderedDict(OrderedDict)
+    #     for cls_name in self.soi_objects:
+    #         for obj_name, obj in self.soi_objects[cls_name].items():
+    #             new_soi_objects[cls_name][obj_name] = obj
+    #     for cls_name in rec_obj:
+    #         for obj_name, obj in rec_obj[cls_name].items():
+    #             new_soi_objects[cls_name][obj_name] = obj
+    #     """ reload - not effective """
+    #     self.reload_from_dict(new_soi_objects)
+
+    def rename_object(self, cls_name: str, old_obj_name: str, new_obj_name: str):
+        """ clean operation - to main dg immediately """
+
+
+        # 2. rename obj in dicts and in cell
+        # obj_dict = self.soi_objects[cls_name]
+        # obj = obj_dict[old_obj_name]
+        # obj_dict[new_obj_name] = obj
+        # obj_dict.pop(old_obj_name)
+        #
+        # cell = self.to_self_node_cell_dict[cls_name][old_obj_name][1]
+        # cell.obj_name = new_obj_name
+        #
+        # self.to_self_node_cell_dict[cls_name][new_obj_name] = self.to_self_node_cell_dict[cls_name][old_obj_name]
+        # self.to_self_node_cell_dict[cls_name].pop(old_obj_name)
+        #
+        # self.to_child_attribute_dict[cls_name][new_obj_name] = self.to_child_attribute_dict[cls_name][old_obj_name]
+        # self.to_child_attribute_dict[cls_name].pop(old_obj_name)
+        #
+        # # 3. rename obj
+        # obj.change_single_attrib_value("name", new_obj_name)
+        #
+        # # 4. rename obj in dependent attributes
+        # for dependent_obj_tuple in self.to_child_attribute_dict[cls_name][new_obj_name]:
+        #     dependent_obj, attr_name, index = dependent_obj_tuple
+        #     dependent_obj.change_single_attrib_value(attr_name, new_obj_name, index)
+
+    def try_change_attr_value(self, cls_name: str, obj_name: str, attr_name: str, new_value: str, index: int,
+                              contains_cls_name: str) -> Optional[tuple[Link, tuple[NodeInterface, NodeInterface]]]:
+        contain_dict = self.soi_objects[contains_cls_name]
+        if new_value not in contain_dict:
+            return
+        else:
+            dirty_dg = self.dg.copy_part()
+
+            # old value disconnection
+            link_dg = self.to_parent_link_dict[cls_name][obj_name][attr_name][index]
+            link_dirty_dg = dirty_dg.link_copy_mapping[link_dg]
+            dirty_dg.disconnect_inf_handling(*link_dirty_dg.ni_s)
+
+            # new value connection
+            self_node = self.to_self_node_cell_dict[cls_name][obj_name][0]
+            parent_node = self.to_self_node_cell_dict[contains_cls_name][new_value][0]
+            dirty_self_node = dirty_dg.node_copy_mapping[self_node]
+            dirty_parent_node = dirty_dg.node_copy_mapping[parent_node]
+            new_link = dirty_dg.connect_inf_handling(dirty_self_node.ni_pu, dirty_parent_node.ni_nd)
+
+            # check cycles
+            for ni in new_link.ni_s:
+                routes = dirty_dg.walk(ni)
+                for route_ in routes:
+                    if route_.is_cycle:
+                        links = route_.cycle_links
+                        raise DBCycleError("Cycle in dependencies was found",
+                                           [self.link_to_attribute_dict[link] for link in links])
+            return link_dg, (self_node.ni_pu, parent_node.ni_nd)
+
+    def change_attrib_value_existing(self, cls_name: str, obj_name: str, attr_name: str, new_value: str, index: int):
+        obj = self.soi_objects[cls_name][obj_name]
+        descr = getattr(obj.__class__, attr_name)
+        if isinstance(descr, StationObjectDescriptor):
+            contains_cls_name = descr.contains_cls_name
+            try_result = self.try_change_attr_value(cls_name, obj_name, attr_name, new_value, index, contains_cls_name)
+            if not (try_result is None):
+                old_link, new_ni_tuple = try_result
+                self.link_to_attribute_dict.pop(old_link)
+                self.dg.disconnect_inf_handling(*old_link.ni_s)
+                new_link = self.dg.connect_inf_handling(*new_ni_tuple)
+                self.to_parent_link_dict[cls_name][obj_name][attr_name][index] = new_link
+                self.link_to_attribute_dict[new_link] = AttributeKey(cls_name, obj_name, attr_name, index)
+        obj.change_single_attrib_value(attr_name, new_value, index)
+
+
+

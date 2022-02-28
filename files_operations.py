@@ -5,7 +5,7 @@ import pandas as pd
 from soi_objects import StationObjectImage, ComplexAttrError
 from default_ordered_dict import DefaultOrderedDict
 from form_exception_message import form_message_from_error
-from attribute_data import AttributeErrorData
+from attribute_object_key import AttributeKey
 
 
 class ReadFileNameError(Exception):

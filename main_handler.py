@@ -1,15 +1,25 @@
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, Callable
 from collections import OrderedDict
 
 from command_supervisor import CommandSupervisor
 from model_builder import ModelBuilder
-from soi_dg_storage import StorageDG
+from soi_dg_storage import SOIDependenceGraph, SOIStorage
 from files_operations import read_station_config
 from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI,\
     AttributeEvaluateError, IndexManagementCommand
 from form_exception_message import form_message_from_error
 from soi_metadata import ClassProperties, ObjectProperties, ComplexAttribProperties, SingleAttribProperties
+from attribute_object_key import ObjectKey, AttributeKey
+
+
+class ExecuteFunctionProperties:
+    def __init__(self, _method: Callable, *args):
+        self._method = _method
+        self.args = args
+
+    def execute(self):
+        self._method(*self.args)
 
 
 class ChangeAttribList:
@@ -47,7 +57,9 @@ class MainHandler:
     def __init__(self):
         self.cmd_sup: CommandSupervisor = CommandSupervisor()
         self.model_builder: ModelBuilder = ModelBuilder()
-        self.storage_dg: StorageDG = StorageDG()
+        self.storage: SOIStorage = SOIStorage()
+        self.clean_storage_dg: SOIDependenceGraph = SOIDependenceGraph()
+        self.dirty_storage_dg: SOIDependenceGraph = SOIDependenceGraph()
         self.current_object: Optional[StationObjectImage] = None
         self.current_object_is_new = True
 
@@ -88,8 +100,8 @@ class MainHandler:
 
     def read_station_config(self, dir_name: str):
         od_cls_objects = read_station_config(dir_name)
-        self.storage_dg.init_names_dict(od_cls_objects)
-        soi_objects_no_gcs = self.storage_dg.soi_objects_no_gcs
+        self.clean_storage_dg.init_clean_nodes(od_cls_objects)
+        soi_objects_no_gcs = self.clean_storage_dg.soi_objects_no_gcs
         for cls_name in soi_objects_no_gcs:
             for obj in soi_objects_no_gcs[cls_name].values():
                 obj: StationObjectImage
@@ -127,7 +139,7 @@ class MainHandler:
         for complex_attr in curr_obj.active_complex_attrs:
             for single_attr in complex_attr.single_attr_list:
                 single_attr.interface_str_value = single_attr.last_applied_str_value
-        self.current_object = self.storage_dg.soi_objects[cls_name][obj_name]
+        self.current_object = self.clean_storage_dg.soi_objects[cls_name][obj_name]
         self.current_object_is_new = False
 
     def delete_request(self, cls_name: str, obj_name: str):
@@ -139,12 +151,15 @@ class MainHandler:
     def change_attribute_value(self, attr_name: str, new_value: str, index: int = -1):
         new_value = new_value.strip()
         curr_obj = self.current_object
+        curr_obj_is_new = self.current_object_is_new
         cls = curr_obj.__class__
         cls_name = cls.__name__
+        obj_name = curr_obj.name
         object_prop_struct = curr_obj.object_prop_struct
         complex_attr = curr_obj.get_complex_attr_prop(attr_name)
         single_attr = curr_obj.get_single_attr_prop(attr_name, index)
         old_applied_value = single_attr.last_applied_str_value
+        old_input_value = single_attr.last_input_str_value
 
         """ 1. New == old input """
         if new_value == single_attr.last_input_str_value:
@@ -183,13 +198,17 @@ class MainHandler:
         else:
             single_attr.error_message = ""
 
-        """ 4. If success, make dg operations """
+        """ 4. If change attr name, rename obj """
         if attr_name == "name":
             object_prop_struct.name = new_value
-            self.storage_dg.rename_object(cls_name, old_applied_value, new_value)
-            return
-        else:
-            pass
+
+        """ 5. If success, make dg operations - only for old object """
+        if not curr_obj_is_new:
+            if attr_name == "name":
+                self.clean_storage_dg.rename_object(cls_name, old_applied_value, new_value)
+                return
+            else:
+                self.clean_storage_dg.change_attrib_value_existing(cls_name, obj_name, attr_name, new_value, index)
 
         self.switch_logic(attr_name, new_value, index)
         self.check_changed_curr_obj_creation_readiness()
@@ -263,5 +282,25 @@ class MainHandler:
         curr_obj = self.current_object
         cls_name = curr_obj.__class__.__name__
         obj_name = curr_obj.name
-        dep_obj_names = self.storage_dg.dependent_objects_names(cls_name, obj_name)
+        dep_obj_names = self.clean_storage_dg.dependent_objects_keys(cls_name, obj_name)
         self.model_builder.rebuild_images(dep_obj_names)
+
+
+if __name__ == "__main__":
+
+    test_1 = False
+    if test_1:
+        def my_func(x, y):
+            print(x, y)
+
+        efp = ExecuteFunctionProperties(my_func, 2, 3)
+        efp.execute()
+
+    test_2 = False
+    if test_2:
+        class A:
+            def my_func(self, x, y):
+                print(x, y)
+        a = A()
+        efp = ExecuteFunctionProperties(A.my_func, a, 2, 3)
+        efp.execute()

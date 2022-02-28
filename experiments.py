@@ -191,7 +191,7 @@ print(float("inf"))
 print("-344".isnumeric())
 import math
 
-n=100000
+n = 100000
 
 # print(math.log(math.log(n, 2)))
 # print(math.sqrt(math.log(n, 4)))
@@ -207,7 +207,7 @@ n=100000
 # print(n ** (math.log(n, 2)))
 # print(n ** (math.sqrt(n)))
 
-a = [1,2,3]
+a = [1, 2, 3]
 a.append([4,5])
 print(a)
 
@@ -216,7 +216,10 @@ for i in reversed(range(1, 3)):
 
 print([s for s in "    ".split(" ") if s])
 
-a = [1,2,3]
+a = [1, 2, 3]
 b = reversed(a)
-b.append(4)
+# b.append(4)
+
+a = {1: "1", 2: "2"}
+print({val: key for (key, val) in a.items()})
 
