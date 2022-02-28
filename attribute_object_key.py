@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from copy import copy
 
 
 @dataclass
@@ -24,11 +25,14 @@ class AttributeKey:
 if __name__ == "__main__":
     d = {}
     aad = AttributeKey("1", "1", "1")
-    aad_1 = AttributeKey("1", "1", "1")
+    # aad_1 = AttributeKey("1", "1", "1")
+    aad_1 = copy(aad)
     d[aad] = 1
     d[aad_1] = 2
     print(d)
     print(aad_1 in [aad])
+    aad.obj_name = "2"
+    print(aad_1)
     # d[aad] = 12
     # print(("1", "2", "3", 45) is ("1", "2", "3", 45))
     # aad_2 = AttributeAccessDict("1", "1", "1")

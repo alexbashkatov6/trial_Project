@@ -127,9 +127,9 @@ class SOIDependenceGraph:
         for obj_key in obj_keys:
             if obj_key == self.node_to_obj_key[self.gcs_node]:
                 continue
-            self.init_obj_node_dg(obj_key)
+            self.add_obj_node_dg(obj_key)
 
-    def init_obj_node_dg(self, obj_key: ObjectKey):
+    def add_obj_node_dg(self, obj_key: ObjectKey):
         node = self.dg.insert_node()
         self.node_to_obj_key[node] = obj_key
 
@@ -170,37 +170,33 @@ class SOIDependenceGraph:
             if route.is_cycle:
                 raise DBCycleError("Cycle")
 
+    def replace_obj_key(self, old_obj_key: ObjectKey, new_obj_key: ObjectKey):
+        new_name = new_obj_key.obj_name
+        self.obj_key_to_node[new_obj_key] = self.obj_key_to_node[old_obj_key]
+        dep_attrs_set = self.parent_obj_key_to_child_attributes_keys[old_obj_key]
+        for dep_attr in dep_attrs_set:
+            old_dep_attr = copy(dep_attr)
+            dep_attr.obj_name = new_name
+            self.attribute_key_to_link[dep_attr] = self.attribute_key_to_link[old_dep_attr]
+            self.attribute_key_to_link.pop(old_dep_attr)
+        self.obj_key_to_node.pop(old_obj_key)
+
 
 if __name__ == "__main__":
     test_1 = True
     if test_1:
-        # print("r")
-        r = SOIDependenceGraph()
-        config_objs = read_station_config("station_in_config")
-        # print("read_station_config")
-        r.reload_from_dict(config_objs)
-        # print(len(r.dg.links))
-        # print("delete : ", r.delete_object("AxisSOI", "Axis_2"))
-        # print(len(r.dg.links))
-        # print(r.dg.links)
-        # print(r.dg.nodes)
-
-        # r.change_attrib_value("Point_15", "LineSOI", "Line_7", "points", 0)
-
-        # sec_dg = r.dg.copy_part()
-        # print(len(sec_dg.links))
-        print(r.soi_objects["PointSOI"]["Point_10"])
-        print([obj.name for obj in r.rectify_dg()])
-        r.select_current_object("LineSOI", "Line_7")
-        r.change_attrib_value_main("points", "Point_10", 1)
-        # print(r.dependent_objects_names("PointSOI", "Point_18"))
-        # r.select_current_object("PointSOI", "Point_18")
-        # r.change_attrib_value_main("name", "Point_180")
-        # print([obj.name for obj in r.rectify_dg()])
-        # print(r.dependent_objects_names("PointSOI", "Point_180"))
-        print(r.soi_objects["LineSOI"]["Line_7"].points)
-        deleted = r.divide_remain_delete_object("AxisSOI", "Axis_2")
-        print(deleted)
-        print([obj.name for obj in r.rectify_dg()])
-        r.recover_objects(deleted)
-        print([obj.name for obj in r.rectify_dg()])
+        soi_dg = SOIDependenceGraph()
+        print(soi_dg.node_to_obj_key)
+        print(soi_dg.dg.nodes)
+        print(len(soi_dg.dg.links))
+        print(soi_dg.dg.links)
+        soi_dg.add_obj_node_dg(ObjectKey('CoordinateSystem', "CS_1"))
+        print(soi_dg.node_to_obj_key)
+        print(soi_dg.dg.nodes)
+        print(len(soi_dg.dg.links))
+        print(soi_dg.dg.links)
+        soi_dg.make_dependence(ObjectKey('CoordinateSystem', GLOBAL_CS_NAME), ObjectKey('CoordinateSystem', "CS_1"),
+                               AttributeKey('CoordinateSystem', "CS_1", "cs_relative_to"))
+        print(soi_dg.dg.nodes)
+        print(len(soi_dg.dg.links))
+        print(soi_dg.dg.links)

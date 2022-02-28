@@ -159,7 +159,7 @@ class MainHandler:
         complex_attr = curr_obj.get_complex_attr_prop(attr_name)
         single_attr = curr_obj.get_single_attr_prop(attr_name, index)
         old_applied_value = single_attr.last_applied_str_value
-        old_input_value = single_attr.last_input_str_value
+        old_input_value = single_attr.last_input_str_value  # for undo
 
         """ 1. New == old input """
         if new_value == single_attr.last_input_str_value:
@@ -202,7 +202,7 @@ class MainHandler:
         if attr_name == "name":
             object_prop_struct.name = new_value
 
-        """ 5. If success, make dg operations - only for old object """
+        """ 5. If success, make dg operations """
         if not curr_obj_is_new:
             if attr_name == "name":
                 self.clean_storage_dg.rename_object(cls_name, old_applied_value, new_value)
