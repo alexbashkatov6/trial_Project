@@ -172,31 +172,46 @@ class SOIDependenceGraph:
 
     def replace_obj_key(self, old_obj_key: ObjectKey, new_obj_key: ObjectKey):
         new_name = new_obj_key.obj_name
-        self.obj_key_to_node[new_obj_key] = self.obj_key_to_node[old_obj_key]
         dep_attrs_set = self.parent_obj_key_to_child_attributes_keys[old_obj_key]
         for dep_attr in dep_attrs_set:
             old_dep_attr = copy(dep_attr)
             dep_attr.obj_name = new_name
-            self.attribute_key_to_link[dep_attr] = self.attribute_key_to_link[old_dep_attr]
-            self.attribute_key_to_link.pop(old_dep_attr)
-        self.obj_key_to_node.pop(old_obj_key)
+            self.link_to_attribute_key[self.attribute_key_to_link[old_dep_attr]] = dep_attr
+        self.node_to_obj_key[self.obj_key_to_node[old_obj_key]] = new_obj_key
 
 
 if __name__ == "__main__":
     test_1 = True
     if test_1:
+
         soi_dg = SOIDependenceGraph()
         print(soi_dg.node_to_obj_key)
         print(soi_dg.dg.nodes)
         print(len(soi_dg.dg.links))
         print(soi_dg.dg.links)
+
         soi_dg.add_obj_node_dg(ObjectKey('CoordinateSystem', "CS_1"))
         print(soi_dg.node_to_obj_key)
         print(soi_dg.dg.nodes)
         print(len(soi_dg.dg.links))
         print(soi_dg.dg.links)
+
         soi_dg.make_dependence(ObjectKey('CoordinateSystem', GLOBAL_CS_NAME), ObjectKey('CoordinateSystem', "CS_1"),
                                AttributeKey('CoordinateSystem', "CS_1", "cs_relative_to"))
+        print(soi_dg.node_to_obj_key)
+        print(soi_dg.dg.nodes)
+        print(len(soi_dg.dg.links))
+        print(soi_dg.dg.links)
+
+        soi_dg.replace_obj_key(ObjectKey('CoordinateSystem', "CS_1"), ObjectKey('CoordinateSystem', "CS_2"))
+        print(soi_dg.node_to_obj_key)
+        print(soi_dg.dg.nodes)
+        print(len(soi_dg.dg.links))
+        print(soi_dg.dg.links)
+
+        soi_dg.make_dependence(ObjectKey('CoordinateSystem', "CS_2"), ObjectKey('CoordinateSystem', GLOBAL_CS_NAME),
+                               AttributeKey('CoordinateSystem', GLOBAL_CS_NAME, "cs_relative_to"))
+        print(soi_dg.node_to_obj_key)
         print(soi_dg.dg.nodes)
         print(len(soi_dg.dg.links))
         print(soi_dg.dg.links)
