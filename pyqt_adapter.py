@@ -77,7 +77,7 @@ class AdapterCorePyqtInterface(QObject):
     """ Right toolbar operations """
 
     def change_attribute_value(self, attr_name: str, new_value: str, index: int):
-        self.mh.change_attribute_value(attr_name, new_value, index)
+        self.mh.change_attribute_value_logic(attr_name, new_value, index)
         self.send_result_operations()
 
     def apply_creation_new_object(self):

@@ -1559,4 +1559,45 @@ class SOIListValues:
         obj.change_single_attrib_value(attr_name, new_value, index)
 
 
+        # """ check cycles in dg """
+        # if not self.safety_apply_mode:
+        #     pass
+            # if attr_name == "name":
+            #     self.dependence_graph.replace_obj_key(ObjectKey(cls_name, old_applied_value),
+            #                                           ObjectKey(cls_name, new_value))
+            #     return
+            # elif isinstance(descriptor, StationObjectDescriptor):
+            #     obj_name = curr_obj.name
+            #     contains_cls_name = descriptor.contains_cls_name
+            #     parent_obj_key, child_obj_key = \
+            #         self.dependence_graph.remove_dependence(AttributeKey(cls_name, obj_name, attr_name, index))
+            #     try:
+            #         self.dependence_graph.make_dependence(ObjectKey(contains_cls_name, new_value),
+            #                                               ObjectKey(cls_name, obj_name),
+            #                                               AttributeKey(cls_name, obj_name, attr_name, index))
+            #     except DependenciesBuildError as e:
+            #         """ rollback """
+            #         self.dependence_graph.remove_dependence(AttributeKey(cls_name, obj_name, attr_name, index))
+            #         self.dependence_graph.make_dependence(parent_obj_key,
+            #                                               child_obj_key,
+            #                                               AttributeKey(cls_name, obj_name, attr_name, index))
+            #         single_attr.error_message = form_message_from_error(e)
+            #     else:
+            #         single_attr.error_message = ""
+
+        # """ 6. Switch logic """
+        #
+        # """ 7. Model rebuild logic """
+        # if self.curr_obj_creation_readiness:
+        #     self.model_rebuild_logic(attr_name, new_value, index)
+
+    # def check_all_objects(self) -> bool:
+    #     for cls_name_ in self.soi_storage.soi_objects_no_gcs:
+    #         for obj_name_ in self.soi_storage.soi_objects_no_gcs[cls_name_]:
+    #             obj: StationObjectImage = self.soi_storage.soi_objects_no_gcs[cls_name_][obj_name_]
+    #             for active_complex_attr in obj.active_complex_attrs:
+    #                 for single_attr_ in active_complex_attr.single_attr_list:
+    #                     if single_attr_.error_message:
+    #                         return False
+    #     return True
 

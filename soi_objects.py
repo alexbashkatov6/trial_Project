@@ -257,7 +257,7 @@ class NameDescriptor(UniversalDescriptor):
 
 
 class StationObjectImage:
-    name = ""
+    # name = ""
 
     def __init__(self):
         self.object_prop_struct: ObjectProperties = ObjectProperties()
@@ -273,15 +273,19 @@ class StationObjectImage:
             descriptor: UniversalDescriptor = getattr(cls, attr_name)
             complex_attr.name = attr_name
             complex_attr.is_list = descriptor.is_list
+            complex_attr.is_object = isinstance(descriptor, StationObjectDescriptor)
             complex_attr.min_count = descriptor.min_count
             complex_attr.exact_count = descriptor.exact_count
             complex_attr.immutable = descriptor.immutable
-            if complex_attr.min_count != -1:
-                for index in range(complex_attr.min_count):
-                    self.append_complex_attr_index(attr_name)
-            if complex_attr.exact_count != -1:
-                for index in range(complex_attr.exact_count):
-                    self.append_complex_attr_index(attr_name)
+            if complex_attr.is_list:
+                if complex_attr.min_count != -1:
+                    for index in range(complex_attr.min_count):
+                        self.append_complex_attr_index(attr_name)
+                if complex_attr.exact_count != -1:
+                    for index in range(complex_attr.exact_count):
+                        self.append_complex_attr_index(attr_name)
+            else:
+                self.append_complex_attr_index(attr_name)
 
     def init_list_descriptors(self):
         cls = self.__class__
@@ -296,12 +300,10 @@ class StationObjectImage:
         if complex_attr.is_list:
             single_attr.index = len(complex_attr.single_attr_list)
             complex_attr.single_attr_list.append(single_attr)
-            # setattr(self, attr_name, ("", IndexManagementCommand(command="append")))
         else:
             assert not complex_attr.single_attr_list
             single_attr.index = -1
             complex_attr.single_attr_list.append(single_attr)
-            # setattr(self, attr_name, "")
 
     def remove_complex_attr_index(self, attr_name: str, index: int):
         complex_attr = self.get_complex_attr_prop(attr_name)

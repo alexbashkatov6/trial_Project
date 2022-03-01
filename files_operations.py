@@ -68,6 +68,7 @@ def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[st
                     if attr_val in result[cls_name_del_soi]:
                         raise RFNameRepeatingError("Name {} repeats".format(attr_val))
                     result[cls_name_del_soi][attr_val] = new_obj
+                    new_obj.name = attr_val
             if complex_attr_keys_set:
                 raise RFNotAllComplexAttrError("Complex attributes '{}' not found in file".format(", ".join(complex_attr_keys_set)))
 

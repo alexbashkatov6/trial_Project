@@ -16,7 +16,7 @@ class AttributeKey:
     cls_name: str
     obj_name: str
     attr_name: str
-    index: str = -1
+    index: int = -1
 
     def __hash__(self):
         return hash((self.cls_name, self.obj_name, self.attr_name, self.index))

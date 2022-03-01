@@ -49,7 +49,6 @@ class SOIStorage:
         self.init_soi_classes()
         self.bind_descriptors()
         self.reset_clean_storages()
-        # print("after init soi_storage", self.soi_objects)
 
     @property
     def soi_objects_no_gcs(self) -> DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]:
@@ -66,7 +65,6 @@ class SOIStorage:
             self.soi_objects[cls.__name__.replace("SOI", "")] = OrderedDict()
 
     def bind_descriptors(self):
-        print("bind_descriptors")
         for cls in StationObjectImage.__subclasses__():
             for attr_name in cls.__dict__:
                 if not attr_name.startswith("__"):
@@ -79,13 +77,18 @@ class SOIStorage:
         self.soi_objects["CoordinateSystem"][GLOBAL_CS_NAME] = self.gcs
 
     def add_single_obj_to_soi(self, cls_name: str, obj_name: str, obj: StationObjectImage):
+        print("add_single_obj_to_soi cls_name={} obj_name={} obj={}".format(cls_name, obj_name, obj))
         self.soi_objects[cls_name][obj_name] = obj
 
     def add_dict_obj_to_soi(self, obj_dict: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
         for cls_name in obj_dict:
             for obj_name in obj_dict[cls_name]:
                 self.soi_objects[cls_name][obj_name] = obj_dict[cls_name][obj_name]
-        # print("soi_objects", self.soi_objects)
+
+    def rename_obj(self, cls_name: str, old_obj_name: str, new_obj_name: str):
+        print("rename cls_name={} old_obj_name={} new_obj_name={}".format(cls_name, old_obj_name, new_obj_name))
+        self.soi_objects[cls_name][new_obj_name] = self.soi_objects[cls_name][old_obj_name]
+        self.soi_objects[cls_name].pop(old_obj_name)
 
 
 class SOIDependenceGraph:
@@ -160,11 +163,16 @@ class SOIDependenceGraph:
                 remain_soi_object_keys.append(obj_key)
         return remain_soi_object_keys, del_soi_object_keys
 
-    def make_dependence(self, parent_obj_key: ObjectKey, child_obj_key: ObjectKey, attr_key: AttributeKey):
+    def make_dependence(self, parent_obj_key: ObjectKey, child_obj_key: ObjectKey, attr_key: AttributeKey,
+                        check_cycles: bool = False):
         new_link = self.dg.connect_inf_handling(self.obj_key_to_node[parent_obj_key].ni_nd,
                                                 self.obj_key_to_node[child_obj_key].ni_pu)
         self.link_to_attribute_key[new_link] = attr_key
-        self.check_new_cycles(parent_obj_key)
+        if check_cycles:
+            self.check_new_cycles(parent_obj_key)
+
+    def check_dependence_existing(self, attr_key: AttributeKey) -> bool:
+        return attr_key in self.attribute_key_to_link
 
     def remove_dependence(self, attr_key: AttributeKey) -> tuple[ObjectKey, ObjectKey]:
         link = self.attribute_key_to_link[attr_key]
@@ -180,14 +188,18 @@ class SOIDependenceGraph:
             if route.is_cycle:
                 raise DBCycleError("Cycle")
 
-    def replace_obj_key(self, old_obj_key: ObjectKey, new_obj_key: ObjectKey):
+    def replace_obj_key(self, old_obj_key: ObjectKey, new_obj_key: ObjectKey) -> list[AttributeKey]:
+        """ returns attrib keys which should be renamed """
         new_name = new_obj_key.obj_name
         dep_attrs_set = self.parent_obj_key_to_child_attributes_keys[old_obj_key]
+        result = []
         for dep_attr in dep_attrs_set:
             old_dep_attr = copy(dep_attr)
+            result.append(old_dep_attr)
             dep_attr.obj_name = new_name
             self.link_to_attribute_key[self.attribute_key_to_link[old_dep_attr]] = dep_attr
         self.node_to_obj_key[self.obj_key_to_node[old_obj_key]] = new_obj_key
+        return result
 
 
 if __name__ == "__main__":

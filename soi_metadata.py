@@ -37,6 +37,7 @@ class ComplexAttribProperties(InterfaceExchange):
     active: bool = True
     temporary_value: str = ""
     is_list: bool = False
+    is_object: bool = False
     exact_count: int = -1
     min_count: int = -1
     immutable: bool = False
@@ -48,7 +49,7 @@ class SingleAttribProperties(InterfaceExchange):
     index: int = -1
 
     last_input_str_value: str = ""
-    last_applied_str_value: str = ""
+    last_confirmed_str_value: str = ""
     suggested_str_value: str = ""
     interface_str_value: str = ""
 
