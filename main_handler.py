@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import Optional, Callable
 from collections import OrderedDict
 
-from command_supervisor import CommandSupervisor
 from model_builder import ModelBuilder
 from soi_dg_storage import SOIDependenceGraph, SOIStorage, DependenciesBuildError
 from files_operations import read_station_config
@@ -11,6 +10,11 @@ from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointS
 from form_exception_message import form_message_from_error
 from soi_metadata import ClassProperties, ObjectProperties, ComplexAttribProperties, SingleAttribProperties
 from attribute_object_key import ObjectKey, AttributeKey
+from default_ordered_dict import DefaultOrderedDict
+
+
+def form_message_from_error(e: Exception):
+    print("ERROR", e.args)
 
 
 class ExecuteFunctionProperties:
@@ -52,14 +56,21 @@ SWITCH_ATTR_LISTS = {CoordinateSystemSOI: {"dependence": ChangeAttribList(Ordere
                      }
 
 
+def soi_to_obj_keys(soi_dict: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]) -> \
+        list[ObjectKey]:
+    result = []
+    for cls_name in soi_dict:
+        for obj_name in soi_dict[cls_name]:
+            result.append(ObjectKey(cls_name, obj_name))
+    return result
+
+
 class MainHandler:
     """ director """
     def __init__(self):
-        self.cmd_sup: CommandSupervisor = CommandSupervisor()
         self.model_builder: ModelBuilder = ModelBuilder()
-        self.storage: SOIStorage = SOIStorage()
-        self.clean_storage_dg: SOIDependenceGraph = SOIDependenceGraph()
-        self.dirty_storage_dg: SOIDependenceGraph = SOIDependenceGraph()
+        self.soi_storage: SOIStorage = SOIStorage()
+        self.dependence_graph: SOIDependenceGraph = SOIDependenceGraph()
         self.current_object: Optional[StationObjectImage] = None
         self.current_object_is_new = True
 
@@ -100,14 +111,22 @@ class MainHandler:
 
     def read_station_config(self, dir_name: str):
         od_cls_objects = read_station_config(dir_name)
-        self.clean_storage_dg.init_clean_nodes(od_cls_objects)
-        soi_objects_no_gcs = self.clean_storage_dg.soi_objects_no_gcs
+        self.soi_storage.add_dict_obj_to_soi(od_cls_objects)
+        self.dependence_graph.init_nodes(soi_to_obj_keys(od_cls_objects))
+        soi_objects_no_gcs = self.soi_storage.soi_objects_no_gcs
         for cls_name in soi_objects_no_gcs:
+            print("cls_name", cls_name)
             for obj in soi_objects_no_gcs[cls_name].values():
+                print("obj", obj)
                 obj: StationObjectImage
+                self.current_object = obj
                 for complex_attr in obj.object_prop_struct.attrib_list:
+                    print("complex_attr", complex_attr)
                     if complex_attr.active:
                         attr_name = complex_attr.name
+                        if attr_name == "name":
+                            continue
+                        print("attr_name", attr_name)
                         temp_val = complex_attr.temporary_value
                         if complex_attr.is_list:
                             elem_str_values = [val.strip() for val in temp_val.split(" ") if val]
@@ -139,7 +158,7 @@ class MainHandler:
         for complex_attr in curr_obj.active_complex_attrs:
             for single_attr in complex_attr.single_attr_list:
                 single_attr.interface_str_value = single_attr.last_applied_str_value
-        self.current_object = self.clean_storage_dg.soi_objects[cls_name][obj_name]
+        self.current_object = self.dependence_graph.soi_objects[cls_name][obj_name]
         self.current_object_is_new = False
 
     def delete_request(self, cls_name: str, obj_name: str):
@@ -155,7 +174,6 @@ class MainHandler:
         cls = curr_obj.__class__
         cls_name = cls.__name__
         descriptor = getattr(cls, attr_name)
-        obj_name = curr_obj.name
         object_prop_struct = curr_obj.object_prop_struct
         complex_attr = curr_obj.get_complex_attr_prop(attr_name)
         single_attr = curr_obj.get_single_attr_prop(attr_name, index)
@@ -207,21 +225,22 @@ class MainHandler:
         """ 5. If success, make dg operations """
         if not curr_obj_is_new:
             if attr_name == "name":
-                self.clean_storage_dg.replace_obj_key(ObjectKey(cls_name, old_applied_value),
+                self.dependence_graph.replace_obj_key(ObjectKey(cls_name, old_applied_value),
                                                       ObjectKey(cls_name, new_value))
                 return
             elif isinstance(descriptor, StationObjectDescriptor):
+                obj_name = curr_obj.name
                 contains_cls_name = descriptor.contains_cls_name
                 parent_obj_key, child_obj_key = \
-                    self.clean_storage_dg.remove_dependence(AttributeKey(cls_name, obj_name, attr_name, index))
+                    self.dependence_graph.remove_dependence(AttributeKey(cls_name, obj_name, attr_name, index))
                 try:
-                    self.clean_storage_dg.make_dependence(ObjectKey(contains_cls_name, new_value),
+                    self.dependence_graph.make_dependence(ObjectKey(contains_cls_name, new_value),
                                                           ObjectKey(cls_name, obj_name),
                                                           AttributeKey(cls_name, obj_name, attr_name, index))
                 except DependenciesBuildError as e:
                     """ rollback """
-                    self.clean_storage_dg.remove_dependence(AttributeKey(cls_name, obj_name, attr_name, index))
-                    self.clean_storage_dg.make_dependence(parent_obj_key,
+                    self.dependence_graph.remove_dependence(AttributeKey(cls_name, obj_name, attr_name, index))
+                    self.dependence_graph.make_dependence(parent_obj_key,
                                                           child_obj_key,
                                                           AttributeKey(cls_name, obj_name, attr_name, index))
                     single_attr.error_message = form_message_from_error(e)
@@ -235,6 +254,12 @@ class MainHandler:
 
         if self.curr_obj_creation_readiness:
             self.model_rebuild_logic(attr_name, new_value, index)
+
+    # def safety_apply(self):
+    #     pass
+    #
+    # def unsafety_apply(self):
+    #     pass
 
     def apply_creation_new_object(self):
         curr_obj = self.current_object
@@ -302,7 +327,7 @@ class MainHandler:
         curr_obj = self.current_object
         cls_name = curr_obj.__class__.__name__
         obj_name = curr_obj.name
-        dep_obj_names = self.clean_storage_dg.dependent_objects_keys(cls_name, obj_name)
+        dep_obj_names = self.dependence_graph.dependent_objects_keys(cls_name, obj_name)
         self.model_builder.rebuild_images(dep_obj_names)
 
 
@@ -324,3 +349,9 @@ if __name__ == "__main__":
         a = A()
         efp = ExecuteFunctionProperties(A.my_func, a, 2, 3)
         efp.execute()
+
+    test_3 = True
+    if test_3:
+        mh = MainHandler()
+        mh.read_station_config("station_in_config")
+        print(len(mh.dependence_graph.dg.links))

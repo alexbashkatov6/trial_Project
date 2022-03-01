@@ -49,6 +49,7 @@ class SOIStorage:
         self.init_soi_classes()
         self.bind_descriptors()
         self.reset_clean_storages()
+        # print("after init soi_storage", self.soi_objects)
 
     @property
     def soi_objects_no_gcs(self) -> DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]:
@@ -62,9 +63,10 @@ class SOIStorage:
 
     def init_soi_classes(self):
         for cls in StationObjectImage.__subclasses__():
-            self.soi_objects[cls.__name__] = OrderedDict()
+            self.soi_objects[cls.__name__.replace("SOI", "")] = OrderedDict()
 
     def bind_descriptors(self):
+        print("bind_descriptors")
         for cls in StationObjectImage.__subclasses__():
             for attr_name in cls.__dict__:
                 if not attr_name.startswith("__"):
@@ -76,10 +78,14 @@ class SOIStorage:
             self.soi_objects[cls_name].clear()
         self.soi_objects["CoordinateSystem"][GLOBAL_CS_NAME] = self.gcs
 
-    def add_obj_to_soi(self, obj: StationObjectImage):
-        cls_name = obj.__class__.__name__
-        obj_name = obj.name
+    def add_single_obj_to_soi(self, cls_name: str, obj_name: str, obj: StationObjectImage):
         self.soi_objects[cls_name][obj_name] = obj
+
+    def add_dict_obj_to_soi(self, obj_dict: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
+        for cls_name in obj_dict:
+            for obj_name in obj_dict[cls_name]:
+                self.soi_objects[cls_name][obj_name] = obj_dict[cls_name][obj_name]
+        # print("soi_objects", self.soi_objects)
 
 
 class SOIDependenceGraph:
@@ -95,7 +101,7 @@ class SOIDependenceGraph:
         self.node_to_obj_key[self.gcs_node] = ObjectKey("CoordinateSystem", GLOBAL_CS_NAME)
 
         """ init operations """
-        self.reset_clean_storages()
+        self.reset_storages()
 
     @property
     def attribute_key_to_link(self) -> dict[AttributeKey, Link]:
@@ -114,7 +120,7 @@ class SOIDependenceGraph:
                                                   if link not in inf_node_nd_links}
         return result
 
-    def reset_clean_storages(self):
+    def reset_storages(self):
         self.node_to_obj_key.clear()
         self.link_to_attribute_key.clear()
 
@@ -122,8 +128,8 @@ class SOIDependenceGraph:
         self.gcs_node = self.dg.insert_node()
         self.node_to_obj_key[self.gcs_node] = ObjectKey("CoordinateSystem", GLOBAL_CS_NAME)
 
-    def init_clean_nodes(self, obj_keys: list[ObjectKey]):
-        self.reset_clean_storages()
+    def init_nodes(self, obj_keys: list[ObjectKey]):
+        self.reset_storages()
         for obj_key in obj_keys:
             if obj_key == self.node_to_obj_key[self.gcs_node]:
                 continue

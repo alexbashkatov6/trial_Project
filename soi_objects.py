@@ -112,11 +112,10 @@ class UniversalDescriptor:
         return getattr(instance, "_{}".format(self.name))
 
     def __set__(self, instance, value: Union[str, tuple[Union[str, list[str]], Optional[IndexManagementCommand]]]):
-        ad = AttributeKey(instance.__class__.__name__, instance.name, self.name)
         if not self.is_list:
             assert isinstance(value, str)
             str_value = value.strip()
-            setattr(instance, "_{}".format(self.name), self.handling_ap(str_value, ad))
+            setattr(instance, "_{}".format(self.name), self.handling_ap(str_value))
         else:
             assert isinstance(value, tuple)
             assert len(value) == 2
@@ -127,16 +126,15 @@ class UniversalDescriptor:
                 old_values_list.pop(index)
             elif command == "set_index":
                 str_value = value[0].strip()
-                ad.index = index
                 assert index <= len(old_values_list)
                 if index == len(old_values_list):
-                    old_values_list.append(self.handling_ap(str_value, ad))
+                    old_values_list.append(self.handling_ap(str_value))
                 else:
-                    old_values_list[index] = self.handling_ap(str_value, ad)
+                    old_values_list[index] = self.handling_ap(str_value)
             else:
                 assert False
 
-    def handling_ap(self, new_str_value: str, ad: AttributeKey):
+    def handling_ap(self, new_str_value: str):
         pass
 
 
@@ -159,10 +157,10 @@ class EnumDescriptor(UniversalDescriptor):
     def possible_values(self, values: Iterable[str]):
         self._possible_values = list(values)
 
-    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> str:
+    def handling_ap(self, new_str_value: str) -> str:
         if new_str_value not in self.possible_values:
             raise AEEnumValueAttributeError("Value '{}' not in possible list: '{}'".format(new_str_value,
-                                                                                           self.possible_values), ad)
+                                                                                           self.possible_values))
         return new_str_value
 
 
@@ -183,10 +181,11 @@ class StationObjectDescriptor(UniversalDescriptor):
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
         self._obj_dict = odict
 
-    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> StationObjectImage:
+    def handling_ap(self, new_str_value: str) -> StationObjectImage:
+        # print("obj_dict", self.obj_dict)
         if new_str_value not in self.obj_dict:
             raise AEObjectNotFoundError("Object '{}' not found in class '{}'".format(new_str_value,
-                                                                                     self.contains_cls_name), ad)
+                                                                                     self.contains_cls_name))
         return self.obj_dict[new_str_value]
 
 
@@ -197,11 +196,11 @@ class IntDescriptor(UniversalDescriptor):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exact_count=exact_count,
                          immutable=immutable)
 
-    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> int:
+    def handling_ap(self, new_str_value: str) -> int:
         try:
             return int(new_str_value)
         except ValueError:
-            raise AETypeAttributeError("Value '{}' is not int".format(new_str_value), ad)
+            raise AETypeAttributeError("Value '{}' is not int".format(new_str_value))
 
 
 class PicketDescriptor(UniversalDescriptor):
@@ -211,12 +210,12 @@ class PicketDescriptor(UniversalDescriptor):
         super().__init__(is_required=is_required, is_list=is_list, min_count=min_count, exact_count=exact_count,
                          immutable=immutable)
 
-    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> int:
-        super().handling_ap(new_str_value, ad)
+    def handling_ap(self, new_str_value: str) -> int:
+        super().handling_ap(new_str_value)
         try:
             return PicketCoordinate(new_str_value).value
         except PicketCoordinateParsingCoError:
-            raise AETypeAttributeError("Value '{}' is not picket coordinate".format(new_str_value), ad)
+            raise AETypeAttributeError("Value '{}' is not picket coordinate".format(new_str_value))
 
 
 class NameDescriptor(UniversalDescriptor):
@@ -236,14 +235,15 @@ class NameDescriptor(UniversalDescriptor):
     def obj_dict(self, odict: OrderedDict[str, StationObjectImage]):
         self._obj_dict = odict
 
-    def handling_ap(self, new_str_value: str, ad: AttributeKey) -> str:
+    def handling_ap(self, new_str_value: str) -> str:
+        # print("")
         if (not new_str_value) or new_str_value.isspace():
-            raise AENameEmptyError("Name is empty", ad)
-        if not new_str_value.isalnum():
-            raise AENameNotIdentifierError("Name '{}' is not valid identifier".format(new_str_value), ad)
+            raise AENameEmptyError("Name is empty")
+        if not new_str_value.replace("_", "").isalnum():
+            raise AENameNotIdentifierError("Name '{}' is not valid identifier".format(new_str_value))
         if new_str_value in self.obj_dict:
             raise AENameRepeatingError("Name '{}' repeats in class '{}'".format(new_str_value,
-                                                                                self.contains_cls_name), ad)
+                                                                                self.contains_cls_name))
         return new_str_value
 
     def make_name_suggestion(self) -> str:
@@ -269,6 +269,7 @@ class StationObjectImage:
         cls = self.__class__
         for attr_name in [key for key in cls.__dict__.keys() if not key.startswith("__")]:
             complex_attr = ComplexAttribProperties()
+            obj_prop.attrib_list.append(complex_attr)
             descriptor: UniversalDescriptor = getattr(cls, attr_name)
             complex_attr.name = attr_name
             complex_attr.is_list = descriptor.is_list
@@ -281,7 +282,6 @@ class StationObjectImage:
             if complex_attr.exact_count != -1:
                 for index in range(complex_attr.exact_count):
                     self.append_complex_attr_index(attr_name)
-            obj_prop.attrib_list.append(complex_attr)
 
     def init_list_descriptors(self):
         cls = self.__class__

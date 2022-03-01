@@ -34,7 +34,7 @@ class ObjectProperties(InterfaceExchange):
 @dataclass
 class ComplexAttribProperties(InterfaceExchange):
     name: str = ""  # which is attribute
-    active: bool = False
+    active: bool = True
     temporary_value: str = ""
     is_list: bool = False
     exact_count: int = -1

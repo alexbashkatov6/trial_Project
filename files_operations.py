@@ -16,6 +16,10 @@ class RFNoNameError(ReadFileNameError):
     pass
 
 
+class RFEmptyNameError(ReadFileNameError):
+    pass
+
+
 class RFNameRepeatingError(ReadFileNameError):
     pass
 
@@ -59,9 +63,11 @@ def read_station_config(dir_name: str) -> DefaultOrderedDict[str, OrderedDict[st
                 complex_attr_keys_set -= {attr_name}
                 complex_attr_prop.temporary_value = attr_val
                 if attr_name == "name":
-                    if attr_val in result[cls_name_soi]:
+                    if not attr_val:
+                        raise RFEmptyNameError("No-name object in class {}".format(cls_name_del_soi))
+                    if attr_val in result[cls_name_del_soi]:
                         raise RFNameRepeatingError("Name {} repeats".format(attr_val))
-                    result[cls_name_soi][attr_val] = new_obj
+                    result[cls_name_del_soi][attr_val] = new_obj
             if complex_attr_keys_set:
                 raise RFNotAllComplexAttrError("Complex attributes '{}' not found in file".format(", ".join(complex_attr_keys_set)))
 
