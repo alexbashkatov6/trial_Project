@@ -15,6 +15,7 @@ from default_ordered_dict import DefaultOrderedDict
 
 def form_message_from_error(e: Exception):
     print("ERROR", e.args)
+    return "ERROR {}".format(e.args)
 
 
 class ExecuteFunctionProperties:
@@ -115,15 +116,18 @@ class MainHandler:
         od_cls_objects = read_station_config(dir_name)
         for cls_name in od_cls_objects:
             print("cls_name", cls_name)
-            for obj_name, obj in od_cls_objects[cls_name].items():
-                print("obj", obj)
+            for obj_name, file_obj in od_cls_objects[cls_name].items():
+                file_obj: StationObjectImage
+                print("file_obj", file_obj)
                 self.create_new_object(cls_name)
-                for complex_attr in obj.object_prop_struct.attrib_list:
+                real_obj = self.current_object
+                for complex_attr in real_obj.object_prop_struct.attrib_list:
+                    file_obj_complex_attr = file_obj.get_complex_attr_prop(complex_attr.name)
                     print("complex_attr", complex_attr)
                     if complex_attr.active:
                         attr_name = complex_attr.name
                         print("attr_name", attr_name)
-                        temp_val = complex_attr.temporary_value
+                        temp_val = file_obj_complex_attr.temporary_value
                         if complex_attr.is_list:
                             elem_str_values = [val.strip() for val in temp_val.split(" ") if val]
                             for index, str_value in enumerate(elem_str_values):
@@ -218,6 +222,8 @@ class MainHandler:
                 setattr(obj, attr_name, new_value)
         except AttributeEvaluateError as e:
             """ 1. FORMAL ERRORS """
+            print(" FORMAL ERRORS ")
+            print(" message = ", form_message_from_error(e))
             single_attr.error_message = form_message_from_error(e)
             return
         else:
@@ -273,8 +279,6 @@ class MainHandler:
         """ check other objects, if change name """
         if attr_name == "name":
             if not self.safety_apply_mode:
-                print("Reset dg storages")
-                self.dependence_graph.reset_storages()
                 for cls_name_ in self.soi_storage.soi_objects_no_gcs:
                     for obj_name_ in self.soi_storage.soi_objects_no_gcs[cls_name_]:
                         obj: StationObjectImage = self.soi_storage.soi_objects_no_gcs[cls_name_][obj_name_]
@@ -288,6 +292,7 @@ class MainHandler:
                                 new_value_ = single_attr_.last_input_str_value
                                 index_ = single_attr_.index
                                 self.common_attrib_check(cls_name_, obj_name_, attr_name_, new_value_, index_, True)
+                print("Recheck finished")
 
     def check_apply_readiness(self) -> bool:
         curr_obj = self.current_object
@@ -354,6 +359,7 @@ class MainHandler:
         for cls in SWITCH_ATTR_LISTS:
             change_list_dict = SWITCH_ATTR_LISTS[cls]
             if isinstance(self.current_object, cls) and (attr_name in change_list_dict):
+                print("Switch logic attr_name={} new_value={} index={}".format(attr_name, new_value, index))
                 change_attrib_list = change_list_dict[attr_name]
                 for deactivate_attr_name in change_attrib_list.remove_list(new_value):
                     complex_attr_prop = curr_obj.get_complex_attr_prop(deactivate_attr_name)
