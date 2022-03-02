@@ -406,3 +406,11 @@ if __name__ == "__main__":
         mh = MainHandler()
         mh.read_station_config("station_in_config")
         print(len(mh.dependence_graph.dg.links))
+        print(len(mh.dependence_graph.dg.inf_pu.ni_nd.links))
+        print(len(mh.dependence_graph.dg.inf_nd.ni_pu.links))
+        for link in mh.dependence_graph.dg.inf_nd.ni_pu.links:
+            for ni in link.ni_s:
+                if ni.pn is mh.dependence_graph.dg.inf_nd:
+                    continue
+                node = ni.pn
+                print("node_to_obj = ", mh.dependence_graph.node_to_obj_key[node])
