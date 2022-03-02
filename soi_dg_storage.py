@@ -190,6 +190,7 @@ class SOIDependenceGraph:
 
     def replace_obj_key(self, old_obj_key: ObjectKey, new_obj_key: ObjectKey) -> list[AttributeKey]:
         """ returns attrib keys which should be renamed """
+        print("replace_obj_key", old_obj_key, new_obj_key)
         new_name = new_obj_key.obj_name
         dep_attrs_set = self.parent_obj_key_to_child_attributes_keys[old_obj_key]
         result = []

@@ -5,8 +5,8 @@ from collections import OrderedDict
 from model_builder import ModelBuilder
 from soi_dg_storage import SOIDependenceGraph, SOIStorage, DependenciesBuildError
 from files_operations import read_station_config
-from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI,\
-    AttributeEvaluateError, IndexManagementCommand, StationObjectDescriptor
+from soi_objects import StationObjectImage, CoordinateSystemSOI, AxisSOI, PointSOI, LineSOI, LightSOI, \
+    RailPointSOI, BorderSOI, SectionSOI, AttributeEvaluateError, IndexManagementCommand, StationObjectDescriptor
 from form_exception_message import form_message_from_error
 from soi_metadata import ClassProperties, ObjectProperties, ComplexAttribProperties, SingleAttribProperties
 from attribute_object_key import ObjectKey, AttributeKey
@@ -111,7 +111,7 @@ class MainHandler:
     """
 
     def read_station_config(self, dir_name: str):
-        self.safety_apply_mode = False
+        # self.safety_apply_mode = False
         od_cls_objects = read_station_config(dir_name)
         for cls_name in od_cls_objects:
             print("cls_name", cls_name)
@@ -122,9 +122,6 @@ class MainHandler:
                     print("complex_attr", complex_attr)
                     if complex_attr.active:
                         attr_name = complex_attr.name
-                        # if attr_name == "name":
-                        #     single_attr = complex_attr.single_attr_list[0]
-                        #     single_attr.last_input_str_value = obj_name
                         print("attr_name", attr_name)
                         temp_val = complex_attr.temporary_value
                         if complex_attr.is_list:
@@ -259,6 +256,7 @@ class MainHandler:
             self.switch_logic(attr_name, new_value, index)
 
     def change_attribute_value_logic(self, attr_name: str, new_value: str, index: int = -1):
+        print("change_attribute_value_logic", self.safety_apply_mode)
         curr_obj = self.current_object
         cls = curr_obj.__class__
         cls_name = cls.__name__.replace("SOI", "")
@@ -275,6 +273,7 @@ class MainHandler:
         """ check other objects, if change name """
         if attr_name == "name":
             if not self.safety_apply_mode:
+                print("Reset dg storages")
                 self.dependence_graph.reset_storages()
                 for cls_name_ in self.soi_storage.soi_objects_no_gcs:
                     for obj_name_ in self.soi_storage.soi_objects_no_gcs[cls_name_]:
@@ -307,8 +306,10 @@ class MainHandler:
                     for single_attr_ in active_complex_attr.single_attr_list:
                         if single_attr_.error_message:
                             self.safety_apply_mode = False
+                            print("Apply safety_apply_mode = False")
                             return
         self.safety_apply_mode = True
+        print("Apply safety_apply_mode = True")
 
     def append_attrib_single_value(self, attr_name: str):
         self.current_object.append_complex_attr_index(attr_name)
