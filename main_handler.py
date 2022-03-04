@@ -14,7 +14,7 @@ from default_ordered_dict import DefaultOrderedDict
 
 
 def form_message_from_error(e: Exception):
-    print("ERROR", e.args)
+    # print("ERROR", e.args)
     return "ERROR {}".format(e.args)
 
 
@@ -115,18 +115,18 @@ class MainHandler:
         # self.safety_apply_mode = False
         od_cls_objects = read_station_config(dir_name)
         for cls_name in od_cls_objects:
-            print("cls_name", cls_name)
+            # print("cls_name", cls_name)
             for obj_name, file_obj in od_cls_objects[cls_name].items():
                 file_obj: StationObjectImage
-                print("file_obj", file_obj)
+                # print("file_obj", file_obj)
                 self.create_new_object(cls_name)
                 real_obj = self.current_object
                 for complex_attr in real_obj.object_prop_struct.attrib_list:
                     file_obj_complex_attr = file_obj.get_complex_attr_prop(complex_attr.name)
-                    print("complex_attr", complex_attr)
+                    # print("complex_attr", complex_attr)
                     if complex_attr.active:
                         attr_name = complex_attr.name
-                        print("attr_name", attr_name)
+                        # print("attr_name", attr_name)
                         temp_val = file_obj_complex_attr.temporary_value
                         if complex_attr.is_list:
                             elem_str_values = [val.strip() for val in temp_val.split(" ") if val]
@@ -179,8 +179,8 @@ class MainHandler:
 
     def common_attrib_check(self, cls_name: str, obj_name: str, attr_name: str, new_value: str, index: int = -1,
                             recheck_old_value: bool = False):
-        print("common_attrib_check, cls_name={}, obj_name={}, attr_name={}, new_value={}, index={}, recheck_old_value={}"
-              .format(cls_name, obj_name, attr_name, new_value, index, recheck_old_value))
+        # print("common_attrib_check, cls_name={}, obj_name={}, attr_name={}, new_value={}, index={}, recheck_old_value={}"
+        #       .format(cls_name, obj_name, attr_name, new_value, index, recheck_old_value))
         obj: StationObjectImage = self.soi_storage.soi_objects[cls_name][obj_name]
         cls = obj.__class__
         cls_name = cls_name.replace("SOI", "")
@@ -222,8 +222,8 @@ class MainHandler:
                 setattr(obj, attr_name, new_value)
         except AttributeEvaluateError as e:
             """ 1. FORMAL ERRORS """
-            print(" FORMAL ERRORS ")
-            print(" message = ", form_message_from_error(e))
+            # print(" FORMAL ERRORS ")
+            # print(" message = ", form_message_from_error(e))
             single_attr.error_message = form_message_from_error(e)
             return
         else:
@@ -262,7 +262,7 @@ class MainHandler:
             self.switch_logic(attr_name, new_value, index)
 
     def change_attribute_value_logic(self, attr_name: str, new_value: str, index: int = -1):
-        print("change_attribute_value_logic", self.safety_apply_mode)
+        # print("change_attribute_value_logic", self.safety_apply_mode)
         curr_obj = self.current_object
         cls = curr_obj.__class__
         cls_name = cls.__name__.replace("SOI", "")
@@ -292,7 +292,7 @@ class MainHandler:
                                 new_value_ = single_attr_.last_input_str_value
                                 index_ = single_attr_.index
                                 self.common_attrib_check(cls_name_, obj_name_, attr_name_, new_value_, index_, True)
-                print("Recheck finished")
+                # print("Recheck finished")
 
     def check_apply_readiness(self) -> bool:
         curr_obj = self.current_object
@@ -311,10 +311,11 @@ class MainHandler:
                     for single_attr_ in active_complex_attr.single_attr_list:
                         if single_attr_.error_message:
                             self.safety_apply_mode = False
-                            print("Apply safety_apply_mode = False")
+                            # print("Apply safety_apply_mode = False")
                             return
         self.safety_apply_mode = True
-        print("Apply safety_apply_mode = True")
+        self.model_rebuild_logic()
+        # print("Apply safety_apply_mode = True")
 
     def append_attrib_single_value(self, attr_name: str):
         self.current_object.append_complex_attr_index(attr_name)
@@ -359,7 +360,7 @@ class MainHandler:
         for cls in SWITCH_ATTR_LISTS:
             change_list_dict = SWITCH_ATTR_LISTS[cls]
             if isinstance(self.current_object, cls) and (attr_name in change_list_dict):
-                print("Switch logic attr_name={} new_value={} index={}".format(attr_name, new_value, index))
+                # print("Switch logic attr_name={} new_value={} index={}".format(attr_name, new_value, index))
                 change_attrib_list = change_list_dict[attr_name]
                 for deactivate_attr_name in change_attrib_list.remove_list(new_value):
                     complex_attr_prop = curr_obj.get_complex_attr_prop(deactivate_attr_name)
@@ -373,7 +374,7 @@ class MainHandler:
                     for single_attr in complex_attr_prop.single_attr_list:
                         self.change_attribute_value_logic(complex_attr_prop.name, single_attr.interface_str_value, single_attr.index)
 
-    def model_rebuild_logic(self, attr_name: str, new_value: str, index: int):
+    def model_rebuild_logic(self):  # , attr_name: str, new_value: str, index: int
         pass
         # curr_obj = self.current_object
         # cls_name = curr_obj.__class__.__name__

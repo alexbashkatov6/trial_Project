@@ -77,7 +77,7 @@ class SOIStorage:
         self.soi_objects["CoordinateSystem"][GLOBAL_CS_NAME] = self.gcs
 
     def add_single_obj_to_soi(self, cls_name: str, obj_name: str, obj: StationObjectImage):
-        print("add_single_obj_to_soi cls_name={} obj_name={} obj={}".format(cls_name, obj_name, obj))
+        # print("add_single_obj_to_soi cls_name={} obj_name={} obj={}".format(cls_name, obj_name, obj))
         self.soi_objects[cls_name][obj_name] = obj
 
     def add_dict_obj_to_soi(self, obj_dict: DefaultOrderedDict[str, OrderedDict[str, StationObjectImage]]):
@@ -86,7 +86,7 @@ class SOIStorage:
                 self.soi_objects[cls_name][obj_name] = obj_dict[cls_name][obj_name]
 
     def rename_obj(self, cls_name: str, old_obj_name: str, new_obj_name: str):
-        print("rename cls_name={} old_obj_name={} new_obj_name={}".format(cls_name, old_obj_name, new_obj_name))
+        # print("rename cls_name={} old_obj_name={} new_obj_name={}".format(cls_name, old_obj_name, new_obj_name))
         self.soi_objects[cls_name][new_obj_name] = self.soi_objects[cls_name][old_obj_name]
         self.soi_objects[cls_name].pop(old_obj_name)
 
@@ -190,7 +190,7 @@ class SOIDependenceGraph:
 
     def replace_obj_key(self, old_obj_key: ObjectKey, new_obj_key: ObjectKey) -> list[AttributeKey]:
         """ returns attrib keys which should be renamed """
-        print("replace_obj_key", old_obj_key, new_obj_key)
+        # print("replace_obj_key", old_obj_key, new_obj_key)
         new_name = new_obj_key.obj_name
         dep_attrs_set = self.parent_obj_key_to_child_attributes_keys[old_obj_key]
         result = []
