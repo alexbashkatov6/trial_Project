@@ -12,7 +12,6 @@ def excepthook(exc_type, exc_value, exc_tb):
     tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     print("Oбнаружена ошибка !:", tb)
 
-
 sys.excepthook = excepthook
 
 
