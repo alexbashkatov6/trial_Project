@@ -77,13 +77,6 @@ class AETypeAttributeError(AttributeEvaluateError):
     pass
 
 
-# @dataclass
-# class AttribValues:
-#     last_input_value: str = ""
-#     confirmed_value: Any = ""
-#     str_confirmed_value: str = ""
-
-
 @dataclass
 class IndexManagementCommand:
     command: str

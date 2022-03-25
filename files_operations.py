@@ -8,7 +8,15 @@ from form_exception_message import form_message_from_error
 from attribute_object_key import AttributeKey
 
 
-class ReadFileNameError(Exception):
+class ReadFileError(Exception):
+    pass
+
+
+class ReadFileNameError(ReadFileError):
+    pass
+
+
+class ReadFileAttribError(ReadFileError):
     pass
 
 
@@ -24,15 +32,15 @@ class RFNameRepeatingError(ReadFileNameError):
     pass
 
 
-class RFGetComplexAttrError(ReadFileNameError):
+class RFGetComplexAttrError(ReadFileAttribError):
     pass
 
 
-class RFNotAllComplexAttrError(ReadFileNameError):
+class RFNotAllComplexAttrError(ReadFileAttribError):
     pass
 
 
-class RFDublicateComplexAttrError(ReadFileNameError):
+class RFDublicateComplexAttrError(ReadFileAttribError):
     pass
 
 

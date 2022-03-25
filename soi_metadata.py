@@ -27,7 +27,7 @@ class ClassProperties(InterfaceExchange):
 class ObjectProperties(InterfaceExchange):
     name: str = ""  # which is title
     error_message: str = ""
-    creation_readiness: bool = False
+    # creation_readiness: bool = False
     attrib_list: list[ComplexAttribProperties] = field(default_factory=list)
 
 
