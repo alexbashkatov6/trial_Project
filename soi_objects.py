@@ -9,8 +9,6 @@ from enums_images import CEDependence, CEBool, CEAxisCreationMethod, CEAxisOrLin
     CEBorderType, CELightColor
 from picket_coordinate import PicketCoordinate, PicketCoordinateParsingCoError
 from default_ordered_dict import DefaultOrderedDict
-# from attrib_properties import AttribProperties
-# from attrib_index import CompositeAttributeIndex
 from attribute_object_key import AttributeKey
 from soi_metadata import ClassProperties, ObjectProperties, ComplexAttribProperties, \
     SingleAttribProperties
@@ -79,11 +77,11 @@ class AETypeAttributeError(AttributeEvaluateError):
     pass
 
 
-@dataclass
-class AttribValues:
-    last_input_value: str = ""
-    confirmed_value: Any = ""
-    str_confirmed_value: str = ""
+# @dataclass
+# class AttribValues:
+#     last_input_value: str = ""
+#     confirmed_value: Any = ""
+#     str_confirmed_value: str = ""
 
 
 @dataclass
